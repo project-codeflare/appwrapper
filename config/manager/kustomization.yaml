@@ -1,2 +1,8 @@
 resources:
 - manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: controller
+  newName: appwrapper
+  newTag: webhook-6c10328db7ee650dac813065b927056fc6954210

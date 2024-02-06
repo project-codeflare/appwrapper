@@ -1,0 +1,13 @@
+# this config file contains all config fields with comments
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+# 1 control plane node and 1 worker node
+nodes:
+# the control plane node config
+- role: control-plane
+  # kubernetes version 1.26.4 from kind v0.19.0
+  image: kindest/node:v1.26.4@sha256:f4c0d87be03d6bea69f5e5dc0adb678bb498a190ee5c38422bf751541cebe92e
+# the worker
+- role: worker
+  # kubernetes version 1.26.4 from kind v0.19.0
+  image: kindest/node:v1.26.4@sha256:f4c0d87be03d6bea69f5e5dc0adb678bb498a190ee5c38422bf751541cebe92e
