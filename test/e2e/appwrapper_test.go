@@ -17,16 +17,25 @@ limitations under the License.
 package e2e
 
 import (
-	"fmt"
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
+	// . "github.com/onsi/gomega"
+
+	awv1b2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
-// Run e2e tests using the Ginkgo runner.
-func TestE2E(t *testing.T) {
-	RegisterFailHandler(Fail)
-	fmt.Fprintf(GinkgoWriter, "Starting appwrapper suite\n")
-	RunSpecs(t, "e2e suite")
-}
+var _ = Describe("AppWrapper E2E Test", func() {
+	var appwrappers []*awv1b2.AppWrapper
+
+	BeforeEach(func() {
+		appwrappers = []*awv1b2.AppWrapper{}
+	})
+
+	AfterEach(func() {
+		By("Cleaning up test objects")
+		cleanupTestObjects(ctx, appwrappers)
+	})
+
+	It("Dummy Test", func() {
+		By("Testing nothing of interest...")
+	})
+})
