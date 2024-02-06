@@ -1,0 +1,95 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.14.0
+  name: appwrappers.workload.codeflare.dev
+spec:
+  group: workload.codeflare.dev
+  names:
+    kind: AppWrapper
+    listKind: AppWrapperList
+    plural: appwrappers
+    singular: appwrapper
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Status
+      type: string
+    name: v1beta2
+    schema:
+      openAPIV3Schema:
+        description: AppWrapper is the Schema for the appwrappers API
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: AppWrapperSpec defines the desired state of the appwrapper
+            properties:
+              components:
+                description: Components lists the components in the job
+                items:
+                  description: AppWrapperComponent describes an appwrapper
+                  properties:
+                    podSets:
+                      description: PodSets contained in the component
+                      items:
+                        description: AppWrapperPodSet describes an homogeneous set
+                          of pods
+                        properties:
+                          path:
+                            description: Path to the PodTemplateSpec
+                            type: string
+                          replicas:
+                            description: Replicas is the number of pods in the set
+                            format: int32
+                            type: integer
+                        required:
+                        - path
+                        type: object
+                      type: array
+                    template:
+                      description: Template for the component
+                      type: object
+                      x-kubernetes-embedded-resource: true
+                      x-kubernetes-preserve-unknown-fields: true
+                  required:
+                  - podSets
+                  - template
+                  type: object
+                type: array
+              suspend:
+                description: Suspend suspends the job when set to true
+                type: boolean
+            required:
+            - components
+            type: object
+          status:
+            description: AppWrapperStatus defines the observed state of the appwrapper
+            properties:
+              phase:
+                description: Phase of the AppWrapper object
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -33,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/controller"
@@ -40,13 +43,15 @@ import (
 )
 
 var (
-	scheme   = runtime.NewScheme()
-	setupLog = ctrl.Log.WithName("setup")
+	scheme       = runtime.NewScheme()
+	setupLog     = ctrl.Log.WithName("setup")
+	BuildVersion = "UNKNOWN"
+	BuildDate    = "UNKNOWN"
 )
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	utilruntime.Must(kueue.AddToScheme(scheme))
 	utilruntime.Must(workloadv1beta2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
@@ -73,6 +78,7 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -122,6 +128,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := controller.WorkloadReconciler(
+		mgr.GetClient(),
+		mgr.GetEventRecorderFor("kueue"),
+	).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "Unable to create controller", "controller", "Workload")
+		os.Exit(1)
+	}
+
 	if err = (&controller.AppWrapperReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
@@ -130,6 +144,12 @@ func main() {
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
+
+	ctx := context.TODO() // TODO
+	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), controller.GVK); err != nil {
+		setupLog.Error(err, "Setting up indexes", "GVK", controller.GVK)
+		os.Exit(1)
+	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

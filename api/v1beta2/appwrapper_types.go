@@ -18,28 +18,61 @@ package v1beta2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// AppWrapperSpec defines the desired state of AppWrapper
+// AppWrapperSpec defines the desired state of the appwrapper
 type AppWrapperSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Components lists the components in the job
+	Components []AppWrapperComponent `json:"components"`
 
-	// Foo is an example field of AppWrapper. Edit appwrapper_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Suspend suspends the job when set to true
+	Suspend bool `json:"suspend,omitempty"`
 }
 
-// AppWrapperStatus defines the observed state of AppWrapper
+// AppWrapperComponent describes an appwrapper
+type AppWrapperComponent struct {
+	// PodSets contained in the component
+	PodSets []AppWrapperPodSet `json:"podSets"`
+
+	// +kubebuilder:pruning:PreserveUnknownFields
+	// +kubebuilder:validation:EmbeddedResource
+	// Template for the component
+	Template runtime.RawExtension `json:"template"`
+}
+
+// AppWrapperPodSet describes an homogeneous set of pods
+type AppWrapperPodSet struct {
+	// Replicas is the number of pods in the set
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// Path to the PodTemplateSpec
+	Path string `json:"path"`
+}
+
+// AppWrapperStatus defines the observed state of the appwrapper
 type AppWrapperStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Phase of the AppWrapper object
+	Phase AppWrapperPhase `json:"phase,omitempty"`
 }
+
+// AppWrapperPhase is the phase of the appwrapper
+type AppWrapperPhase string
+
+const (
+	AppWrapperEmpty      AppWrapperPhase = ""
+	AppWrapperSuspended  AppWrapperPhase = "Suspended"
+	AppWrapperDeploying  AppWrapperPhase = "Deploying"
+	AppWrapperRunning    AppWrapperPhase = "Running"
+	AppWrapperSuspending AppWrapperPhase = "Suspending"
+	AppWrapperDeleting   AppWrapperPhase = "Deleting"
+	AppWrapperCompleted  AppWrapperPhase = "Completed"
+	AppWrapperFailed     AppWrapperPhase = "Failed"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
 
 // AppWrapper is the Schema for the appwrappers API
 type AppWrapper struct {
@@ -52,7 +85,7 @@ type AppWrapper struct {
 
 //+kubebuilder:object:root=true
 
-// AppWrapperList contains a list of AppWrapper
+// AppWrapperList contains a list of appwrappers
 type AppWrapperList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`

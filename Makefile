@@ -1,6 +1,32 @@
 
+# Build info
+GIT_BRANCH := $(shell git symbolic-ref --short HEAD 2>&1 | grep -v fatal)
+ifneq ($(strip $(GIT_BRANCH)),)
+	# replace invalid characters that might exist in the branch name
+	TAG := $(shell echo ${GIT_BRANCH} | sed 's/[^a-zA-Z0-9]/-/g')
+else
+	TAG := detached
+endif
+RELEASE_VER := $(shell git describe --always --tags --abbrev=0)
+TAG := ${TAG}-${RELEASE_VER}
+BUILD_DATE := $(shell date +%Y-%m-%d\ %H:%M)
+BUILD_TAG_SHA := $(shell git rev-list --abbrev-commit --tags --max-count=1)
+BUILD_SHA := $(shell git rev-parse --short HEAD)
+BUILD_VERSION := ${TAG}
+ifneq ($(BUILD_SHA), $(BUILD_TAG_SHA))
+	BUILD_VERSION := ${BUILD_VERSION}-${BUILD_SHA}
+endif
+ifneq ($(shell git status --porcelain),)
+	BUILD_VERSION := ${BUILD_VERSION}-dirty
+endif
+
 # Image URL to use all building/pushing image targets
-IMG ?= controller:latest
+ifeq ($(strip $(quay_repository)),)
+IMG=appwrapper:${TAG}
+else
+IMG=${quay_repository}/appwrapper:${TAG}
+endif
+
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
@@ -81,11 +107,16 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 
 .PHONY: build
 build: manifests generate fmt vet ## Build manager binary.
-	go build -o bin/manager cmd/main.go
+	go build \
+		-ldflags " \
+			-X 'main.BuildVersion=$(BUILD_VERSION)' \
+			-X 'main.BuildDate=$(BUILD_DATE)' \
+		" \
+		-o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go
+	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -166,7 +197,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 KUSTOMIZE_VERSION ?= v5.3.0
 CONTROLLER_TOOLS_VERSION ?= v0.14.0
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= v1.54.2
+GOLANGCI_LINT_VERSION ?= v1.55.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
