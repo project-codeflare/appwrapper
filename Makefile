@@ -159,12 +159,15 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	echo "---" >> dist/install.yaml  # Add a document separator before appending
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default >> dist/install.yaml
+	@$(call clean-manifests)
 
 ##@ Deployment
 
 ifndef ignore-not-found
   ignore-not-found = false
 endif
+
+clean-manifests = (cd config/manager && $(KUSTOMIZE) edit set image controller=quay.io/ibm/appwrapper)
 
 .PHONY: install
 install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
@@ -178,6 +181,7 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
+	@$(call clean-manifests)
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
