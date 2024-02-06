@@ -9,4 +9,4 @@ metadata:
     app.kubernetes.io/created-by: appwrapper
   name: appwrapper-sample
 spec:
-  # TODO(user): Add fields here
+# TODO(user): Add fields here
