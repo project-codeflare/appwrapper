@@ -19,9 +19,8 @@ jobs:
 
     - name: Set latest tag and branch name
       run: |
-        BRANCH=${{ github.event.pull_request.head.ref }}
-        echo "GIT_BRANCH=$(echo "$BRANCH" | sed 's/[^A-Za-z0-9._-]/-/g' )" >> $GITHUB_ENV
-        echo "TAG=$(git describe --always --abbrev=0 --tags)" >> $GITHUB_ENV
+        echo "GIT_BRANCH=gha-ci" >> $GITHUB_ENV
+        echo "TAG=$GITHUB_RUN_ID" >> $GITHUB_ENV
 
     - name: Set up Go
       uses: actions/setup-go@v5
@@ -38,3 +37,22 @@ jobs:
 
     - name: Build
       run: make build
+
+    - name: Build Image
+      run: |
+        make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+
+    - name: Create and configure cluster
+      run: ./hack/create-test-cluster.sh
+
+    - name: Deploy Kueue
+      run: ./hack/deploy-kueue.sh
+
+    - name: Deploy AppWrapper controller
+      run: |
+        make install -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        make kind-push -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        make deploy -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+
+    - name: Run E2E tests
+      run: ./hack/run-tests-on-cluster.sh
