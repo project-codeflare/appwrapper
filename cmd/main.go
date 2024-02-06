@@ -143,6 +143,18 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
 		os.Exit(1)
 	}
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		// TODO: Proper configuration of ManageJobsWithoutQueueName via config file
+		wh := &controller.AppWrapperWebhook{ManageJobsWithoutQueueName: true}
+		if err := ctrl.NewWebhookManagedBy(mgr).
+			For(&workloadv1beta2.AppWrapper{}).
+			WithDefaulter(wh).
+			WithValidator(wh).
+			Complete(); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "AppWrapper")
+			os.Exit(1)
+		}
+	}
 	//+kubebuilder:scaffold:builder
 
 	ctx := context.TODO() // TODO
