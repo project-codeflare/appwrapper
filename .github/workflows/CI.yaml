@@ -1,0 +1,40 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+    - 'main'
+    - 'release-*'
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set latest tag and branch name
+      run: |
+        BRANCH=${{ github.event.pull_request.head.ref }}
+        echo "GIT_BRANCH=$(echo "$BRANCH" | sed 's/[^A-Za-z0-9._-]/-/g' )" >> $GITHUB_ENV
+        echo "TAG=$(git describe --always --abbrev=0 --tags)" >> $GITHUB_ENV
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: './go.mod'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Run pre-commit checks
+      uses: pre-commit/action@v3.0.0
+
+    - name: Build
+      run: make build
