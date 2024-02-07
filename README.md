@@ -125,9 +125,18 @@ make uninstall
 
 ## Contributing
 
+### Pre-commit hooks
 
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+This repository includes pre-configured pre-commit hooks. Make sure to install
+the hooks immediately after cloning the repository:
+```sh
+pre-commit install
+```
+See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
 
+### Running tests locally
+
+TODO: Document this once we finish porting the scripts from MCADv2.
 
 ## License
 
