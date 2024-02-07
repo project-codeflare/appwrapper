@@ -34,9 +34,20 @@ Create the cluster with:
 ./hack/create-test-cluster.sh
 ```
 
-Deploy Kueue on the cluster with:
+Deploy Kueue on the cluster and configure it to have queues in your default namespace
+with a nominal quota of 4 CPUs with:
 ```sh
 ./hack/deploy-kueue.sh
+```
+
+You can verify Kueue is configured as expected with:
+```sh
+% kubectl get localqueues,clusterqueues -o wide
+NAME                                   CLUSTERQUEUE    PENDING WORKLOADS   ADMITTED WORKLOADS
+localqueue.kueue.x-k8s.io/user-queue   cluster-queue   0                   0
+
+NAME                                        COHORT   STRATEGY         PENDING WORKLOADS   ADMITTED WORKLOADS
+clusterqueue.kueue.x-k8s.io/cluster-queue            BestEffortFIFO   0                   0
 ```
 
 ### Deploy on the cluster
