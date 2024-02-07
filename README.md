@@ -57,6 +57,12 @@ namespace should be Ready.  Verify this with:
 kubectl get pods -n appwrapper-system
 ```
 
+You can now deploy a sample Kueue configuration:
+```sh
+kubectl apply -f hack/kueue-config.yaml
+```
+This configuration creates a single `user-queue` with a quota of 4 cpus.
+
 You can now try deploying a sample `AppWrapper`:
 ```sh
 kubectl apply -f samples/appwrapper.yaml
