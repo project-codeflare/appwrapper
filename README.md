@@ -48,23 +48,39 @@ Deploy the CRDs and controller to the cluster:
 make deploy
 ```
 
+Within a few seconds, the controller pod in the `appwrapper-system`
+namespace should be Ready.  Verify this with:
+```sh
+kubectl get pods -n appwrapper-system
+```
+
 You can now try deploying a sample `AppWrapper`:
 ```sh
-kubectl apply -f samples/appwrapper.yaml`
+kubectl apply -f samples/appwrapper.yaml
 ```
 
 You should shortly see a Pod called `sample` running.
 After running for 5 seconds, the Pod will complete and the
 AppWrapper's status will be Completed.
 ```sh
-
-TODO: show kubectl commands and output...
-
+% kubectl get appwrappers
+NAME     STATUS
+sample   Running
+% kubectl get pods
+NAME     READY   STATUS    RESTARTS   AGE
+sample   1/1     Running   0          2s
+% kubectl get pods
+NAME     READY   STATUS      RESTARTS   AGE
+sample   0/1     Completed   0          9s
+% kubectl get appwrappers
+NAME     STATUS
+sample   Completed
 ```
 
 You can now delete the sample AppWrapper.
 ```sh
-kubectl delete -f samples/appwrapper.yaml`
+kubectl delete -f samples/appwrapper.yaml
+```
 
 To undeploy the CRDs and controller from the cluster:
 ```sh
