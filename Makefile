@@ -87,7 +87,7 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
+test: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -coverprofile cover.out
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
@@ -115,8 +115,8 @@ build: manifests generate fmt vet ## Build manager binary.
 		-o bin/manager cmd/main.go
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
+	ENABLE_WEBHOOKS=false go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
