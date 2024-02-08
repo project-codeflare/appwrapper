@@ -54,6 +54,9 @@ type AppWrapperPodSet struct {
 type AppWrapperStatus struct {
 	// Phase of the AppWrapper object
 	Phase AppWrapperPhase `json:"phase,omitempty"`
+
+	// Conditions
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // AppWrapperPhase is the phase of the appwrapper
