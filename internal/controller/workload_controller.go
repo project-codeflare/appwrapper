@@ -18,12 +18,8 @@ package controller
 
 import (
 	"fmt"
-	"strings"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
@@ -75,35 +71,20 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	podSets := []kueue.PodSet{}
 	i := 0
 	for _, component := range aw.Spec.Components {
-	LOOP:
 		for _, podSet := range component.PodSets {
 			replicas := int32(1)
 			if podSet.Replicas != nil {
 				replicas = *podSet.Replicas
 			}
-			obj := &unstructured.Unstructured{}
-			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
-				continue LOOP // TODO handle error
+			template, err := getPodTemplateSpec(component.Template.Raw, podSet.Path)
+			if err == nil {
+				podSets = append(podSets, kueue.PodSet{
+					Name:     aw.Name + "-" + fmt.Sprint(i),
+					Template: *template,
+					Count:    replicas,
+				})
+				i++
 			}
-			parts := strings.Split(podSet.Path, ".")
-			p := obj.UnstructuredContent()
-			var ok bool
-			for i := 1; i < len(parts); i++ {
-				p, ok = p[parts[i]].(map[string]interface{})
-				if !ok {
-					continue LOOP // TODO handle error
-				}
-			}
-			var template v1.PodTemplateSpec
-			if err := runtime.DefaultUnstructuredConverter.FromUnstructured(p, &template); err != nil {
-				continue LOOP // TODO handle error
-			}
-			podSets = append(podSets, kueue.PodSet{
-				Name:     aw.Name + "-" + fmt.Sprint(i),
-				Template: template,
-				Count:    replicas,
-			})
-			i++
 		}
 	}
 	return podSets

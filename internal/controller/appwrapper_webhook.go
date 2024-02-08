@@ -49,62 +49,78 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 
 var _ webhook.CustomValidator = &AppWrapperWebhook{}
 
-// ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type
+// ValidateCreate valdiates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	job := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating create", "job", job)
-	return nil, w.validateCreate(job).ToAggregate()
-}
+	aw := obj.(*workloadv1beta2.AppWrapper)
+	log.FromContext(ctx).Info("Validating create", "job", aw)
 
-func (w *AppWrapperWebhook) validateCreate(job *workloadv1beta2.AppWrapper) field.ErrorList {
-	var allErrors field.ErrorList
+	allErrors := w.validateAppWrapperInvariants(ctx, aw)
 
-	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(job)) != "" {
-		components := job.Spec.Components
-		componentsPath := field.NewPath("spec").Child("components")
-		podSpecCount := 0
-		for idx, component := range components {
-			podSetsPath := componentsPath.Index(idx).Child("podSets")
-			for psIdx, ps := range component.PodSets {
-				podSetPath := podSetsPath.Index(psIdx)
-				if ps.Path == "" {
-					allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
-				}
-
-				// TODO: Validatate the ps.Path resolves to a PodSpec
-
-				// TODO: RBAC check to make sure that the user has the ability to create the wrapped resources
-
-				podSpecCount += 1
-			}
-		}
-		if podSpecCount == 0 {
-			allErrors = append(allErrors, field.Invalid(componentsPath, components, "components contains no podspecs"))
-		}
-		if podSpecCount > 8 {
-			allErrors = append(allErrors, field.Invalid(componentsPath, components, fmt.Sprintf("components contains %v podspecs; at most 8 are allowed", podSpecCount)))
-		}
+	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
+		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
 	}
 
-	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(job))...)
-	return allErrors
+	return nil, allErrors.ToAggregate()
 }
 
-// ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type
+// ValidateUpdate valdiates invariants when an AppWrapper is updated
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldJob := oldObj.(*workloadv1beta2.AppWrapper)
 	newJob := newObj.(*workloadv1beta2.AppWrapper)
+	log.FromContext(ctx).Info("Validating update", "job", newJob)
+
+	allErrors := w.validateAppWrapperInvariants(ctx, newJob)
+
 	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newJob)) != "" {
-		log.FromContext(ctx).Info("Validating update", "job", newJob)
-		allErrors := jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldJob), (*AppWrapper)(newJob))
-		allErrors = append(allErrors, w.validateCreate(newJob)...)
+		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldJob), (*AppWrapper)(newJob))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldJob), (*AppWrapper)(newJob))...)
-		return nil, allErrors.ToAggregate()
 	}
+
+	return nil, allErrors.ToAggregate()
+}
+
+// ValidateDelete is a noop for us, but is required to implement the CustomValidator interface
+func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type
-func (w *AppWrapperWebhook) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	return nil, nil
+// validateAppWrapperInvariants checks AppWrapper-specific invariants
+func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, job *workloadv1beta2.AppWrapper) field.ErrorList {
+	allErrors := field.ErrorList{}
+	components := job.Spec.Components
+	componentsPath := field.NewPath("spec").Child("components")
+	podSpecCount := 0
+
+	for idx, component := range components {
+
+		// Each PodSet.Path must specifies a path within Template to a v1.PodSpecTemplate
+		podSetsPath := componentsPath.Index(idx).Child("podSets")
+		for psIdx, ps := range component.PodSets {
+			podSetPath := podSetsPath.Index(psIdx)
+			if ps.Path == "" {
+				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
+			}
+			if _, err := getPodTemplateSpec(component.Template.Raw, ps.Path); err != nil {
+				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
+					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
+			}
+			podSpecCount += 1
+		}
+
+		// TODO: RBAC check to make sure that the user has permissions to create the component
+
+		// TODO: We could attempt to validate the object is namespaced and the namespace is the same as the AppWrapper's namespace
+		//       This is currently enforced when the resources are created.
+
+	}
+
+	// Enforce Kueue limitation that 0 < podSpecCount <= 8
+	if podSpecCount == 0 {
+		allErrors = append(allErrors, field.Invalid(componentsPath, components, "components contains no podspecs"))
+	}
+	if podSpecCount > 8 {
+		allErrors = append(allErrors, field.Invalid(componentsPath, components, fmt.Sprintf("components contains %v podspecs; at most 8 are allowed", podSpecCount)))
+	}
+
+	return allErrors
 }
