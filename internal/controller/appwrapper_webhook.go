@@ -39,9 +39,9 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 
 // Default implements webhook.CustomDefaulter so a webhook will be registered for the type
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
-	job := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Applying defaults", "job", job)
-	jobframework.ApplyDefaultForSuspend((*AppWrapper)(job), w.ManageJobsWithoutQueueName)
+	aw := obj.(*workloadv1beta2.AppWrapper)
+	log.FromContext(ctx).Info("Applying defaults", "job", aw)
+	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.ManageJobsWithoutQueueName)
 	return nil
 }
 
@@ -65,15 +65,15 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 
 // ValidateUpdate valdiates invariants when an AppWrapper is updated
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	oldJob := oldObj.(*workloadv1beta2.AppWrapper)
-	newJob := newObj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating update", "job", newJob)
+	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
+	newAW := newObj.(*workloadv1beta2.AppWrapper)
+	log.FromContext(ctx).Info("Validating update", "job", newAW)
 
-	allErrors := w.validateAppWrapperInvariants(ctx, newJob)
+	allErrors := w.validateAppWrapperInvariants(ctx, newAW)
 
-	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newJob)) != "" {
-		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldJob), (*AppWrapper)(newJob))...)
-		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldJob), (*AppWrapper)(newJob))...)
+	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
+		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
+		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 	}
 
 	return nil, allErrors.ToAggregate()
@@ -85,15 +85,15 @@ func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 }
 
 // validateAppWrapperInvariants checks AppWrapper-specific invariants
-func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, job *workloadv1beta2.AppWrapper) field.ErrorList {
+func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
-	components := job.Spec.Components
+	components := aw.Spec.Components
 	componentsPath := field.NewPath("spec").Child("components")
 	podSpecCount := 0
 
 	for idx, component := range components {
 
-		// Each PodSet.Path must specifies a path within Template to a v1.PodSpecTemplate
+		// Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
 		podSetsPath := componentsPath.Index(idx).Child("podSets")
 		for psIdx, ps := range component.PodSets {
 			podSetPath := podSetsPath.Index(psIdx)
