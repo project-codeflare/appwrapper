@@ -76,8 +76,8 @@ const (
 type AppWrapperCondition string
 
 const (
-	ActiveResources  AppWrapperCondition = "ActiveResources"
-	PassiveResources AppWrapperCondition = "PassiveResources"
+	QuotaReserved     AppWrapperCondition = "QuotaReserved"
+	ResourcesDeployed AppWrapperCondition = "ResourcesDeployed"
 )
 
 //+kubebuilder:object:root=true

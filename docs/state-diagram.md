@@ -1,17 +1,20 @@
 # AppWrapper State Diagram
-The state diagram below describes the transitions between the Phases of an AppWrapper.
 
-Two Conditions (ActiveResources, PassiveResources) are used to encode if any of
-the wrapped resources may exist on the cluster.  When ActiveResources is true (blue), then
-the AppWrapper is considered Active by Kueue. PassiveResources is only true in the
-Completed state and does not cause the AppWrapper to be considered Active by Kueue.
-Note that in the Failed state (pink), ActiveResources will initially be true and then
-transition to false once the controller successfully deletes all resources that were created
+The state diagram below describes the transitions between the Phases of an AppWrapper. These states are augmented by two orthogonal conditions:
+   + QuotaReserved indicates whether the AppWrapper is considered Active by Kueue.
+   + ResourcesDeployed indicates whether wrapped resources may exist on the cluster.
+
+QuotaReserved and ResourcesDeployed are both true in states colored blue below.
+
+QuotaReserved and ResourcesDeployed will initially be true in the Failed state (pink),
+but will become false when the controller succeeds at deleting the resources created
 in the Resuming phase.
 
+ResourcesDeployed will be true in the Succeeded state (green), but QuotaReserved will be false.
+
 Any phase may transition to the Terminating phase (not shown) when the AppWrapper is deleted.
-During the Terminating phase, either ActiveResources or PassiveResources may be true until
-the controller successfully deletes all resources that were created in the Resuming phase.
+During the Terminating phase, QuotaReserved and ResourcesDeployed may initially be true
+but will become false once the controller succeeds at deleting any associated resources.
 
 ```mermaid
 stateDiagram-v2
@@ -21,14 +24,14 @@ stateDiagram-v2
     rs : Resuming
     rn : Running
     sg : Suspending
-    c  : Completed
+    s  : Succeeded
     f  : Failed
 
     %% Happy Path
     e --> sd
     sd --> rs : Suspend == false
     rs --> rn
-    rn --> c
+    rn --> s
 
     %% Requeuing
     rs --> sg : Suspend == true
@@ -48,5 +51,5 @@ stateDiagram-v2
     class f failed
 
     classDef succeeded fill:lightgreen
-    class c succeeded
+    class s succeeded
 ```

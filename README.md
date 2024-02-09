@@ -77,7 +77,7 @@ kubectl apply -f samples/appwrapper.yaml
 
 You should shortly see a Pod called `sample` running.
 After running for 5 seconds, the Pod will complete and the
-AppWrapper's status will be Completed.
+AppWrapper's status will be Succeeded.
 ```sh
 % kubectl get appwrappers
 NAME     STATUS
@@ -90,7 +90,7 @@ NAME     READY   STATUS      RESTARTS   AGE
 sample   0/1     Completed   0          9s
 % kubectl get appwrappers
 NAME     STATUS
-sample   Completed
+sample   Succeeded
 ```
 
 You can now delete the sample AppWrapper.

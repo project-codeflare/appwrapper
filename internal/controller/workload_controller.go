@@ -54,7 +54,7 @@ func (aw *AppWrapper) IsSuspended() bool {
 }
 
 func (aw *AppWrapper) IsActive() bool {
-	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ActiveResources))
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))
 }
 
 func (aw *AppWrapper) Suspend() {
@@ -98,7 +98,7 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 }
 
 func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
-	condition := &metav1.Condition{
+	condition := metav1.Condition{
 		Type:   kueue.WorkloadFinished,
 		Status: metav1.ConditionFalse,
 		Reason: string(aw.Status.Phase),
@@ -108,20 +108,20 @@ func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
 	case workloadv1beta2.AppWrapperSucceeded:
 		condition.Status = metav1.ConditionTrue
 		condition.Message = "AppWrapper finished successfully"
-		return *condition, true
+		return condition, true
 
 	case workloadv1beta2.AppWrapperFailed:
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ActiveResources)) {
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 			condition.Message = "Still deleting resources for failed AppWrapper"
-			return *condition, false
+			return condition, false
 		} else {
 			condition.Status = metav1.ConditionTrue
 			condition.Message = "AppWrapper failed"
-			return *condition, true
+			return condition, true
 		}
 	}
 
-	return *condition, false
+	return condition, false
 }
 
 func (aw *AppWrapper) PodsReady() bool {
