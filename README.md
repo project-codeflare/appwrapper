@@ -9,6 +9,8 @@ and dispatched using [Kueue](https://kueue.sigs.k8s.io).
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+The lifecycle of an AppWrapper instance is depicted in a [state transition diagram](docs/state-diagram.md).
+
 ## Getting Started
 
 ### Prerequisites
