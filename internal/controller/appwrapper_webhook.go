@@ -37,7 +37,7 @@ type AppWrapperWebhook struct {
 
 var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 
-// Default implements webhook.CustomDefaulter so a webhook will be registered for the type
+// Default ensures that Suspend is set appropriately when an AppWrapper is created
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
@@ -49,7 +49,7 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 
 var _ webhook.CustomValidator = &AppWrapperWebhook{}
 
-// ValidateCreate valdiates invariants when an AppWrapper is created
+// ValidateCreate validates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Validating create", "job", aw)
@@ -63,7 +63,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 	return nil, allErrors.ToAggregate()
 }
 
-// ValidateUpdate valdiates invariants when an AppWrapper is updated
+// ValidateUpdate validates invariants when an AppWrapper is updated
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
