@@ -43,18 +43,19 @@ func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
 		}
 	}
 
-	// Extract the PodSpec that should be at spec
+	// Extract the PodSpec that should be at candidatePTS.spec
 	candidatePTS := p
 	spec, ok := candidatePTS["spec"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("content at %v does not contain a spec", path)
 	}
-	var template v1.PodTemplateSpec
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(spec, &template.Spec, true); err != nil {
+	podSpec := &v1.PodSpec{}
+	if err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(spec, podSpec, true); err != nil {
 		return nil, fmt.Errorf("content at %v.spec not parseable as a v1.PodSpec: %w", path, err)
 	}
 
-	// Add in the annotations and labels (if any)
+	// Construct the filtered PodTemplateSpec, copying only the metadata expected by Kueue
+	template := &v1.PodTemplateSpec{Spec: *podSpec}
 	if metadata, ok := candidatePTS["metadata"].(map[string]interface{}); ok {
 		if labels, ok := metadata["labels"].(map[string]string); ok {
 			template.ObjectMeta.Labels = labels
@@ -64,5 +65,5 @@ func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
 		}
 	}
 
-	return &template, nil
+	return template, nil
 }
