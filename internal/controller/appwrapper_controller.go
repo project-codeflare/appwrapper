@@ -64,6 +64,11 @@ type AppWrapperReconciler struct {
 //+kubebuilder:rbac:groups=cluster.ray.io,resources=rayclusters,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile reconciles an appwrapper
+// Please see [aw-states] for documentation of this method.
+//
+// [aw-states]: https://github.com/project-codeflare/appwrapper/blob/main/docs/state-diagram.md
+//
+//gocyclo:ignore
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	aw := &workloadv1beta2.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, aw); err != nil {
@@ -73,13 +78,41 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// handle deletion first
 	if !aw.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(aw, appWrapperFinalizer) {
-			if !r.deleteComponents(ctx, aw) {
-				// one or more components are still terminating
-				if aw.Status.Phase != workloadv1beta2.AppWrapperDeleting {
-					return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperDeleting) // update status
+			statusUpdated := false
+			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+				if !r.deleteComponents(ctx, aw) {
+					// one or more components are still terminating
+					if aw.Status.Phase != workloadv1beta2.AppWrapperTerminating {
+						// Set Phase for better UX, but ignore errors. We still want to requeue after 5 seconds (not immediately)
+						aw.Status.Phase = workloadv1beta2.AppWrapperTerminating
+						_ = r.Status().Update(ctx, aw)
+					}
+					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // check after a short while
 				}
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // check after a short while
+				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+					Type:    string(workloadv1beta2.ResourcesDeployed),
+					Status:  metav1.ConditionFalse,
+					Reason:  string(workloadv1beta2.AppWrapperTerminating),
+					Message: "Resources successfully deleted",
+				})
+				statusUpdated = true
 			}
+
+			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved)) {
+				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+					Type:    string(workloadv1beta2.QuotaReserved),
+					Status:  metav1.ConditionFalse,
+					Reason:  string(workloadv1beta2.AppWrapperTerminating),
+					Message: "No resources deployed",
+				})
+				statusUpdated = true
+			}
+			if statusUpdated {
+				if err := r.Status().Update(ctx, aw); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+
 			if controllerutil.RemoveFinalizer(aw, appWrapperFinalizer) {
 				if err := r.Update(ctx, aw); err != nil {
 					return ctrl.Result{}, err
@@ -104,16 +137,29 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if aw.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
 		}
-		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperDeploying) // begin deployment
+		// begin deployment
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.QuotaReserved),
+			Status:  metav1.ConditionTrue,
+			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Message: "AppWrapper was unsuspended by Kueue",
+		})
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.ResourcesDeployed),
+			Status:  metav1.ConditionTrue,
+			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Message: "AppWrapper was unsuspended by Kueue",
+		})
+		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResuming)
 
-	case workloadv1beta2.AppWrapperDeploying: // deploying components
+	case workloadv1beta2.AppWrapperResuming: // deploying components
 		if aw.Spec.Suspend {
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // abort deployment
 		}
 		err, fatal := r.createComponents(ctx, aw)
 		if err != nil {
 			if fatal {
-				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperDeleting) // abort on fatal error
+				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // abort on fatal error
 			}
 			return ctrl.Result{}, err // retry creation on transient error
 		}
@@ -128,31 +174,63 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		if completed {
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperCompleted)
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.QuotaReserved),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Message: "AppWrapper successfully completed",
+			})
+			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSucceeded)
 		}
 		failed, err := r.hasFailed(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		if failed {
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperDeleting)
+			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
 		}
 		return ctrl.Result{RequeueAfter: time.Minute}, nil
 
 	case workloadv1beta2.AppWrapperSuspending: // undeploying components
 		// finish undeploying components irrespective of desired state (suspend bit)
-		if r.deleteComponents(ctx, aw) {
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
-		} else {
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			if !r.deleteComponents(ctx, aw) {
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(workloadv1beta2.AppWrapperSuspended),
+				Message: "AppWrapper was suspended by Kueue",
+			})
 		}
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.QuotaReserved),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperSuspended),
+			Message: "AppWrapper was suspended by Kueue",
+		})
+		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
-	case workloadv1beta2.AppWrapperDeleting: // deleting components on failure
-		if r.deleteComponents(ctx, aw) {
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
-		} else {
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	case workloadv1beta2.AppWrapperFailed:
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			if !r.deleteComponents(ctx, aw) {
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(workloadv1beta2.AppWrapperFailed),
+				Message: "Resources deleted for failed AppWrapper",
+			})
 		}
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.QuotaReserved),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperFailed),
+			Message: "No resources deployed",
+		})
+		return ctrl.Result{}, r.Status().Update(ctx, aw)
 	}
 
 	return ctrl.Result{}, nil

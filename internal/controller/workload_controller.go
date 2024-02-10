@@ -19,6 +19,7 @@ package controller
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,10 +54,7 @@ func (aw *AppWrapper) IsSuspended() bool {
 }
 
 func (aw *AppWrapper) IsActive() bool {
-	return aw.Status.Phase == workloadv1beta2.AppWrapperDeploying ||
-		aw.Status.Phase == workloadv1beta2.AppWrapperRunning ||
-		aw.Status.Phase == workloadv1beta2.AppWrapperSuspending ||
-		aw.Status.Phase == workloadv1beta2.AppWrapperDeleting
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))
 }
 
 func (aw *AppWrapper) Suspend() {
@@ -102,19 +100,28 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
 	condition := metav1.Condition{
 		Type:   kueue.WorkloadFinished,
-		Status: metav1.ConditionTrue,
-		Reason: "AppWrapperFinished",
+		Status: metav1.ConditionFalse,
+		Reason: string(aw.Status.Phase),
 	}
-	var finished bool
+
 	switch aw.Status.Phase {
-	case workloadv1beta2.AppWrapperCompleted:
-		finished = true
+	case workloadv1beta2.AppWrapperSucceeded:
+		condition.Status = metav1.ConditionTrue
 		condition.Message = "AppWrapper finished successfully"
+		return condition, true
+
 	case workloadv1beta2.AppWrapperFailed:
-		finished = true
-		condition.Message = "AppWrapper failed"
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			condition.Message = "Still deleting resources for failed AppWrapper"
+			return condition, false
+		} else {
+			condition.Status = metav1.ConditionTrue
+			condition.Message = "AppWrapper failed"
+			return condition, true
+		}
 	}
-	return condition, finished
+
+	return condition, false
 }
 
 func (aw *AppWrapper) PodsReady() bool {

@@ -63,14 +63,21 @@ type AppWrapperStatus struct {
 type AppWrapperPhase string
 
 const (
-	AppWrapperEmpty      AppWrapperPhase = ""
-	AppWrapperSuspended  AppWrapperPhase = "Suspended"
-	AppWrapperDeploying  AppWrapperPhase = "Deploying"
-	AppWrapperRunning    AppWrapperPhase = "Running"
-	AppWrapperSuspending AppWrapperPhase = "Suspending"
-	AppWrapperDeleting   AppWrapperPhase = "Deleting"
-	AppWrapperCompleted  AppWrapperPhase = "Completed"
-	AppWrapperFailed     AppWrapperPhase = "Failed"
+	AppWrapperEmpty       AppWrapperPhase = ""
+	AppWrapperSuspended   AppWrapperPhase = "Suspended"
+	AppWrapperResuming    AppWrapperPhase = "Resuming"
+	AppWrapperRunning     AppWrapperPhase = "Running"
+	AppWrapperSuspending  AppWrapperPhase = "Suspending"
+	AppWrapperSucceeded   AppWrapperPhase = "Succeeded"
+	AppWrapperFailed      AppWrapperPhase = "Failed"
+	AppWrapperTerminating AppWrapperPhase = "Terminating"
+)
+
+type AppWrapperCondition string
+
+const (
+	QuotaReserved     AppWrapperCondition = "QuotaReserved"
+	ResourcesDeployed AppWrapperCondition = "ResourcesDeployed"
 )
 
 //+kubebuilder:object:root=true
