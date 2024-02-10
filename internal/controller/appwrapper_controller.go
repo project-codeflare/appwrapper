@@ -78,6 +78,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// handle deletion first
 	if !aw.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(aw, appWrapperFinalizer) {
+			statusUpdated := false
 			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 				if !r.deleteComponents(ctx, aw) {
 					// one or more components are still terminating
@@ -94,9 +95,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					Reason:  string(workloadv1beta2.AppWrapperTerminating),
 					Message: "Resources successfully deleted",
 				})
-				if err := r.Status().Update(ctx, aw); err != nil {
-					return ctrl.Result{}, err
-				}
+				statusUpdated = true
 			}
 
 			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved)) {
@@ -106,6 +105,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					Reason:  string(workloadv1beta2.AppWrapperTerminating),
 					Message: "No resources deployed",
 				})
+				statusUpdated = true
+			}
+			if statusUpdated {
 				if err := r.Status().Update(ctx, aw); err != nil {
 					return ctrl.Result{}, err
 				}
