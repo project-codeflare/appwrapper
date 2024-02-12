@@ -19,6 +19,7 @@ package controller
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -108,7 +109,7 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex <= len(podSetsInfo) {
-				currentInfo := podSetsInfo[podSetsInfoIndex-1]
+				toInject := podSetsInfo[podSetsInfoIndex-1]
 				parts := strings.Split(podSet.Path, ".")
 				p := obj.UnstructuredContent()
 				var ok bool
@@ -126,12 +127,15 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 				metadata := p["metadata"].(map[string]interface{})
 
 				// Annotations
-				if len(currentInfo.Annotations) > 0 {
+				if len(toInject.Annotations) > 0 {
+					if _, ok := metadata["annotations"]; !ok {
+						metadata["annotations"] = make(map[string]string)
+					}
 					annotations := metadata["annotations"].(map[string]string)
-					if err := utilmaps.HaveConflict(annotations, currentInfo.Annotations); err != nil {
+					if err := utilmaps.HaveConflict(annotations, toInject.Annotations); err != nil {
 						return podset.BadPodSetsUpdateError("annotations", err)
 					}
-					metadata["annotations"] = utilmaps.MergeKeepFirst(annotations, currentInfo.Annotations)
+					metadata["annotations"] = utilmaps.MergeKeepFirst(annotations, toInject.Annotations)
 				}
 
 				// Labels
@@ -140,35 +144,35 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 				}
 				labels := metadata["labels"].(map[string]string)
 				labels[appWrapperLabel] = aw.Name
-				if len(currentInfo.Labels) > 0 {
-					if err := utilmaps.HaveConflict(labels, currentInfo.Labels); err != nil {
+				if len(toInject.Labels) > 0 {
+					if err := utilmaps.HaveConflict(labels, toInject.Labels); err != nil {
 						return podset.BadPodSetsUpdateError("labels", err)
 					}
-					labels = utilmaps.MergeKeepFirst(labels, currentInfo.Labels)
+					labels = utilmaps.MergeKeepFirst(labels, toInject.Labels)
 				}
 				metadata["labels"] = labels
 
 				spec := p["spec"].(map[string]interface{}) // AppWrapper ValidatingAC ensures this succeeds
 
 				// NodeSelectors
-				if len(currentInfo.NodeSelector) > 0 {
+				if len(toInject.NodeSelector) > 0 {
 					if _, ok := spec["nodeSelector"]; !ok {
 						spec["nodeSelector"] = make(map[string]string)
 					}
 					selector := spec["nodeSelector"].(map[string]string)
-					if err := utilmaps.HaveConflict(selector, currentInfo.NodeSelector); err != nil {
+					if err := utilmaps.HaveConflict(selector, toInject.NodeSelector); err != nil {
 						return podset.BadPodSetsUpdateError("nodeSelector", err)
 					}
-					spec["nodeSelector"] = utilmaps.MergeKeepFirst(selector, currentInfo.NodeSelector)
+					spec["nodeSelector"] = utilmaps.MergeKeepFirst(selector, toInject.NodeSelector)
 				}
 
 				// Tolerations
-				if len(currentInfo.Tolerations) > 0 {
+				if len(toInject.Tolerations) > 0 {
 					if _, ok := spec["tolerations"]; !ok {
 						spec["tolerations"] = []interface{}{}
 					}
 					tolerations := spec["tolerations"].([]interface{})
-					for _, addition := range currentInfo.Tolerations {
+					for _, addition := range toInject.Tolerations {
 						bytes, err := json.Marshal(addition)
 						if err != nil {
 							return err
@@ -200,7 +204,82 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 }
 
 func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
-	return false // TODO
+	// Update aw.Spec.Components to restore all the saved labels, annotations, nodeSelectors, and tolerations.
+	podSetsInfoIndex := 0
+	for componentIndex := range aw.Spec.Components {
+		component := &aw.Spec.Components[componentIndex]
+		objChanged := false
+		obj := &unstructured.Unstructured{}
+		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+			continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+		}
+
+	PODSETLOOP:
+		for _, podSet := range component.PodSets {
+			podSetsInfoIndex += 1
+			if podSetsInfoIndex <= len(podSetsInfo) {
+				toRestore := podSetsInfo[podSetsInfoIndex-1]
+				parts := strings.Split(podSet.Path, ".")
+				p := obj.UnstructuredContent()
+				var ok bool
+				for i := 1; i < len(parts); i++ {
+					p, ok = p[parts[i]].(map[string]interface{})
+					if !ok {
+						continue PODSETLOOP // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+					}
+				}
+				objChanged = true // We injected a label into every PodTemplateSpec, so we always have something to remove
+
+				metadata := p["metadata"].(map[string]interface{}) // Must be non-nil, because we injected a label
+				if len(toRestore.Annotations) > 0 {
+					metadata["annotations"] = maps.Clone(toRestore.Annotations)
+				} else {
+					delete(metadata, "annotations")
+				}
+
+				if len(toRestore.Labels) > 0 {
+					metadata["labels"] = maps.Clone(toRestore.Labels)
+				} else {
+					delete(metadata, "labels")
+				}
+
+				spec := p["spec"].(map[string]interface{})
+				if len(toRestore.Labels) > 0 {
+					spec["nodeSelector"] = maps.Clone(toRestore.NodeSelector)
+				} else {
+					delete(spec, "nodeSelector")
+				}
+
+				if len(toRestore.Tolerations) > 0 {
+					tolerations := make([]interface{}, len(toRestore.Tolerations))
+					for idx, tol := range toRestore.Tolerations {
+						bytes, err := json.Marshal(tol)
+						if err != nil {
+							continue // should be impossible
+						}
+						tmp := &unstructured.Unstructured{}
+						if _, _, err := unstructured.UnstructuredJSONScheme.Decode(bytes, nil, tmp); err != nil {
+							continue // should be impossible
+						}
+						tolerations[idx] = tmp.UnstructuredContent()
+					}
+					spec["tolerations"] = tolerations
+				} else {
+					delete(spec, "tolerations")
+				}
+			}
+		}
+
+		if objChanged {
+			bytes, err := obj.MarshalJSON()
+			if err != nil {
+				continue
+			}
+			component.Template.Raw = bytes
+		}
+	}
+
+	return true
 }
 
 func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
