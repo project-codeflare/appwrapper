@@ -30,7 +30,7 @@ type AppWrapperSpec struct {
 	Suspend bool `json:"suspend,omitempty"`
 }
 
-// AppWrapperComponent describes an appwrapper
+// AppWrapperComponent describes a wrapped resource
 type AppWrapperComponent struct {
 	// PodSets contained in the component
 	PodSets []AppWrapperPodSet `json:"podSets"`
