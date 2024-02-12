@@ -14,8 +14,6 @@ spec:
       apiVersion: v1
       kind: Pod
       metadata:
-        labels:
-          workload.codeflare.dev/appwrapper: sample
         name: sample
       spec:
         restartPolicy: Never
