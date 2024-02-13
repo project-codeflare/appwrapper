@@ -49,6 +49,14 @@ type AppWrapperReconciler struct {
 	Scheme *runtime.Scheme
 }
 
+type podStatusSummary struct {
+	expected  int32
+	pending   int32
+	running   int32
+	succeeded int32
+	failed    int32
+}
+
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
@@ -169,27 +177,46 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if aw.Spec.Suspend {
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // begin undeployment
 		}
-		completed, err := r.hasCompleted(ctx, aw)
+		podStatus, err := r.workloadStatus(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if completed {
+		if podStatus.succeeded >= podStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
 				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
-				Message: "AppWrapper successfully completed",
+				Message: fmt.Sprintf("%v pods succeeded", podStatus.succeeded),
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSucceeded)
 		}
-		failed, err := r.hasFailed(ctx, aw)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		if failed {
+		if podStatus.failed > 0 {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:   string(workloadv1beta2.PodsReady),
+				Status: metav1.ConditionFalse,
+				Reason: "PodsFailed",
+				Message: fmt.Sprintf("%v pods failed (%v pods running; %v pods succeeded)",
+					podStatus.failed, podStatus.running, podStatus.succeeded),
+			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
 		}
-		return ctrl.Result{RequeueAfter: time.Minute}, nil
+		if podStatus.running+podStatus.succeeded >= podStatus.expected {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.PodsReady),
+				Status:  metav1.ConditionTrue,
+				Reason:  "SufficientPodsReady",
+				Message: fmt.Sprintf("%v pods running; %v pods succeeded", podStatus.running, podStatus.succeeded),
+			})
+			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
+		}
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:   string(workloadv1beta2.PodsReady),
+			Status: metav1.ConditionFalse,
+			Reason: "InsufficientPodsReady",
+			Message: fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded",
+				podStatus.pending, podStatus.running, podStatus.succeeded),
+		})
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
 
 	case workloadv1beta2.AppWrapperSuspending: // undeploying components
 		// finish undeploying components irrespective of desired state (suspend bit)
@@ -328,22 +355,32 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *workloadv1b
 	return ctrl.Result{}, nil
 }
 
-func (r *AppWrapperReconciler) hasCompleted(ctx context.Context, aw *workloadv1beta2.AppWrapper) (bool, error) {
+func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(aw.Namespace),
 		client.MatchingLabels{appWrapperLabel: aw.Name}); err != nil {
-		return false, err
+		return nil, err
 	}
-	var succeeded int32
+	summary := &podStatusSummary{expected: expectedPodCount(aw)}
+
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
+		case v1.PodPending:
+			summary.pending += 1
+		case v1.PodRunning:
+			summary.running += 1
 		case v1.PodSucceeded:
-			succeeded += 1
-		default:
-			return false, nil
+			summary.succeeded += 1
+		case v1.PodFailed:
+			summary.failed += 1
 		}
 	}
+
+	return summary, nil
+}
+
+func expectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	var expected int32
 	for _, c := range aw.Spec.Components {
 		for _, s := range c.PodSets {
@@ -354,9 +391,5 @@ func (r *AppWrapperReconciler) hasCompleted(ctx context.Context, aw *workloadv1b
 			}
 		}
 	}
-	return succeeded >= expected, nil
-}
-
-func (r *AppWrapperReconciler) hasFailed(ctx context.Context, aw *workloadv1beta2.AppWrapper) (bool, error) {
-	return false, nil // TODO detect failures
+	return expected
 }
