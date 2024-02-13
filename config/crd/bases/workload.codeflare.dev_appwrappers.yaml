@@ -46,7 +46,7 @@ spec:
               components:
                 description: Components lists the components in the job
                 items:
-                  description: AppWrapperComponent describes an appwrapper
+                  description: AppWrapperComponent describes a wrapped resource
                   properties:
                     podSets:
                       description: PodSets contained in the component

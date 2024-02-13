@@ -18,14 +18,17 @@ package controller
 
 import (
 	"fmt"
+	"maps"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 	"sigs.k8s.io/kueue/pkg/podset"
+	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -89,12 +92,166 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 }
 
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
+	toMap := func(x interface{}) map[string]string {
+		if x == nil {
+			return nil
+		} else {
+			return x.(map[string]string)
+		}
+	}
+	awLabels := map[string]string{appWrapperLabel: aw.Name}
+
 	aw.Spec.Suspend = false
-	return nil // TODO
+
+	// Update aw.Spec.Components to inject awLabels and Kueue's PodSetInfo into each nested PodTemplateSpec
+	podSetsInfoIndex := 0
+	for componentIndex := range aw.Spec.Components {
+		component := &aw.Spec.Components[componentIndex]
+		if len(component.PodSets) == 0 {
+			continue // no PodSets; nothing to do for this component
+		}
+
+		obj := &unstructured.Unstructured{}
+		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+			return err
+		}
+
+		for _, podSet := range component.PodSets {
+			podSetsInfoIndex += 1
+			if podSetsInfoIndex > len(podSetsInfo) {
+				continue // we're going to return an error below...just continuing to get the best possible error message
+			}
+			toInject := podSetsInfo[podSetsInfoIndex-1]
+
+			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
+			if p == nil {
+				return fmt.Errorf("path %v not found in component %v", podSet.Path, component)
+			}
+			if _, ok := p["metadata"]; !ok {
+				p["metadata"] = make(map[string]interface{})
+			}
+			metadata := p["metadata"].(map[string]interface{})
+			spec := p["spec"].(map[string]interface{}) // Must exist, enforced by validateAppWrapperInvariants
+
+			// Annotations
+			if len(toInject.Annotations) > 0 {
+				existing := toMap(metadata["annotations"])
+				if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
+					return podset.BadPodSetsUpdateError("annotations", err)
+				}
+				metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
+			}
+
+			// Labels
+			mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
+			existing := toMap(metadata["labels"])
+			if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
+				return podset.BadPodSetsUpdateError("labels", err)
+			}
+			metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
+
+			// NodeSelectors
+			if len(toInject.NodeSelector) > 0 {
+				existing := toMap(metadata["nodeSelector"])
+				if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
+					return podset.BadPodSetsUpdateError("nodeSelector", err)
+				}
+				metadata["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
+			}
+
+			// Tolerations
+			if len(toInject.Tolerations) > 0 {
+				if _, ok := spec["tolerations"]; !ok {
+					spec["tolerations"] = []interface{}{}
+				}
+				tolerations := spec["tolerations"].([]interface{})
+				for _, addition := range toInject.Tolerations {
+					tolerations = append(tolerations, addition)
+				}
+				spec["tolerations"] = tolerations
+			}
+		}
+
+		// Serialize updated component
+		bytes, err := obj.MarshalJSON()
+		if err != nil {
+			return err
+		}
+		component.Template.Raw = bytes
+	}
+
+	if podSetsInfoIndex != len(podSetsInfo) {
+		return podset.BadPodSetsInfoLenError(podSetsInfoIndex, len(podSetsInfo))
+	}
+
+	return nil
 }
 
 func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
-	return false // TODO
+	// Update aw.Spec.Components to restore all the saved labels, annotations, nodeSelectors, and tolerations.
+	podSetsInfoIndex := 0
+	for componentIndex := range aw.Spec.Components {
+		component := &aw.Spec.Components[componentIndex]
+		if len(component.PodSets) == 0 {
+			continue // no PodSets; nothing to do for this component
+		}
+		obj := &unstructured.Unstructured{}
+		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+			continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+		}
+
+		for _, podSet := range component.PodSets {
+			podSetsInfoIndex += 1
+			if podSetsInfoIndex > len(podSetsInfo) {
+				continue // Should be impossible; Kueue should only have called RestorePodSetsInfo if RunWithPodSetsInfo returned without an error
+			}
+			toRestore := podSetsInfo[podSetsInfoIndex-1]
+			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
+			if p == nil {
+				continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+			}
+
+			metadata := p["metadata"].(map[string]interface{}) // Must be non-nil, because we injected a label
+			spec := p["spec"].(map[string]interface{})         // Must exist, enforced by validateAppWrapperInvariants
+
+			if len(toRestore.Annotations) > 0 {
+				metadata["annotations"] = maps.Clone(toRestore.Annotations)
+			} else {
+				delete(metadata, "annotations")
+			}
+
+			if len(toRestore.Labels) > 0 {
+				metadata["labels"] = maps.Clone(toRestore.Labels)
+			} else {
+				delete(metadata, "labels")
+			}
+
+			if len(toRestore.NodeSelector) > 0 {
+				spec["nodeSelector"] = maps.Clone(toRestore.NodeSelector)
+			} else {
+				delete(spec, "nodeSelector")
+			}
+
+			if len(toRestore.Tolerations) > 0 {
+				tolerations := make([]interface{}, len(toRestore.Tolerations))
+				for idx, tol := range toRestore.Tolerations {
+					tolerations[idx] = tol
+				}
+				spec["tolerations"] = tolerations
+			} else {
+				delete(spec, "tolerations")
+			}
+		}
+
+		// Serialize restored component
+		bytes, err := obj.MarshalJSON()
+		if err != nil {
+			continue
+		}
+		component.Template.Raw = bytes
+	}
+
+	return true
 }
 
 func (aw *AppWrapper) Finished() (metav1.Condition, bool) {

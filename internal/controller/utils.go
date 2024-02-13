@@ -67,3 +67,16 @@ func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
 
 	return template, nil
 }
+
+// return the subobject found at the given path, or nil if the path is invalid
+func getSubObject(obj map[string]interface{}, path string) map[string]interface{} {
+	parts := strings.Split(path, ".")
+	var ok bool
+	for i := 1; i < len(parts); i++ {
+		obj, ok = obj[parts[i]].(map[string]interface{})
+		if !ok {
+			return nil
+		}
+	}
+	return obj
+}
