@@ -92,13 +92,25 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 }
 
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
+	toMap := func(x interface{}) map[string]string {
+		if x == nil {
+			return nil
+		} else {
+			return x.(map[string]string)
+		}
+	}
+	awLabels := map[string]string{appWrapperLabel: aw.Name}
+
 	aw.Spec.Suspend = false
 
-	// Update aw.Spec.Components to inject our labels and Kueue's PodSetInfo into every nested PodTemplateSpec
+	// Update aw.Spec.Components to inject awLabels and Kueue's PodSetInfo into each nested PodTemplateSpec
 	podSetsInfoIndex := 0
 	for componentIndex := range aw.Spec.Components {
 		component := &aw.Spec.Components[componentIndex]
-		objChanged := false
+		if len(component.PodSets) == 0 {
+			continue // no PodSets; nothing to do for this component
+		}
+
 		obj := &unstructured.Unstructured{}
 		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
 			return err
@@ -107,59 +119,44 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex > len(podSetsInfo) {
-				continue
+				continue // we're going to return an error below...just continuing to get the best possible error message
 			}
-
-			objChanged = true // We set p.metadata.labels[appWrapperLabel] = aw.Name irrespective of the content of toInject
 			toInject := podSetsInfo[podSetsInfoIndex-1]
+
 			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
 			if p == nil {
 				return fmt.Errorf("path %v not found in component %v", podSet.Path, component)
 			}
-
 			if _, ok := p["metadata"]; !ok {
 				p["metadata"] = make(map[string]interface{})
 			}
 			metadata := p["metadata"].(map[string]interface{})
+			spec := p["spec"].(map[string]interface{}) // Must exist, enforced by validateAppWrapperInvariants
 
 			// Annotations
 			if len(toInject.Annotations) > 0 {
-				if annotations, ok := metadata["annotations"]; !ok {
-					metadata["annotations"] = maps.Clone(toInject.Annotations)
-				} else {
-					if err := utilmaps.HaveConflict(annotations.(map[string]string), toInject.Annotations); err != nil {
-						return podset.BadPodSetsUpdateError("annotations", err)
-					}
-					metadata["annotations"] = utilmaps.MergeKeepFirst(metadata["annotations"].(map[string]string), toInject.Annotations)
+				existing := toMap(metadata["annotations"])
+				if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
+					return podset.BadPodSetsUpdateError("annotations", err)
 				}
+				metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
 			}
 
 			// Labels
-			if _, ok := metadata["labels"]; !ok {
-				metadata["labels"] = make(map[string]string)
+			mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
+			existing := toMap(metadata["labels"])
+			if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
+				return podset.BadPodSetsUpdateError("labels", err)
 			}
-			labels := metadata["labels"].(map[string]string)
-			labels[appWrapperLabel] = aw.Name
-			if len(toInject.Labels) > 0 {
-				if err := utilmaps.HaveConflict(labels, toInject.Labels); err != nil {
-					return podset.BadPodSetsUpdateError("labels", err)
-				}
-				labels = utilmaps.MergeKeepFirst(labels, toInject.Labels)
-			}
-			metadata["labels"] = labels
-
-			spec := p["spec"].(map[string]interface{}) // AppWrapper ValidatingAC ensures this succeeds
+			metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
 
 			// NodeSelectors
 			if len(toInject.NodeSelector) > 0 {
-				if selectors, ok := metadata["nodeSelector"]; !ok {
-					metadata["nodeSelector"] = maps.Clone(toInject.NodeSelector)
-				} else {
-					if err := utilmaps.HaveConflict(selectors.(map[string]string), toInject.NodeSelector); err != nil {
-						return podset.BadPodSetsUpdateError("nodeSelector", err)
-					}
-					metadata["nodeSelector"] = utilmaps.MergeKeepFirst(metadata["nodeSelector"].(map[string]string), toInject.NodeSelector)
+				existing := toMap(metadata["nodeSelector"])
+				if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
+					return podset.BadPodSetsUpdateError("nodeSelector", err)
 				}
+				metadata["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 			}
 
 			// Tolerations
@@ -175,13 +172,12 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 			}
 		}
 
-		if objChanged {
-			bytes, err := obj.MarshalJSON()
-			if err != nil {
-				return err
-			}
-			component.Template.Raw = bytes
+		// Serialize updated component
+		bytes, err := obj.MarshalJSON()
+		if err != nil {
+			return err
 		}
+		component.Template.Raw = bytes
 	}
 
 	if podSetsInfoIndex != len(podSetsInfo) {
@@ -196,26 +192,28 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 	podSetsInfoIndex := 0
 	for componentIndex := range aw.Spec.Components {
 		component := &aw.Spec.Components[componentIndex]
-		objChanged := false
+		if len(component.PodSets) == 0 {
+			continue // no PodSets; nothing to do for this component
+		}
 		obj := &unstructured.Unstructured{}
 		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
 			continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
 		}
 
-	PODSETLOOP:
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex > len(podSetsInfo) {
-				continue
+				continue // Should be impossible; Kueue should only have called RestorePodSetsInfo if RunWithPodSetsInfo returned without an error
 			}
 			toRestore := podSetsInfo[podSetsInfoIndex-1]
 			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
 			if p == nil {
-				continue PODSETLOOP // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+				continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
 			}
-			objChanged = true // We injected an AppWrapper label into every PodTemplateSpec, so we always have something to remove
 
 			metadata := p["metadata"].(map[string]interface{}) // Must be non-nil, because we injected a label
+			spec := p["spec"].(map[string]interface{})         // Must exist, enforced by validateAppWrapperInvariants
+
 			if len(toRestore.Annotations) > 0 {
 				metadata["annotations"] = maps.Clone(toRestore.Annotations)
 			} else {
@@ -228,7 +226,6 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 				delete(metadata, "labels")
 			}
 
-			spec := p["spec"].(map[string]interface{})
 			if len(toRestore.NodeSelector) > 0 {
 				spec["nodeSelector"] = maps.Clone(toRestore.NodeSelector)
 			} else {
@@ -246,13 +243,12 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 			}
 		}
 
-		if objChanged {
-			bytes, err := obj.MarshalJSON()
-			if err != nil {
-				continue
-			}
-			component.Template.Raw = bytes
+		// Serialize restored component
+		bytes, err := obj.MarshalJSON()
+		if err != nil {
+			continue
 		}
+		component.Template.Raw = bytes
 	}
 
 	return true
