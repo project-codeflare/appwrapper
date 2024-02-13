@@ -14,7 +14,7 @@
 
 # Installs a kueue release onto an existing cluster
 
-KUEUE_VERSION=v0.5.2
+KUEUE_VERSION=v0.5.3
 
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 
