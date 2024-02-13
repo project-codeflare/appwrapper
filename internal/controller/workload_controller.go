@@ -17,10 +17,8 @@ limitations under the License.
 package controller
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
-	"strings"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,82 +106,72 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
-			if podSetsInfoIndex <= len(podSetsInfo) {
-				toInject := podSetsInfo[podSetsInfoIndex-1]
-				parts := strings.Split(podSet.Path, ".")
-				p := obj.UnstructuredContent()
-				var ok bool
-				for i := 1; i < len(parts); i++ {
-					p, ok = p[parts[i]].(map[string]interface{})
-					if !ok {
-						return fmt.Errorf("path element %v not found (segment %v of %v)", parts[i], i, len(parts))
-					}
-				}
-				objChanged = true // Even if currentInfo is empty, we will still add appWrapperLabel to p.metadata.labels
+			if podSetsInfoIndex > len(podSetsInfo) {
+				continue
+			}
 
-				if _, ok := p["metadata"]; !ok {
-					p["metadata"] = make(map[string]interface{})
-				}
-				metadata := p["metadata"].(map[string]interface{})
+			objChanged = true // We set p.metadata.labels[appWrapperLabel] = aw.Name irrespective of the content of toInject
+			toInject := podSetsInfo[podSetsInfoIndex-1]
+			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
+			if p == nil {
+				return fmt.Errorf("path %v not found in component %v", podSet.Path, component)
+			}
 
-				// Annotations
-				if len(toInject.Annotations) > 0 {
-					if _, ok := metadata["annotations"]; !ok {
-						metadata["annotations"] = make(map[string]string)
-					}
-					annotations := metadata["annotations"].(map[string]string)
-					if err := utilmaps.HaveConflict(annotations, toInject.Annotations); err != nil {
+			if _, ok := p["metadata"]; !ok {
+				p["metadata"] = make(map[string]interface{})
+			}
+			metadata := p["metadata"].(map[string]interface{})
+
+			// Annotations
+			if len(toInject.Annotations) > 0 {
+				if annotations, ok := metadata["annotations"]; !ok {
+					metadata["annotations"] = maps.Clone(toInject.Annotations)
+				} else {
+					if err := utilmaps.HaveConflict(annotations.(map[string]string), toInject.Annotations); err != nil {
 						return podset.BadPodSetsUpdateError("annotations", err)
 					}
-					metadata["annotations"] = utilmaps.MergeKeepFirst(annotations, toInject.Annotations)
+					metadata["annotations"] = utilmaps.MergeKeepFirst(metadata["annotations"].(map[string]string), toInject.Annotations)
 				}
+			}
 
-				// Labels
-				if _, ok := metadata["labels"]; !ok {
-					metadata["labels"] = make(map[string]string)
+			// Labels
+			if _, ok := metadata["labels"]; !ok {
+				metadata["labels"] = make(map[string]string)
+			}
+			labels := metadata["labels"].(map[string]string)
+			labels[appWrapperLabel] = aw.Name
+			if len(toInject.Labels) > 0 {
+				if err := utilmaps.HaveConflict(labels, toInject.Labels); err != nil {
+					return podset.BadPodSetsUpdateError("labels", err)
 				}
-				labels := metadata["labels"].(map[string]string)
-				labels[appWrapperLabel] = aw.Name
-				if len(toInject.Labels) > 0 {
-					if err := utilmaps.HaveConflict(labels, toInject.Labels); err != nil {
-						return podset.BadPodSetsUpdateError("labels", err)
-					}
-					labels = utilmaps.MergeKeepFirst(labels, toInject.Labels)
-				}
-				metadata["labels"] = labels
+				labels = utilmaps.MergeKeepFirst(labels, toInject.Labels)
+			}
+			metadata["labels"] = labels
 
-				spec := p["spec"].(map[string]interface{}) // AppWrapper ValidatingAC ensures this succeeds
+			spec := p["spec"].(map[string]interface{}) // AppWrapper ValidatingAC ensures this succeeds
 
-				// NodeSelectors
-				if len(toInject.NodeSelector) > 0 {
-					if _, ok := spec["nodeSelector"]; !ok {
-						spec["nodeSelector"] = make(map[string]string)
-					}
-					selector := spec["nodeSelector"].(map[string]string)
-					if err := utilmaps.HaveConflict(selector, toInject.NodeSelector); err != nil {
+			// NodeSelectors
+			if len(toInject.NodeSelector) > 0 {
+				if selectors, ok := metadata["nodeSelector"]; !ok {
+					metadata["nodeSelector"] = maps.Clone(toInject.NodeSelector)
+				} else {
+					if err := utilmaps.HaveConflict(selectors.(map[string]string), toInject.NodeSelector); err != nil {
 						return podset.BadPodSetsUpdateError("nodeSelector", err)
 					}
-					spec["nodeSelector"] = utilmaps.MergeKeepFirst(selector, toInject.NodeSelector)
+					metadata["nodeSelector"] = utilmaps.MergeKeepFirst(metadata["nodeSelector"].(map[string]string), toInject.NodeSelector)
 				}
+			}
 
-				// Tolerations
-				if len(toInject.Tolerations) > 0 {
-					if _, ok := spec["tolerations"]; !ok {
-						spec["tolerations"] = []interface{}{}
-					}
-					tolerations := spec["tolerations"].([]interface{})
-					for _, addition := range toInject.Tolerations {
-						bytes, err := json.Marshal(addition)
-						if err != nil {
-							return err
-						}
-						tmp := &unstructured.Unstructured{}
-						if _, _, err := unstructured.UnstructuredJSONScheme.Decode(bytes, nil, tmp); err != nil {
-							return err
-						}
-						tolerations = append(tolerations, tmp.UnstructuredContent())
-					}
+			// Tolerations
+			if len(toInject.Tolerations) > 0 {
+				if _, ok := spec["tolerations"]; !ok {
+					spec["tolerations"] = []interface{}{}
 				}
+				tolerations := spec["tolerations"].([]interface{})
+				for _, addition := range toInject.Tolerations {
+					tolerations = append(tolerations, addition)
+				}
+				spec["tolerations"] = tolerations
 			}
 		}
 
@@ -217,56 +205,44 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 	PODSETLOOP:
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
-			if podSetsInfoIndex <= len(podSetsInfo) {
-				toRestore := podSetsInfo[podSetsInfoIndex-1]
-				parts := strings.Split(podSet.Path, ".")
-				p := obj.UnstructuredContent()
-				var ok bool
-				for i := 1; i < len(parts); i++ {
-					p, ok = p[parts[i]].(map[string]interface{})
-					if !ok {
-						continue PODSETLOOP // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
-					}
-				}
-				objChanged = true // We injected a label into every PodTemplateSpec, so we always have something to remove
+			if podSetsInfoIndex > len(podSetsInfo) {
+				continue
+			}
+			toRestore := podSetsInfo[podSetsInfoIndex-1]
+			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
+			if p == nil {
+				continue PODSETLOOP // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
+			}
+			objChanged = true // We injected an AppWrapper label into every PodTemplateSpec, so we always have something to remove
 
-				metadata := p["metadata"].(map[string]interface{}) // Must be non-nil, because we injected a label
-				if len(toRestore.Annotations) > 0 {
-					metadata["annotations"] = maps.Clone(toRestore.Annotations)
-				} else {
-					delete(metadata, "annotations")
-				}
+			metadata := p["metadata"].(map[string]interface{}) // Must be non-nil, because we injected a label
+			if len(toRestore.Annotations) > 0 {
+				metadata["annotations"] = maps.Clone(toRestore.Annotations)
+			} else {
+				delete(metadata, "annotations")
+			}
 
-				if len(toRestore.Labels) > 0 {
-					metadata["labels"] = maps.Clone(toRestore.Labels)
-				} else {
-					delete(metadata, "labels")
-				}
+			if len(toRestore.Labels) > 0 {
+				metadata["labels"] = maps.Clone(toRestore.Labels)
+			} else {
+				delete(metadata, "labels")
+			}
 
-				spec := p["spec"].(map[string]interface{})
-				if len(toRestore.Labels) > 0 {
-					spec["nodeSelector"] = maps.Clone(toRestore.NodeSelector)
-				} else {
-					delete(spec, "nodeSelector")
-				}
+			spec := p["spec"].(map[string]interface{})
+			if len(toRestore.NodeSelector) > 0 {
+				spec["nodeSelector"] = maps.Clone(toRestore.NodeSelector)
+			} else {
+				delete(spec, "nodeSelector")
+			}
 
-				if len(toRestore.Tolerations) > 0 {
-					tolerations := make([]interface{}, len(toRestore.Tolerations))
-					for idx, tol := range toRestore.Tolerations {
-						bytes, err := json.Marshal(tol)
-						if err != nil {
-							continue // should be impossible
-						}
-						tmp := &unstructured.Unstructured{}
-						if _, _, err := unstructured.UnstructuredJSONScheme.Decode(bytes, nil, tmp); err != nil {
-							continue // should be impossible
-						}
-						tolerations[idx] = tmp.UnstructuredContent()
-					}
-					spec["tolerations"] = tolerations
-				} else {
-					delete(spec, "tolerations")
+			if len(toRestore.Tolerations) > 0 {
+				tolerations := make([]interface{}, len(toRestore.Tolerations))
+				for idx, tol := range toRestore.Tolerations {
+					tolerations[idx] = tol
 				}
+				spec["tolerations"] = tolerations
+			} else {
+				delete(spec, "tolerations")
 			}
 		}
 
