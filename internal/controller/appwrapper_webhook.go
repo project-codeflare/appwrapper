@@ -92,8 +92,7 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *
 	podSpecCount := 0
 
 	for idx, component := range components {
-
-		// Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
+		// 1. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
 		podSetsPath := componentsPath.Index(idx).Child("podSets")
 		for psIdx, ps := range component.PodSets {
 			podSetPath := podSetsPath.Index(psIdx)
@@ -107,10 +106,10 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *
 			podSpecCount += 1
 		}
 
-		// TODO: RBAC check to make sure that the user has permissions to create the component
+		// 2. TODO: RBAC check to make sure that the user has permissions to create the component
 
-		// TODO: We could attempt to validate the object is namespaced and the namespace is the same as the AppWrapper's namespace
-		//       This is currently enforced when the resources are created.
+		// 3. TODO: We could attempt to validate the object is namespaced and the namespace is the same as the AppWrapper's namespace
+		//          This is currently enforced when the resources are created.
 
 	}
 

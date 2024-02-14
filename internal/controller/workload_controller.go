@@ -91,19 +91,32 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	return podSets
 }
 
+// RunWithPodSetsInfo injects awLabels and Kueue's PodSetInfo into each nested PodTemplateSpec and sets aw.spec.Suspend to false
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
 	toMap := func(x interface{}) map[string]string {
 		if x == nil {
 			return nil
 		} else {
-			return x.(map[string]string)
+			if sm, ok := x.(map[string]string); ok {
+				return sm
+			} else if im, ok := x.(map[string]interface{}); ok {
+				sm := make(map[string]string, len(im))
+				for k, v := range im {
+					str, ok := v.(string)
+					if ok {
+						sm[k] = str
+					} else {
+						sm[k] = fmt.Sprint(v)
+					}
+				}
+				return sm
+			} else {
+				return nil
+			}
 		}
 	}
 	awLabels := map[string]string{appWrapperLabel: aw.Name}
 
-	aw.Spec.Suspend = false
-
-	// Update aw.Spec.Components to inject awLabels and Kueue's PodSetInfo into each nested PodTemplateSpec
 	podSetsInfoIndex := 0
 	for componentIndex := range aw.Spec.Components {
 		component := &aw.Spec.Components[componentIndex]
@@ -119,15 +132,15 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 		for _, podSet := range component.PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex > len(podSetsInfo) {
-				continue // we're going to return an error below...just continuing to get the best possible error message
+				continue // we're going to return an error below...just continuing to get an accurate count for the error message
 			}
 			toInject := podSetsInfo[podSetsInfoIndex-1]
 
-			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
-			if p == nil {
-				return fmt.Errorf("path %v not found in component %v", podSet.Path, component)
+			p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
+			if err != nil {
+				return err // Should not happen, path validity is enforced by validateAppWrapperInvariants
 			}
-			if _, ok := p["metadata"]; !ok {
+			if md, ok := p["metadata"]; !ok || md == nil {
 				p["metadata"] = make(map[string]interface{})
 			}
 			metadata := p["metadata"].(map[string]interface{})
@@ -172,7 +185,7 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 			}
 		}
 
-		// Serialize updated component
+		// Update the AppWrapper's spec with the modified component
 		bytes, err := obj.MarshalJSON()
 		if err != nil {
 			return err
@@ -184,11 +197,13 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 		return podset.BadPodSetsInfoLenError(podSetsInfoIndex, len(podSetsInfo))
 	}
 
+	aw.Spec.Suspend = false
+
 	return nil
 }
 
+// RestorePodSetsInfo updates aw.Spec.Components to restore the labels, annotations, nodeSelectors, and tolerations from podSetsInfo
 func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
-	// Update aw.Spec.Components to restore all the saved labels, annotations, nodeSelectors, and tolerations.
 	podSetsInfoIndex := 0
 	for componentIndex := range aw.Spec.Components {
 		component := &aw.Spec.Components[componentIndex]
@@ -206,8 +221,8 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 				continue // Should be impossible; Kueue should only have called RestorePodSetsInfo if RunWithPodSetsInfo returned without an error
 			}
 			toRestore := podSetsInfo[podSetsInfoIndex-1]
-			p := getSubObject(obj.UnstructuredContent(), podSet.Path)
-			if p == nil {
+			p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
+			if err != nil {
 				continue // Kueue provides no way to indicate that RestorePodSetsInfo hit an error
 			}
 
@@ -243,7 +258,7 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 			}
 		}
 
-		// Serialize restored component
+		// Update the AppWrapper's spec with the restored component
 		bytes, err := obj.MarshalJSON()
 		if err != nil {
 			continue
