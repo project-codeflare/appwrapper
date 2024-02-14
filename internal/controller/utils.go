@@ -31,20 +31,12 @@ func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
-
-	// Walk down the path
-	parts := strings.Split(path, ".")
-	p := obj.UnstructuredContent()
-	var ok bool
-	for i := 1; i < len(parts); i++ {
-		p, ok = p[parts[i]].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("path element %v not found (segment %v of %v)", parts[i], i, len(parts))
-		}
+	candidatePTS, err := getRawTemplate(obj.UnstructuredContent(), path)
+	if err != nil {
+		return nil, err
 	}
 
 	// Extract the PodSpec that should be at candidatePTS.spec
-	candidatePTS := p
 	spec, ok := candidatePTS["spec"].(map[string]interface{})
 	if !ok {
 		return nil, fmt.Errorf("content at %v does not contain a spec", path)
@@ -69,14 +61,17 @@ func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
 }
 
 // return the subobject found at the given path, or nil if the path is invalid
-func getSubObject(obj map[string]interface{}, path string) map[string]interface{} {
+func getRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
 	parts := strings.Split(path, ".")
+	if parts[0] != "template" {
+		return nil, fmt.Errorf("first element of the path must be 'template'")
+	}
 	var ok bool
 	for i := 1; i < len(parts); i++ {
 		obj, ok = obj[parts[i]].(map[string]interface{})
 		if !ok {
-			return nil
+			return nil, fmt.Errorf("path element '%v' not found", parts[i])
 		}
 	}
-	return obj
+	return obj, nil
 }
