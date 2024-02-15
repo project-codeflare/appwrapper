@@ -45,7 +45,7 @@ type AppWrapper workloadv1beta2.AppWrapper
 
 var (
 	GVK                = workloadv1beta2.GroupVersion.WithKind("AppWrapper")
-	WorkloadReconciler = jobframework.NewGenericReconciler(func() jobframework.GenericJob { return &AppWrapper{} }, nil)
+	WorkloadReconciler = jobframework.NewGenericReconcilerFactory(func() jobframework.GenericJob { return &AppWrapper{} })
 )
 
 func (aw *AppWrapper) Object() client.Object {
