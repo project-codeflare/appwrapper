@@ -297,5 +297,5 @@ func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
 }
 
 func (aw *AppWrapper) PodsReady() bool {
-	return true // TODO
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))
 }
