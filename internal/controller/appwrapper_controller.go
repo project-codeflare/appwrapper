@@ -321,6 +321,9 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 			}
 			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
 		}
+		if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
+			return err, true
+		}
 	}
 	return nil, false
 }
