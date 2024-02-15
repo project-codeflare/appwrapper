@@ -78,6 +78,7 @@ type AppWrapperCondition string
 const (
 	QuotaReserved     AppWrapperCondition = "QuotaReserved"
 	ResourcesDeployed AppWrapperCondition = "ResourcesDeployed"
+	PodsReady         AppWrapperCondition = "PodsReady"
 )
 
 //+kubebuilder:object:root=true
