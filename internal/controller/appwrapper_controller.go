@@ -181,12 +181,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if podStatus.succeeded >= podStatus.expected {
+		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running == 0) {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
 				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
-				Message: fmt.Sprintf("%v pods succeeded", podStatus.succeeded),
+				Message: fmt.Sprintf("%v pods succeeded and no running or pending pods", podStatus.succeeded),
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSucceeded)
 		}
@@ -195,8 +195,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Type:   string(workloadv1beta2.PodsReady),
 				Status: metav1.ConditionFalse,
 				Reason: "PodsFailed",
-				Message: fmt.Sprintf("%v pods failed (%v pods running; %v pods succeeded)",
-					podStatus.failed, podStatus.running, podStatus.succeeded),
+				Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
+					podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
 		}
