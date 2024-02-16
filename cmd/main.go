@@ -62,6 +62,9 @@ func main() {
 	var probeAddr string
 	var secureMetrics bool
 	var enableHTTP2 bool
+
+	config := controller.AppWrapperConfig{}
+
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
@@ -71,6 +74,7 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
+	flag.BoolVar(&config.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -131,6 +135,7 @@ func main() {
 	if err := controller.WorkloadReconciler(
 		mgr.GetClient(),
 		mgr.GetEventRecorderFor("kueue"),
+		jobframework.WithManageJobsWithoutQueueName(config.ManageJobsWithoutQueueName),
 	).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "Unable to create controller", "controller", "Workload")
 		os.Exit(1)
@@ -139,13 +144,13 @@ func main() {
 	if err = (&controller.AppWrapperReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
+		Config: &config,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		// TODO: Proper configuration of ManageJobsWithoutQueueName via config file
-		wh := &controller.AppWrapperWebhook{ManageJobsWithoutQueueName: true}
+		wh := &controller.AppWrapperWebhook{Config: &config}
 		if err := ctrl.NewWebhookManagedBy(mgr).
 			For(&workloadv1beta2.AppWrapper{}).
 			WithDefaulter(wh).
