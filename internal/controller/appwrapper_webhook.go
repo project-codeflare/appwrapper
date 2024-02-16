@@ -21,8 +21,11 @@ import (
 	"fmt"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/apiserver/pkg/authentication/user"
+	"k8s.io/apiserver/pkg/authorization/authorizer"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -31,6 +34,7 @@ import (
 
 type AppWrapperWebhook struct {
 	Config *AppWrapperConfig
+	AuthClient                 authorizer.Authorizer
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
@@ -85,32 +89,66 @@ func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 }
 
 // validateAppWrapperInvariants checks AppWrapper-specific invariants
-func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
+func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	components := aw.Spec.Components
 	componentsPath := field.NewPath("spec").Child("components")
 	podSpecCount := 0
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		allErrors = append(allErrors, field.InternalError(componentsPath, err))
+	}
+	userInfo := request.UserInfo
 
 	for idx, component := range components {
-		// 1. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
-		podSetsPath := componentsPath.Index(idx).Child("podSets")
+		compPath := componentsPath.Index(idx)
+		unstruct := &unstructured.Unstructured{}
+		_, gvk, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
+		if err != nil {
+			allErrors = append(allErrors, field.Invalid(compPath.Child("template"), component.Template, "failed to decode as JSON"))
+		}
+
+		// 1. Deny nested AppWrappers
+		if *gvk == GVK {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
+		}
+
+		// 2. Forbid multi-namespace creations
+		if unstruct.GetNamespace() != "" && unstruct.GetNamespace() != aw.Namespace {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template").Child("metadata").Child("namespace"),
+				"AppWrappers cannot create objects in other namespaces"))
+		}
+
+		// 3. RBAC check: Deny AppWrappers containing resources that the user would not be able to create directly
+		decision, reason, err := w.AuthClient.Authorize(ctx, authorizer.AttributesRecord{
+			User:            &user.DefaultInfo{Name: userInfo.Username, UID: userInfo.UID, Groups: userInfo.Groups},
+			Verb:            "create",
+			Namespace:       aw.Namespace,
+			APIGroup:        gvk.Group,
+			APIVersion:      gvk.Version,
+			Resource:        gvk.Kind,
+			ResourceRequest: true,
+		})
+		if err != nil {
+			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
+		}
+		if decision == authorizer.DecisionDeny {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+		}
+
+		// 4. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
+		podSetsPath := compPath.Child("podSets")
 		for psIdx, ps := range component.PodSets {
 			podSetPath := podSetsPath.Index(psIdx)
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := getPodTemplateSpec(component.Template.Raw, ps.Path); err != nil {
+			if _, err := getPodTemplateSpec(unstruct, ps.Path); err != nil {
 				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}
 			podSpecCount += 1
 		}
-
-		// 2. TODO: RBAC check to make sure that the user has permissions to create the component
-
-		// 3. TODO: We could attempt to validate the object is namespaced and the namespace is the same as the AppWrapper's namespace
-		//          This is currently enforced when the resources are created.
-
 	}
 
 	// Enforce Kueue limitation that 0 < podSpecCount <= 8

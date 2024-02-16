@@ -72,12 +72,17 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	podSets := []kueue.PodSet{}
 	i := 0
 	for _, component := range aw.Spec.Components {
+		obj := &unstructured.Unstructured{}
+		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+			continue
+		}
+
 		for _, podSet := range component.PodSets {
 			replicas := int32(1)
 			if podSet.Replicas != nil {
 				replicas = *podSet.Replicas
 			}
-			template, err := getPodTemplateSpec(component.Template.Raw, podSet.Path)
+			template, err := getPodTemplateSpec(obj, podSet.Path)
 			if err == nil {
 				podSets = append(podSets, kueue.PodSet{
 					Name:     aw.Name + "-" + fmt.Sprint(i),

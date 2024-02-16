@@ -26,12 +26,18 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
+	"k8s.io/apiserver/pkg/server/options"
+	"k8s.io/client-go/kubernetes"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
@@ -150,7 +156,16 @@ func main() {
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		wh := &controller.AppWrapperWebhook{Config: &config}
+		authClient, err := createSubjectAccessReviewer(mgr)
+		if err != nil {
+			setupLog.Error(err, "unable to create SubjectAccessReviewer for webhook", "webhook", "AppWrapper")
+			os.Exit(1)
+		}
+		// TODO: Proper configuration of ManageJobsWithoutQueueName via config file
+		wh := &controller.AppWrapperWebhook{
+			Config: &config
+			AuthClient:                 authClient,
+		}
 		if err := ctrl.NewWebhookManagedBy(mgr).
 			For(&workloadv1beta2.AppWrapper{}).
 			WithDefaulter(wh).
@@ -182,4 +197,18 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// create a SubjectAccessReviewe
+func createSubjectAccessReviewer(mgr manager.Manager) (authorizer.Authorizer, error) {
+	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+	sarClient := kubeClient.AuthorizationV1()
+	authorizerConfig := authorizerfactory.DelegatingAuthorizerConfig{
+		SubjectAccessReviewClient: sarClient,
+		WebhookRetryBackoff:       options.DefaultAuthWebhookRetryBackoff(),
+	}
+	return authorizerConfig.New()
 }
