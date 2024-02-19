@@ -17,43 +17,88 @@ limitations under the License.
 package controller
 
 import (
+	"encoding/json"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-var _ = Describe("AppWrapper Webhook", func() {
+var _ = Describe("AppWrapper Webhook Tests", func() {
 
-	Context("When creating AppWrapper under Defaulting Webhook", func() {
-		It("Should fill in the default value of Suspended", func() {
-			aw := &workloadv1beta2.AppWrapper{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "webhook",
-					Namespace: "default",
-				},
-				Spec: workloadv1beta2.AppWrapperSpec{
-					Suspend:    false,
-					Components: []workloadv1beta2.AppWrapperComponent{simplePod(100)},
-				},
-			}
+	Context("Defaulting Webhook", func() {
+		It("Suspended is set to true", func() {
+			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				Suspend:    false,
+				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
+			})
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
-			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been defaulted to true")
+			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 	})
 
-	Context("When creating AppWrapper under Validating Webhook", func() {
-		It("Should deny if a required field is empty", func() {
+	Context("Validating Webhook", func() {
+		Context("Structural Invariants", func() {
+			It("There must be at least one podspec (a)", func() {
+				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+					Components: []workloadv1beta2.AppWrapperComponent{},
+				})
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("There must be at least one podspec (b)", func() {
+				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+					Components: []workloadv1beta2.AppWrapperComponent{service()},
+				})
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("There must be no more than 8 podspecs", func() {
+				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+					Components: []workloadv1beta2.AppWrapperComponent{pod(100), pod(100), pod(100), pod(100),
+						pod(100), pod(100), pod(100), pod(100), pod(100)},
+				})
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+		})
+
+		It("Nested AppWrappers are rejected", func() {
+			child := wrapSpec("child", "default", workloadv1beta2.AppWrapperSpec{
+				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
+			})
+			childBytes, err := json.Marshal(child)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				Components: []workloadv1beta2.AppWrapperComponent{pod(100), {
+					PodSets:  []workloadv1beta2.AppWrapperPodSet{},
+					Template: runtime.RawExtension{Raw: childBytes}},
+				},
+			})
+
+			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
+		It("RBAC is enforced", func() {
 
 			// TODO(user): Add your logic here
 
 		})
 
-		It("Should admit if all required fields are provided", func() {
+		It("Well-formed AppWrappers are accepted", func() {
+			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				Suspend:    false,
+				Components: []workloadv1beta2.AppWrapperComponent{pod(100), deployment(4, 100)},
+			})
 
-			// TODO(user): Add your logic here
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.Spec.Suspend).Should(BeTrue(), "Legal AppWrappers should be accepted")
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 
 		})
 	})

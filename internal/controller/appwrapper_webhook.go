@@ -61,12 +61,16 @@ var _ webhook.CustomValidator = &AppWrapperWebhook{}
 // ValidateCreate validates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating create", "job", aw)
 
 	allErrors := w.validateAppWrapperInvariants(ctx, aw)
-
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
+	}
+
+	if len(allErrors) > 0 {
+		log.FromContext(ctx).Info("Validating create failed", "job", aw, "errors", allErrors)
+	} else {
+		log.FromContext(ctx).Info("Validating create succeeded", "job", aw)
 	}
 
 	return nil, allErrors.ToAggregate()
@@ -76,13 +80,17 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating update", "job", newAW)
 
 	allErrors := w.validateAppWrapperInvariants(ctx, newAW)
-
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
+	}
+
+	if len(allErrors) > 0 {
+		log.FromContext(ctx).Info("Validating update failed", "job", newAW, "errors", allErrors)
+	} else {
+		log.FromContext(ctx).Info("Validating create succeeded", "job", newAW)
 	}
 
 	return nil, allErrors.ToAggregate()
