@@ -18,15 +18,29 @@ package controller
 
 import (
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("AppWrapper Webhook", func() {
 
 	Context("When creating AppWrapper under Defaulting Webhook", func() {
-		It("Should fill in the default value if a required field is empty", func() {
+		It("Should fill in the default value of Suspended", func() {
+			aw := &workloadv1beta2.AppWrapper{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "webhook",
+					Namespace: "default",
+				},
+				Spec: workloadv1beta2.AppWrapperSpec{
+					Suspend:    false,
+					Components: []workloadv1beta2.AppWrapperComponent{simplePod(100)},
+				},
+			}
 
-			// TODO(user): Add your logic here
-
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been defaulted to true")
 		})
 	})
 
