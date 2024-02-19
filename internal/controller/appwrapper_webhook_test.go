@@ -16,10 +16,6 @@ limitations under the License.
 
 package controller
 
-/*
-
-TODO: reenable webhook test suite scaffolding
-
 import (
 	. "github.com/onsi/ginkgo/v2"
 )
@@ -49,4 +45,3 @@ var _ = Describe("AppWrapper Webhook", func() {
 	})
 
 })
-*/

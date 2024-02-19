@@ -44,6 +44,9 @@ jobs:
       run: |
         make docker-build -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
+    - name: Run Unit Tests
+      run: make test
+
     - name: Create and configure cluster
       run: ./hack/create-test-cluster.sh
 

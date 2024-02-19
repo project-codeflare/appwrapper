@@ -26,7 +26,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/authentication/user"
 	"k8s.io/apiserver/pkg/authorization/authorizer"
+	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
+	"k8s.io/apiserver/pkg/server/options"
+	"k8s.io/client-go/kubernetes"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
@@ -160,4 +165,31 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 	}
 
 	return allErrors
+}
+
+func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	authClient, err := createSubjectAccessReviewer(mgr)
+	if err != nil {
+		return err
+	}
+	wh.AuthClient = authClient
+	return ctrl.NewWebhookManagedBy(mgr).
+		For(&workloadv1beta2.AppWrapper{}).
+		WithDefaulter(wh).
+		WithValidator(wh).
+		Complete()
+}
+
+// create a SubjectAccessReviewer
+func createSubjectAccessReviewer(mgr manager.Manager) (authorizer.Authorizer, error) {
+	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return nil, err
+	}
+	sarClient := kubeClient.AuthorizationV1()
+	authorizerConfig := authorizerfactory.DelegatingAuthorizerConfig{
+		SubjectAccessReviewClient: sarClient,
+		WebhookRetryBackoff:       options.DefaultAuthWebhookRetryBackoff(),
+	}
+	return authorizerConfig.New()
 }
