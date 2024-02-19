@@ -30,7 +30,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 
 	Context("Defaulting Webhook", func() {
 		It("Suspended is set to true", func() {
-			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 				Suspend:    false,
 				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
 			})
@@ -44,37 +44,54 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 	Context("Validating Webhook", func() {
 		Context("Structural Invariants", func() {
 			It("There must be at least one podspec (a)", func() {
-				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 					Components: []workloadv1beta2.AppWrapperComponent{},
 				})
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("There must be at least one podspec (b)", func() {
-				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 					Components: []workloadv1beta2.AppWrapperComponent{service()},
 				})
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("There must be no more than 8 podspecs", func() {
-				aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 					Components: []workloadv1beta2.AppWrapperComponent{pod(100), pod(100), pod(100), pod(100),
 						pod(100), pod(100), pod(100), pod(100), pod(100)},
 				})
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
+			It("Non-existent PodSpec paths are rejected", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.missing"
+				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
+					Components: []workloadv1beta2.AppWrapperComponent{comp},
+				})
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("PodSpec paths must refer to a PodSpecTemplate", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.template.metadata"
+				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
+					Components: []workloadv1beta2.AppWrapperComponent{comp},
+				})
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
 		})
 
 		It("Nested AppWrappers are rejected", func() {
-			child := wrapSpec("child", "default", workloadv1beta2.AppWrapperSpec{
+			child := toAppWrapper("child", "default", workloadv1beta2.AppWrapperSpec{
 				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
 			})
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 				Components: []workloadv1beta2.AppWrapperComponent{pod(100), {
 					PodSets:  []workloadv1beta2.AppWrapperPodSet{},
 					Template: runtime.RawExtension{Raw: childBytes}},
@@ -91,7 +108,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 		})
 
 		It("Well-formed AppWrappers are accepted", func() {
-			aw := wrapSpec("aw", "default", workloadv1beta2.AppWrapperSpec{
+			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 				Suspend:    false,
 				Components: []workloadv1beta2.AppWrapperComponent{pod(100), deployment(4, 100)},
 			})

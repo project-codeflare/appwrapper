@@ -41,10 +41,10 @@ func randName(baseName string) string {
 	return fmt.Sprintf("%s-%s", baseName, string(b))
 }
 
-func wrapSpec(name string, namespace string, spec workloadv1beta2.AppWrapperSpec) *workloadv1beta2.AppWrapper {
+func toAppWrapper(name string, namespace string, spec workloadv1beta2.AppWrapperSpec) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
 		TypeMeta:   metav1.TypeMeta{APIVersion: GVK.GroupVersion().String(), Kind: GVK.Kind},
-		ObjectMeta: metav1.ObjectMeta{Name: "aw", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec:       spec,
 	}
 }
