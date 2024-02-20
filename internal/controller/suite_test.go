@@ -109,14 +109,16 @@ var _ = BeforeSuite(func() {
 
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
 	limitedUserName := "limited-user"
-	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName}, cfg)
+	limitedCfg := *cfg
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName}
+	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName, Groups: []string{}}, &limitedCfg)
 	Expect(err).NotTo(HaveOccurred())
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: "limited-role"},
 		Rules: []rbacv1.PolicyRule{
 			{Verbs: []string{"*"}, APIGroups: []string{"workload.codeflare.dev"}, Resources: []string{"appwrappers"}},
 			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
-			{Verbs: []string{"get"}, APIGroups: []string{"apps/v1"}, Resources: []string{"deployments"}},
+			{Verbs: []string{"get"}, APIGroups: []string{"apps"}, Resources: []string{"deployments"}},
 		},
 	}
 	err = k8sClient.Create(ctx, clusterRole)
@@ -129,8 +131,6 @@ var _ = BeforeSuite(func() {
 	err = k8sClient.Create(ctx, clusterRoleBinding)
 	Expect(err).NotTo(HaveOccurred())
 
-	limitedCfg := *cfg
-	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName}
 	k8sLimitedClient, err = client.New(&limitedCfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 

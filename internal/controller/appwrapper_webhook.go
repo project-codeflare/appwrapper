@@ -21,17 +21,15 @@ import (
 	"fmt"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	authv1 "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/apiserver/pkg/authentication/user"
-	"k8s.io/apiserver/pkg/authorization/authorizer"
-	"k8s.io/apiserver/pkg/authorization/authorizerfactory"
-	"k8s.io/apiserver/pkg/server/options"
 	"k8s.io/client-go/kubernetes"
+	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
@@ -39,7 +37,7 @@ import (
 
 type AppWrapperWebhook struct {
 	Config *AppWrapperConfig
-	AuthClient                 authorizer.Authorizer
+	SubjectAccessReviewer      authClientv1.SubjectAccessReviewInterface
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
@@ -132,21 +130,35 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 				"AppWrappers cannot create objects in other namespaces"))
 		}
 
-		// 3. RBAC check: Deny AppWrappers containing resources that the user would not be able to create directly
-		decision, reason, err := w.AuthClient.Authorize(ctx, authorizer.AttributesRecord{
-			User:            &user.DefaultInfo{Name: userInfo.Username, UID: userInfo.UID, Groups: userInfo.Groups},
-			Verb:            "create",
-			Namespace:       aw.Namespace,
-			APIGroup:        gvk.Group,
-			APIVersion:      gvk.Version,
-			Resource:        gvk.Kind,
-			ResourceRequest: true,
-		})
+		// 3. RBAC check: User must have the permission to directly create each wrapped resource
+		ra := authv1.ResourceAttributes{
+			Namespace: aw.Namespace,
+			Verb:      "create",
+			Group:     gvk.Group,
+			Version:   gvk.Version,
+			Resource:  gvk.Kind,
+		}
+		sar := &authv1.SubjectAccessReview{
+			Spec: authv1.SubjectAccessReviewSpec{
+				ResourceAttributes: &ra,
+				User:               userInfo.Username,
+				UID:                userInfo.UID,
+				Groups:             userInfo.Groups,
+				// TODO: Need to coerce userInfo.Extra into spec.Extra here
+			}}
+
+		result, err := w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
 		if err != nil {
 			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
-		}
-		if decision == authorizer.DecisionDeny {
-			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+		} else {
+			log.FromContext(ctx).Info("SAR details", "SAR", result, "SAR.Status", result.Status)
+			if !result.Status.Allowed {
+				reason := result.Status.Reason
+				if reason == "" {
+					reason = "Insufficient permissions to create resource"
+				}
+				allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+			}
 		}
 
 		// 4. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
@@ -176,28 +188,14 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 }
 
 func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	authClient, err := createSubjectAccessReviewer(mgr)
+	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return err
 	}
-	wh.AuthClient = authClient
+	wh.SubjectAccessReviewer = kubeClient.AuthorizationV1().SubjectAccessReviews()
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&workloadv1beta2.AppWrapper{}).
 		WithDefaulter(wh).
 		WithValidator(wh).
 		Complete()
-}
-
-// create a SubjectAccessReviewer
-func createSubjectAccessReviewer(mgr manager.Manager) (authorizer.Authorizer, error) {
-	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		return nil, err
-	}
-	sarClient := kubeClient.AuthorizationV1()
-	authorizerConfig := authorizerfactory.DelegatingAuthorizerConfig{
-		SubjectAccessReviewClient: sarClient,
-		WebhookRetryBackoff:       options.DefaultAuthWebhookRetryBackoff(),
-	}
-	return authorizerConfig.New()
 }

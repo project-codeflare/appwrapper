@@ -91,7 +91,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			It("AppWrapper containing permitted resources can be created", func() {
 				aw := toAppWrapper(pod(100))
 				Expect(k8sLimitedClient.Create(ctx, aw)).To(Succeed(), "Limited user should be allowed to create AppWrapper containing Pods")
-				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+				Expect(k8sLimitedClient.Delete(ctx, aw)).To(Succeed())
 			})
 
 			It("AppWrapper containing unpermitted resources cannot be created", func() {
