@@ -84,6 +84,13 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			})
 		})
 
+		It("Components in other namespaces are rejected", func() {
+			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
+				Components: []workloadv1beta2.AppWrapperComponent{namespacedPod("test", 100)},
+			})
+			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
 		It("Nested AppWrappers are rejected", func() {
 			child := toAppWrapper("child", "default", workloadv1beta2.AppWrapperSpec{
 				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
@@ -110,13 +117,12 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 		It("Well-formed AppWrappers are accepted", func() {
 			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
 				Suspend:    false,
-				Components: []workloadv1beta2.AppWrapperComponent{pod(100), deployment(4, 100)},
+				Components: []workloadv1beta2.AppWrapperComponent{pod(100), deployment(4, 100), namespacedPod("default", 100)},
 			})
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
 			Expect(aw.Spec.Suspend).Should(BeTrue(), "Legal AppWrappers should be accepted")
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
-
 		})
 	})
 
