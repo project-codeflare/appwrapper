@@ -143,8 +143,13 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 				User:   userInfo.Username,
 				UID:    userInfo.UID,
 				Groups: userInfo.Groups,
-				// TODO: Need to coerce userInfo.Extra into spec.Extra here
 			}}
+		if len(userInfo.Extra) > 0 {
+			sar.Spec.Extra = make(map[string]authv1.ExtraValue, len(userInfo.Extra))
+			for k, v := range userInfo.Extra {
+				sar.Spec.Extra[k] = authv1.ExtraValue(v)
+			}
+		}
 		sar, err = w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
 		if err != nil {
 			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
