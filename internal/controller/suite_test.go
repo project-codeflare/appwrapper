@@ -52,8 +52,8 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var k8sLimitedClient client.Client
 var testEnv *envtest.Environment
-var limitedUser *envtest.AuthenticatedUser
 var ctx context.Context
 var cancel context.CancelFunc
 
@@ -109,12 +109,12 @@ var _ = BeforeSuite(func() {
 
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
 	limitedUserName := "limited-user"
-	limitedUser, err = testEnv.AddUser(envtest.User{Name: limitedUserName}, cfg)
+	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName}, cfg)
 	Expect(err).NotTo(HaveOccurred())
 	clusterRole := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: "limited-role"},
 		Rules: []rbacv1.PolicyRule{
-			{Verbs: []string{"*"}, APIGroups: []string{workloadv1beta2.GroupVersion.String()}, Resources: []string{"*"}},
+			{Verbs: []string{"*"}, APIGroups: []string{"workload.codeflare.dev"}, Resources: []string{"appwrappers"}},
 			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
 			{Verbs: []string{"get"}, APIGroups: []string{"apps/v1"}, Resources: []string{"deployments"}},
 		},
@@ -127,6 +127,11 @@ var _ = BeforeSuite(func() {
 		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: clusterRole.Name},
 	}
 	err = k8sClient.Create(ctx, clusterRoleBinding)
+	Expect(err).NotTo(HaveOccurred())
+
+	limitedCfg := *cfg
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName}
+	k8sLimitedClient, err = client.New(&limitedCfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 
 	// start webhook server using Manager

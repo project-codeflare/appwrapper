@@ -41,10 +41,10 @@ func randName(baseName string) string {
 	return fmt.Sprintf("%s-%s", baseName, string(b))
 }
 
-func toAppWrapper(name string, namespace string, spec workloadv1beta2.AppWrapperSpec) *workloadv1beta2.AppWrapper {
+func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec:       spec,
+		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
+		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
 	}
 }
 

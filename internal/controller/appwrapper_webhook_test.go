@@ -31,10 +31,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 
 	Context("Defaulting Webhook", func() {
 		It("Suspended is set to true", func() {
-			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-				Suspend:    false,
-				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
-			})
+			aw := toAppWrapper(pod(100))
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
 			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
@@ -45,84 +42,69 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 	Context("Validating Webhook", func() {
 		Context("Structural Invariants", func() {
 			It("There must be at least one podspec (a)", func() {
-				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-					Components: []workloadv1beta2.AppWrapperComponent{},
-				})
+				aw := toAppWrapper()
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("There must be at least one podspec (b)", func() {
-				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-					Components: []workloadv1beta2.AppWrapperComponent{service()},
-				})
+				aw := toAppWrapper(service())
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("There must be no more than 8 podspecs", func() {
-				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-					Components: []workloadv1beta2.AppWrapperComponent{pod(100), pod(100), pod(100), pod(100),
-						pod(100), pod(100), pod(100), pod(100), pod(100)},
-				})
+				aw := toAppWrapper(pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100))
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("Non-existent PodSpec paths are rejected", func() {
 				comp := deployment(4, 100)
 				comp.PodSets[0].Path = "template.spec.missing"
-				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-					Components: []workloadv1beta2.AppWrapperComponent{comp},
-				})
+				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("PodSpec paths must refer to a PodSpecTemplate", func() {
 				comp := deployment(4, 100)
 				comp.PodSets[0].Path = "template.spec.template.metadata"
-				aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-					Components: []workloadv1beta2.AppWrapperComponent{comp},
-				})
+				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 		})
 
 		It("Components in other namespaces are rejected", func() {
-			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-				Components: []workloadv1beta2.AppWrapperComponent{namespacedPod("test", 100)},
-			})
+			aw := toAppWrapper(namespacedPod("test", 100))
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 		})
 
 		It("Nested AppWrappers are rejected", func() {
-			child := toAppWrapper("child", "default", workloadv1beta2.AppWrapperSpec{
-				Components: []workloadv1beta2.AppWrapperComponent{pod(100)},
-			})
+			child := toAppWrapper(pod(100))
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
-
-			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-				Components: []workloadv1beta2.AppWrapperComponent{pod(100), {
-					PodSets:  []workloadv1beta2.AppWrapperPodSet{},
-					Template: runtime.RawExtension{Raw: childBytes}},
-				},
+			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
+				PodSets:  []workloadv1beta2.AppWrapperPodSet{},
+				Template: runtime.RawExtension{Raw: childBytes},
 			})
-
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 		})
 
-		It("RBAC is enforced for wrapped resources", func() {
+		Context("RBAC is enforced for wrapped resouces", func() {
+			It("AppWrapper containing permitted resources can be created", func() {
+				aw := toAppWrapper(pod(100))
+				Expect(k8sLimitedClient.Create(ctx, aw)).To(Succeed(), "Limited user should be allowed to create AppWrapper containing Pods")
+				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+			})
 
-			// TODO(user): Add your logic here
-
+			It("AppWrapper containing unpermitted resources cannot be created", func() {
+				aw := toAppWrapper(deployment(4, 100))
+				Expect(k8sLimitedClient.Create(ctx, aw)).NotTo(Succeed(), "Limited user should not be allowed to create AppWrapper containing Deployments")
+			})
 		})
 
 		It("Well-formed AppWrappers are accepted", func() {
-			aw := toAppWrapper("aw", "default", workloadv1beta2.AppWrapperSpec{
-				Suspend:    false,
-				Components: []workloadv1beta2.AppWrapperComponent{pod(100), deployment(4, 100), namespacedPod("default", 100)},
-			})
+			aw := toAppWrapper(pod(100), deployment(4, 100), namespacedPod("default", 100))
 
-			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
-			Expect(aw.Spec.Suspend).Should(BeTrue(), "Legal AppWrappers should be accepted")
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "Legal AppWrappers should be accepted")
+			Expect(aw.Spec.Suspend).Should(BeTrue())
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 	})
