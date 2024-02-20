@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -108,7 +109,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 		})
 
-		It("RBAC is enforced", func() {
+		It("RBAC is enforced for wrapped resources", func() {
 
 			// TODO(user): Add your logic here
 

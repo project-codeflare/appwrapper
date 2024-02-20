@@ -43,7 +43,6 @@ func randName(baseName string) string {
 
 func toAppWrapper(name string, namespace string, spec workloadv1beta2.AppWrapperSpec) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
-		TypeMeta:   metav1.TypeMeta{APIVersion: GVK.GroupVersion().String(), Kind: GVK.Kind},
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
 		Spec:       spec,
 	}

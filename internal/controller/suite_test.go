@@ -29,8 +29,11 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	admissionv1 "k8s.io/api/admission/v1"
 	//+kubebuilder:scaffold:imports
+
+	admissionv1 "k8s.io/api/admission/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -50,6 +53,7 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var limitedUser *envtest.AuthenticatedUser
 var ctx context.Context
 var cancel context.CancelFunc
 
@@ -94,12 +98,36 @@ var _ = BeforeSuite(func() {
 
 	err = admissionv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
+	err = rbacv1.AddToScheme(scheme)
+	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
 
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
+
+	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
+	limitedUserName := "limited-user"
+	limitedUser, err = testEnv.AddUser(envtest.User{Name: limitedUserName}, cfg)
+	Expect(err).NotTo(HaveOccurred())
+	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: "limited-role"},
+		Rules: []rbacv1.PolicyRule{
+			{Verbs: []string{"*"}, APIGroups: []string{workloadv1beta2.GroupVersion.String()}, Resources: []string{"*"}},
+			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
+			{Verbs: []string{"get"}, APIGroups: []string{"apps/v1"}, Resources: []string{"deployments"}},
+		},
+	}
+	err = k8sClient.Create(ctx, clusterRole)
+	Expect(err).NotTo(HaveOccurred())
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: "limited-role-binding"},
+		Subjects:   []rbacv1.Subject{{Kind: rbacv1.UserKind, Name: limitedUserName}},
+		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: clusterRole.Name},
+	}
+	err = k8sClient.Create(ctx, clusterRoleBinding)
+	Expect(err).NotTo(HaveOccurred())
 
 	// start webhook server using Manager
 	webhookInstallOptions := &testEnv.WebhookInstallOptions
@@ -136,7 +164,6 @@ var _ = BeforeSuite(func() {
 		}
 		return conn.Close()
 	}).Should(Succeed())
-
 })
 
 var _ = AfterSuite(func() {
