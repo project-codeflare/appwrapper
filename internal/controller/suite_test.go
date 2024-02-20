@@ -117,8 +117,8 @@ var _ = BeforeSuite(func() {
 		ObjectMeta: metav1.ObjectMeta{Name: "limited-role"},
 		Rules: []rbacv1.PolicyRule{
 			{Verbs: []string{"*"}, APIGroups: []string{"workload.codeflare.dev"}, Resources: []string{"appwrappers"}},
-			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
-			{Verbs: []string{"get"}, APIGroups: []string{"apps"}, Resources: []string{"deployments"}},
+			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"Pod"}},
+			{Verbs: []string{"get"}, APIGroups: []string{"apps"}, Resources: []string{"Deployment"}},
 		},
 	}
 	err = k8sClient.Create(ctx, clusterRole)

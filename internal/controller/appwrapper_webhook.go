@@ -130,32 +130,29 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 				"AppWrappers cannot create objects in other namespaces"))
 		}
 
-		// 3. RBAC check: User must have the permission to directly create each wrapped resource
-		ra := authv1.ResourceAttributes{
-			Namespace: aw.Namespace,
-			Verb:      "create",
-			Group:     gvk.Group,
-			Version:   gvk.Version,
-			Resource:  gvk.Kind,
-		}
+		// 3. RBAC check: Perform SubjectAccessReview to verify user can directly create each wrapped resource
 		sar := &authv1.SubjectAccessReview{
 			Spec: authv1.SubjectAccessReviewSpec{
-				ResourceAttributes: &ra,
-				User:               userInfo.Username,
-				UID:                userInfo.UID,
-				Groups:             userInfo.Groups,
+				ResourceAttributes: &authv1.ResourceAttributes{
+					Namespace: aw.Namespace,
+					Verb:      "create",
+					Group:     gvk.Group,
+					Version:   gvk.Version,
+					Resource:  gvk.Kind,
+				},
+				User:   userInfo.Username,
+				UID:    userInfo.UID,
+				Groups: userInfo.Groups,
 				// TODO: Need to coerce userInfo.Extra into spec.Extra here
 			}}
-
-		result, err := w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
+		sar, err = w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
 		if err != nil {
 			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
 		} else {
-			log.FromContext(ctx).Info("SAR details", "SAR", result, "SAR.Status", result.Status)
-			if !result.Status.Allowed {
-				reason := result.Status.Reason
+			if !sar.Status.Allowed {
+				reason := sar.Status.Reason
 				if reason == "" {
-					reason = "Insufficient permissions to create resource"
+					reason = "Permission denied"
 				}
 				allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
 			}
