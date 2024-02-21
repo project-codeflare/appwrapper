@@ -99,7 +99,12 @@ func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 	return nil, nil
 }
 
-// validateAppWrapperInvariants checks AppWrapper-specific invariants
+// validateAppWrapperInvariants checks these invariants:
+//  1. AppWrappers must not contain other AppWrappers
+//  2. AppWrappers must only contain resources intended for their own namespace
+//  3. AppWrappers must not contain any resources that the user could not create directly
+//  4. Every PodSet must be well-formed: the Path must exist and must be parseable as a PodSpecTemplate
+//  5. AppWrappers must contain between 1 and 8 PodSets (Kueue invariant)
 func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	components := aw.Spec.Components
@@ -178,7 +183,7 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 		}
 	}
 
-	// Enforce Kueue limitation that 0 < podSpecCount <= 8
+	// 5. Enforce Kueue limitation that 0 < podSpecCount <= 8
 	if podSpecCount == 0 {
 		allErrors = append(allErrors, field.Invalid(componentsPath, components, "components contains no podspecs"))
 	}
