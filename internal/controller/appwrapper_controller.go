@@ -47,6 +47,7 @@ const (
 type AppWrapperReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	Config *AppWrapperConfig
 }
 
 type podStatusSummary struct {

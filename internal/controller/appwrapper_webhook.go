@@ -30,7 +30,7 @@ import (
 )
 
 type AppWrapperWebhook struct {
-	ManageJobsWithoutQueueName bool
+	Config *AppWrapperConfig
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
@@ -41,7 +41,7 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
-	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.ManageJobsWithoutQueueName)
+	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 
 	allErrors := w.validateAppWrapperInvariants(ctx, aw)
 
-	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
+	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
 	}
 
@@ -71,7 +71,7 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 
 	allErrors := w.validateAppWrapperInvariants(ctx, newAW)
 
-	if w.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
+	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 	}
