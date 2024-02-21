@@ -148,7 +148,8 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&AppWrapperWebhook{ManageJobsWithoutQueueName: true}).SetupWebhookWithManager(mgr)
+	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true}
+	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

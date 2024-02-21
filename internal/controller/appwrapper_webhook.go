@@ -36,8 +36,8 @@ import (
 )
 
 type AppWrapperWebhook struct {
-	Config *AppWrapperConfig
-	SubjectAccessReviewer      authClientv1.SubjectAccessReviewInterface
+	Config                *AppWrapperConfig
+	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1

@@ -150,10 +150,8 @@ func main() {
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		// TODO: Proper configuration of ManageJobsWithoutQueueName via config file
 		if err = (&controller.AppWrapperWebhook{
-			ManageJobsWithoutQueueName: true,
-			AuthClient:                 authClient,
+			Config: &config,
 		}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "AppWrapper")
 			os.Exit(1)
