@@ -19,14 +19,15 @@ package controller
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	discovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -39,6 +40,8 @@ import (
 type AppWrapperWebhook struct {
 	Config                *AppWrapperConfig
 	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
+	DiscoveryClient       *discovery.DiscoveryClient
+	kindToResourceCache   map[string]string
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
@@ -151,7 +154,7 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 			Verb:      "create",
 			Group:     gvk.Group,
 			Version:   gvk.Version,
-			Resource:  kindToResource(gvk.Kind),
+			Resource:  w.lookupResource(gvk),
 		}
 		sar := &authv1.SubjectAccessReview{
 			Spec: authv1.SubjectAccessReviewSpec{
@@ -202,13 +205,21 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 	return allErrors
 }
 
-func kindToResource(kind string) string {
-	kind = strings.ToLower(kind)
-	if strings.HasSuffix(kind, "s") {
-		return kind + "es"
-	} else {
-		return kind + "s"
+func (w *AppWrapperWebhook) lookupResource(gvk *schema.GroupVersionKind) string {
+	if known, ok := w.kindToResourceCache[gvk.String()]; ok {
+		return known
 	}
+	resources, err := w.DiscoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
+	if err != nil {
+		return "*"
+	}
+	for _, r := range resources.APIResources {
+		if r.Kind == gvk.Kind {
+			w.kindToResourceCache[gvk.String()] = r.Name
+			return r.Name
+		}
+	}
+	return "*"
 }
 
 func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
@@ -217,6 +228,8 @@ func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	wh.SubjectAccessReviewer = kubeClient.AuthorizationV1().SubjectAccessReviews()
+	wh.DiscoveryClient = kubeClient.DiscoveryClient
+	wh.kindToResourceCache = make(map[string]string)
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&workloadv1beta2.AppWrapper{}).
 		WithDefaulter(wh).
