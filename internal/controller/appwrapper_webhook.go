@@ -60,7 +60,7 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 
 var _ webhook.CustomValidator = &AppWrapperWebhook{}
 
-// ValidateCreate validates invariants when a new AppWrapper is created
+// ValidateCreate validates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 
@@ -78,7 +78,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 	return nil, allErrors.ToAggregate()
 }
 
-// ValidateUpdate validates invariants when an existing AppWrapper is updated
+// ValidateUpdate validates invariants when an AppWrapper is updated
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
