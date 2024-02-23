@@ -16,37 +16,97 @@ limitations under the License.
 
 package controller
 
-/*
-
-TODO: reenable webhook test suite scaffolding
-
 import (
+	"encoding/json"
+
 	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-var _ = Describe("AppWrapper Webhook", func() {
+var _ = Describe("AppWrapper Webhook Tests", func() {
 
-	Context("When creating AppWrapper under Defaulting Webhook", func() {
-		It("Should fill in the default value if a required field is empty", func() {
+	Context("Defaulting Webhook", func() {
+		It("Suspended is set to true", func() {
+			aw := toAppWrapper(pod(100))
 
-			// TODO(user): Add your logic here
-
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 	})
 
-	Context("When creating AppWrapper under Validating Webhook", func() {
-		It("Should deny if a required field is empty", func() {
+	Context("Validating Webhook", func() {
+		Context("Structural Invariants", func() {
+			It("There must be at least one podspec (a)", func() {
+				aw := toAppWrapper()
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
 
-			// TODO(user): Add your logic here
+			It("There must be at least one podspec (b)", func() {
+				aw := toAppWrapper(service())
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
 
+			It("There must be no more than 8 podspecs", func() {
+				aw := toAppWrapper(pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100))
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("Non-existent PodSpec paths are rejected", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.missing"
+				aw := toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("PodSpec paths must refer to a PodSpecTemplate", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.template.metadata"
+				aw := toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
 		})
 
-		It("Should admit if all required fields are provided", func() {
+		It("Components in other namespaces are rejected", func() {
+			aw := toAppWrapper(namespacedPod("test", 100))
+			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
 
-			// TODO(user): Add your logic here
+		It("Nested AppWrappers are rejected", func() {
+			child := toAppWrapper(pod(100))
+			childBytes, err := json.Marshal(child)
+			Expect(err).ShouldNot(HaveOccurred())
+			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
+				PodSets:  []workloadv1beta2.AppWrapperPodSet{},
+				Template: runtime.RawExtension{Raw: childBytes},
+			})
+			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
 
+		Context("RBAC is enforced for wrapped resouces", func() {
+			It("AppWrapper containing permitted resources can be created", func() {
+				aw := toAppWrapper(pod(100))
+				Expect(k8sLimitedClient.Create(ctx, aw)).To(Succeed(), "Limited user should be allowed to create AppWrapper containing Pods")
+				Expect(k8sLimitedClient.Delete(ctx, aw)).To(Succeed())
+			})
+
+			It("AppWrapper containing unpermitted resources cannot be created", func() {
+				aw := toAppWrapper(deployment(4, 100))
+				Expect(k8sLimitedClient.Create(ctx, aw)).NotTo(Succeed(), "Limited user should not be allowed to create AppWrapper containing Deployments")
+			})
+		})
+
+		It("Well-formed AppWrappers are accepted", func() {
+			aw := toAppWrapper(pod(100), deployment(4, 100), namespacedPod("default", 100))
+
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "Legal AppWrappers should be accepted")
+			Expect(aw.Spec.Suspend).Should(BeTrue())
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 	})
 
 })
-*/

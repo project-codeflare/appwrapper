@@ -70,6 +70,7 @@ spec:
         - /manager
         args:
         - --leader-elect
+        - "--service-account=system:serviceaccount:$(MY_NAMESPACE):$(MY_SERVICE_ACCOUNT_NAME)"
         image: controller:latest
         name: manager
         securityContext:
@@ -89,8 +90,6 @@ spec:
             port: 8081
           initialDelaySeconds: 5
           periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
         resources:
           limits:
             cpu: 500m
@@ -98,5 +97,14 @@ spec:
           requests:
             cpu: 10m
             memory: 64Mi
+        env:
+        - name: MY_SERVICE_ACCOUNT_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.serviceAccountName
+        - name: MY_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10

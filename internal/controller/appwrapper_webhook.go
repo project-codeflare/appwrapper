@@ -21,8 +21,16 @@ import (
 	"fmt"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	authv1 "k8s.io/api/authorization/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+	discovery "k8s.io/client-go/discovery"
+	"k8s.io/client-go/kubernetes"
+	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -30,7 +38,10 @@ import (
 )
 
 type AppWrapperWebhook struct {
-	Config *AppWrapperConfig
+	Config                *AppWrapperConfig
+	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
+	DiscoveryClient       *discovery.DiscoveryClient
+	kindToResourceCache   map[string]string
 }
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
@@ -52,12 +63,16 @@ var _ webhook.CustomValidator = &AppWrapperWebhook{}
 // ValidateCreate validates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating create", "job", aw)
 
 	allErrors := w.validateAppWrapperInvariants(ctx, aw)
-
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
+	}
+
+	if len(allErrors) > 0 {
+		log.FromContext(ctx).Info("Validating create failed", "job", aw, "errors", allErrors)
+	} else {
+		log.FromContext(ctx).Info("Validating create succeeded", "job", aw)
 	}
 
 	return nil, allErrors.ToAggregate()
@@ -67,13 +82,17 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating update", "job", newAW)
 
 	allErrors := w.validateAppWrapperInvariants(ctx, newAW)
-
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
+	}
+
+	if len(allErrors) > 0 {
+		log.FromContext(ctx).Info("Validating update failed", "job", newAW, "errors", allErrors)
+	} else {
+		log.FromContext(ctx).Info("Validating update succeeded", "job", newAW)
 	}
 
 	return nil, allErrors.ToAggregate()
@@ -84,36 +103,98 @@ func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 	return nil, nil
 }
 
-// validateAppWrapperInvariants checks AppWrapper-specific invariants
-func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
+// rbacs required to enable SubjectAccessReview
+//+kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
+//+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=list
+
+// validateAppWrapperInvariants checks these invariants:
+//  1. AppWrappers must not contain other AppWrappers
+//  2. AppWrappers must only contain resources intended for their own namespace
+//  3. AppWrappers must not contain any resources that the user could not create directly
+//  4. Every PodSet must be well-formed: the Path must exist and must be parseable as a PodSpecTemplate
+//  5. AppWrappers must contain between 1 and 8 PodSets (Kueue invariant)
+func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	components := aw.Spec.Components
 	componentsPath := field.NewPath("spec").Child("components")
 	podSpecCount := 0
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		allErrors = append(allErrors, field.InternalError(componentsPath, err))
+	}
+	userInfo := request.UserInfo
+
+	// To reduce overhead, skip invariant validation when the AppWrapper controller is the user performing the update
+	if w.Config.ServiceAccountName != "" && userInfo.Username == w.Config.ServiceAccountName {
+		return allErrors
+	}
 
 	for idx, component := range components {
-		// 1. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
-		podSetsPath := componentsPath.Index(idx).Child("podSets")
+		compPath := componentsPath.Index(idx)
+		unstruct := &unstructured.Unstructured{}
+		_, gvk, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
+		if err != nil {
+			allErrors = append(allErrors, field.Invalid(compPath.Child("template"), component.Template, "failed to decode as JSON"))
+		}
+
+		// 1. Deny nested AppWrappers
+		if *gvk == GVK {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
+		}
+
+		// 2. Forbid creation of resources in other namespaces
+		if unstruct.GetNamespace() != "" && unstruct.GetNamespace() != aw.Namespace {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template").Child("metadata").Child("namespace"),
+				"AppWrappers cannot create objects in other namespaces"))
+		}
+
+		// 3. RBAC check: Perform SubjectAccessReview to verify user is entitled to create component
+		ra := authv1.ResourceAttributes{
+			Namespace: aw.Namespace,
+			Verb:      "create",
+			Group:     gvk.Group,
+			Version:   gvk.Version,
+			Resource:  w.lookupResource(gvk),
+		}
+		sar := &authv1.SubjectAccessReview{
+			Spec: authv1.SubjectAccessReviewSpec{
+				ResourceAttributes: &ra,
+				User:               userInfo.Username,
+				UID:                userInfo.UID,
+				Groups:             userInfo.Groups,
+			}}
+		if len(userInfo.Extra) > 0 {
+			sar.Spec.Extra = make(map[string]authv1.ExtraValue, len(userInfo.Extra))
+			for k, v := range userInfo.Extra {
+				sar.Spec.Extra[k] = authv1.ExtraValue(v)
+			}
+		}
+		sar, err = w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
+		if err != nil {
+			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
+		} else {
+			if !sar.Status.Allowed {
+				reason := fmt.Sprintf("User %v is not authorized to create %v in %v", userInfo.Username, ra.Resource, ra.Namespace)
+				allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+			}
+		}
+
+		// 4. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
+		podSetsPath := compPath.Child("podSets")
 		for psIdx, ps := range component.PodSets {
 			podSetPath := podSetsPath.Index(psIdx)
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := getPodTemplateSpec(component.Template.Raw, ps.Path); err != nil {
+			if _, err := getPodTemplateSpec(unstruct, ps.Path); err != nil {
 				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}
 			podSpecCount += 1
 		}
-
-		// 2. TODO: RBAC check to make sure that the user has permissions to create the component
-
-		// 3. TODO: We could attempt to validate the object is namespaced and the namespace is the same as the AppWrapper's namespace
-		//          This is currently enforced when the resources are created.
-
 	}
 
-	// Enforce Kueue limitation that 0 < podSpecCount <= 8
+	// 5. Enforce Kueue limitation that 0 < podSpecCount <= 8
 	if podSpecCount == 0 {
 		allErrors = append(allErrors, field.Invalid(componentsPath, components, "components contains no podspecs"))
 	}
@@ -122,4 +203,36 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(_ context.Context, aw *
 	}
 
 	return allErrors
+}
+
+func (w *AppWrapperWebhook) lookupResource(gvk *schema.GroupVersionKind) string {
+	if known, ok := w.kindToResourceCache[gvk.String()]; ok {
+		return known
+	}
+	resources, err := w.DiscoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
+	if err != nil {
+		return "*"
+	}
+	for _, r := range resources.APIResources {
+		if r.Kind == gvk.Kind {
+			w.kindToResourceCache[gvk.String()] = r.Name
+			return r.Name
+		}
+	}
+	return "*"
+}
+
+func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		return err
+	}
+	wh.SubjectAccessReviewer = kubeClient.AuthorizationV1().SubjectAccessReviews()
+	wh.DiscoveryClient = kubeClient.DiscoveryClient
+	wh.kindToResourceCache = make(map[string]string)
+	return ctrl.NewWebhookManagedBy(mgr).
+		For(&workloadv1beta2.AppWrapper{}).
+		WithDefaulter(wh).
+		WithValidator(wh).
+		Complete()
 }

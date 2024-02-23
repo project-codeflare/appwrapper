@@ -75,6 +75,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.BoolVar(&config.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
+	flag.StringVar(&config.ServiceAccountName, "service-account", "", "Service account name for controller")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -83,6 +84,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
+	setupLog.Info("Configuration", "config", config)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -150,12 +152,9 @@ func main() {
 		os.Exit(1)
 	}
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		wh := &controller.AppWrapperWebhook{Config: &config}
-		if err := ctrl.NewWebhookManagedBy(mgr).
-			For(&workloadv1beta2.AppWrapper{}).
-			WithDefaulter(wh).
-			WithValidator(wh).
-			Complete(); err != nil {
+		if err = (&controller.AppWrapperWebhook{
+			Config: &config,
+		}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "AppWrapper")
 			os.Exit(1)
 		}

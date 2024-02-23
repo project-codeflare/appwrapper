@@ -25,12 +25,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// getPodTemplateSpec parses raw as JSON and extracts a Kueue-compatible PodTemplateSpec at the given path within it
-func getPodTemplateSpec(raw []byte, path string) (*v1.PodTemplateSpec, error) {
-	obj := &unstructured.Unstructured{}
-	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
-		return nil, err
-	}
+// getPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
+func getPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
 	candidatePTS, err := getRawTemplate(obj.UnstructuredContent(), path)
 	if err != nil {
 		return nil, err

@@ -34,6 +34,7 @@ spec:
             memory: 64Mi
       - name: manager
         args:
+        - "--service-account=system:serviceaccount:$(MY_NAMESPACE):$(MY_SERVICE_ACCOUNT_NAME)"
         - "--health-probe-bind-address=:8081"
         - "--metrics-bind-address=127.0.0.1:8080"
         - "--leader-elect"
