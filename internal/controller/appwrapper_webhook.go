@@ -142,7 +142,7 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
 		}
 
-		// 2. Forbid multi-namespace creations
+		// 2. Forbid creation of resources in other namespaces
 		if unstruct.GetNamespace() != "" && unstruct.GetNamespace() != aw.Namespace {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template").Child("metadata").Child("namespace"),
 				"AppWrappers cannot create objects in other namespaces"))
