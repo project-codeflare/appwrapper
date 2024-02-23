@@ -17,5 +17,6 @@ limitations under the License.
 package controller
 
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool `json:"manageJobsWithoutQueueName,omitempty"`
+	ManageJobsWithoutQueueName bool   `json:"manageJobsWithoutQueueName,omitempty"`
+	ServiceAccountName         string `json:"serviceAccountName,omitempty"`
 }

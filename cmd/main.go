@@ -75,6 +75,7 @@ func main() {
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
 	flag.BoolVar(&config.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
+	flag.StringVar(&config.ServiceAccountName, "service-account", "", "Service account name for controller")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -83,6 +84,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
+	setupLog.Info("Configuration", "config", config)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
