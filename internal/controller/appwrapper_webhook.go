@@ -92,7 +92,7 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	if len(allErrors) > 0 {
 		log.FromContext(ctx).Info("Validating update failed", "job", newAW, "errors", allErrors)
 	} else {
-		log.FromContext(ctx).Info("Validating create succeeded", "job", newAW)
+		log.FromContext(ctx).Info("Validating update succeeded", "job", newAW)
 	}
 
 	return nil, allErrors.ToAggregate()
