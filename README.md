@@ -3,8 +3,12 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Continuous Integration](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml/badge.svg)](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml)
 
-An AppWrapper is a collection of Kubernetes resources than can be jointly queued
-and admitted using [Kueue](https://kueue.sigs.k8s.io).
+An AppWrapper contains a collection of Kubernetes resources than can
+be jointly queued and admitted for execution using [Kueue](https://kueue.sigs.k8s.io).
+AppWrappers provide a flexible and workload-agnostic mechanism for enabling
+Kueue to manage a group of Kubernetes resources
+as a single logical unit without requiring any Kueue-specific support by
+the controllers of those resources.
 
 ## Description
 
