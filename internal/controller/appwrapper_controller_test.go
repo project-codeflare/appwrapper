@@ -214,7 +214,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(setPodStatus(aw, v1.PodFailed, 1)).To(Succeed())
 
 		By("Reconciling: Running -> Failed")
-		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) //  detect failure failure
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) //  detect failure
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
