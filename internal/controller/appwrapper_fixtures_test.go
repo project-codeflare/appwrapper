@@ -91,7 +91,7 @@ spec:
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
-    command: ["sh", "-c", "sleep 1"]
+    command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
         cpu: %v`
@@ -121,7 +121,7 @@ spec:
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
-    command: ["sh", "-c", "sleep 1000"]
+    command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
         cpu: %v`
