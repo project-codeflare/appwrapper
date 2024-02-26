@@ -73,6 +73,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeFalse())
 		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.workloadStatus(ctx, aw)
@@ -89,12 +90,15 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeTrue())
 		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		Expect((*AppWrapper)(aw).PodsReady()).Should(BeTrue())
 		podStatus, err = awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.running).Should(Equal(expectedPodCount(aw)))
+		_, finished := (*AppWrapper)(aw).Finished()
+		Expect(finished).Should(BeFalse())
 	}
 
 	BeforeEach(func() {
@@ -161,6 +165,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
+		_, finished := (*AppWrapper)(aw).Finished()
+		Expect(finished).Should(BeTrue())
 	})
 
 	It("Running Workloads can be Suspended", func() {
@@ -198,6 +204,42 @@ var _ = Describe("AppWrapper Controller", func() {
 		podStatus, err := awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
+	})
+
+	It("A Pod Failure leads to a failed AppWrappers", func() {
+		advanceToRunning()
+
+		By("Simulating one Pod Failing")
+		aw := getAppWrapper(awName)
+		Expect(setPodStatus(aw, v1.PodFailed, 1)).To(Succeed())
+
+		By("Reconciling: Running -> Failed")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) //  detect failure failure
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperFailed))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
+		_, finished := (*AppWrapper)(aw).Finished()
+		Expect(finished).Should(BeFalse())
+
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // initiate deletion
+		Expect(err).NotTo(HaveOccurred())
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // see deletion has completed
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperFailed))
+
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
+		_, finished = (*AppWrapper)(aw).Finished()
+		Expect(finished).Should(BeTrue())
 	})
 
 })
