@@ -16,73 +16,78 @@ limitations under the License.
 
 package controller
 
-/*
-
 import (
-	"context"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 var _ = Describe("AppWrapper Controller", func() {
-	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+	Context("Happy Path Lifecyle", func() {
+		var controllerReconciler *AppWrapperReconciler
+		var typeNamespacedName types.NamespacedName
 
-		ctx := context.Background()
+		It("Create AppWrapper", func() {
+			aw := toAppWrapper(pod(100), pod(100))
+			aw.Spec.Suspend = true
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
 
-		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
-		}
-		appwrapper := &workloadv1beta2.AppWrapper{}
-
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind AppWrapper")
-			err := k8sClient.Get(ctx, typeNamespacedName, appwrapper)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &workloadv1beta2.AppWrapper{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: "default",
-					},
-					// TODO(user): Specify other spec details if needed.
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
-
-		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &workloadv1beta2.AppWrapper{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Cleanup the specific resource instance AppWrapper")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
-		})
-		It("should successfully reconcile the resource", func() {
-			By("Reconciling the created resource")
-			controllerReconciler := &AppWrapperReconciler{
+			controllerReconciler = &AppWrapperReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}
+			typeNamespacedName = types.NamespacedName{
+				Name:      aw.Name,
+				Namespace: aw.Namespace,
+			}
+		})
 
+		It("Empty -> Suspended", func() {
+			By("Reconciling the created resource")
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			aw := getAppWrapper(typeNamespacedName)
+			Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+			Expect(controllerutil.ContainsFinalizer(aw, appWrapperFinalizer)).Should(BeTrue())
 		})
+
+		It("Suspended -> Deploying", func() {
+			By("Setting suspend to false")
+			aw := getAppWrapper(typeNamespacedName)
+			aw.Spec.Suspend = false
+			Expect(k8sClient.Update(ctx, aw)).To(Succeed())
+
+			By("Reconciling the created resource")
+			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			aw = getAppWrapper(typeNamespacedName)
+			Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperResuming))
+			Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
+			Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		})
+
+		/*
+			AfterEach(func() {
+				// TODO(user): Cleanup logic after each test, like removing the resource instance.
+				resource := &workloadv1beta2.AppWrapper{}
+				err := k8sClient.Get(ctx, typeNamespacedName, resource)
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Cleanup the specific resource instance AppWrapper")
+				Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			})
+		*/
+
 	})
 })
-
-*/

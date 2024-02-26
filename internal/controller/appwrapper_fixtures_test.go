@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 )
 
@@ -48,6 +49,13 @@ func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1
 	}
 }
 
+func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.AppWrapper {
+	aw := &workloadv1beta2.AppWrapper{}
+	err := k8sClient.Get(ctx, typeNamespacedName, aw)
+	Expect(err).NotTo(HaveOccurred())
+	return aw
+}
+
 const podYAML = `
 apiVersion: v1
 kind: Pod
@@ -58,7 +66,7 @@ spec:
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
-    command: ["sh", "-c", "sleep 1000"]
+    command: ["sh", "-c", "sleep 1"]
     resources:
       requests:
         cpu: %v`
