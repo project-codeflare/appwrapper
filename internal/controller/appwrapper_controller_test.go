@@ -53,10 +53,18 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	AfterEach(func() {
-		By("Cleanup the specific resource instance AppWrapper")
+		By("Cleanup the AppWrapper and ensure no Pods remain")
 		aw := &workloadv1beta2.AppWrapper{}
 		Expect(k8sClient.Get(ctx, awName, aw)).To(Succeed())
 		Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+
+		By("Reconciling: Deletion processing")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		podStatus, err := awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
 	})
 
 	It("Happy Path Lifecycle", func() {
