@@ -37,37 +37,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Annotations: map[string]string{"test2": "test2"},
 	}
 
-	BeforeEach(func() {
-		By("Create an AppWrapper containing two Pods")
-		aw := toAppWrapper(pod(100), pod(100))
-		aw.Spec.Suspend = true
-		Expect(k8sClient.Create(ctx, aw)).To(Succeed())
-		awName = types.NamespacedName{
-			Name:      aw.Name,
-			Namespace: aw.Namespace,
-		}
-		awReconciler = &AppWrapperReconciler{
-			Client: k8sClient,
-			Scheme: k8sClient.Scheme(),
-		}
-	})
-
-	AfterEach(func() {
-		By("Cleanup the AppWrapper and ensure no Pods remain")
-		aw := &workloadv1beta2.AppWrapper{}
-		Expect(k8sClient.Get(ctx, awName, aw)).To(Succeed())
-		Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
-
-		By("Reconciling: Deletion processing")
-		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
-		Expect(err).NotTo(HaveOccurred())
-
-		podStatus, err := awReconciler.workloadStatus(ctx, aw)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
-	})
-
-	It("Happy Path Lifecycle", func() {
+	advanceToRunning := func() {
 		By("Reconciling: Empty -> Suspended")
 		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
@@ -112,21 +82,57 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).PodsReady()).Should(BeTrue())
 		podStatus, err = awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.running).Should(Equal(expectedPodCount(aw)))
+	}
+
+	BeforeEach(func() {
+		By("Create an AppWrapper containing two Pods")
+		aw := toAppWrapper(pod(100), pod(100))
+		aw.Spec.Suspend = true
+		Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+		awName = types.NamespacedName{
+			Name:      aw.Name,
+			Namespace: aw.Namespace,
+		}
+		awReconciler = &AppWrapperReconciler{
+			Client: k8sClient,
+			Scheme: k8sClient.Scheme(),
+		}
+	})
+
+	AfterEach(func() {
+		By("Cleanup the AppWrapper and ensure no Pods remain")
+		aw := &workloadv1beta2.AppWrapper{}
+		Expect(k8sClient.Get(ctx, awName, aw)).To(Succeed())
+		Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+
+		By("Reconciling: Deletion processing")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		podStatus, err := awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
+	})
+
+	It("Happy Path Lifecycle", func() {
+		advanceToRunning()
 
 		By("Simulating one Pod Completing")
+		aw := getAppWrapper(awName)
 		Expect(setPodStatus(aw, v1.PodSucceeded, 1)).To(Succeed())
 		By("Reconciling: Running -> Running")
-		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		podStatus, err = awReconciler.workloadStatus(ctx, aw)
+		podStatus, err := awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.running).Should(Equal(expectedPodCount(aw) - 1))
 		Expect(podStatus.succeeded).Should(Equal(int32(1)))
@@ -141,6 +147,25 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSucceeded))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+	})
+
+	It("Running Workloads can be Suspended", func() {
+		advanceToRunning()
+
+		By("Updating aw.Spec by invoking RunWithPodSetsInfo")
+		aw := getAppWrapper(awName)
+		aw.Spec.Suspend = true
+		Expect((*AppWrapper)(aw).RestorePodSetsInfo([]podset.PodSetInfo{{}, {}})).To(BeTrue())
+		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
+
+		By("Reconciling: Running -> Suspending")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspending))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
 	})
 
 })
