@@ -24,7 +24,9 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/kueue/pkg/podset"
+	utilslices "sigs.k8s.io/kueue/pkg/util/slices"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -36,6 +38,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Labels:      map[string]string{"testkey1": "value1"},
 		Annotations: map[string]string{"test2": "test2"},
 	}
+	var kueuePodSets []kueue.PodSet
 
 	advanceToRunning := func() {
 		By("Reconciling: Empty -> Suspended")
@@ -59,6 +62,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperResuming))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 
 		By("Reconciling: Resuming -> Running")
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
@@ -68,6 +73,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.pending).Should(Equal(expectedPodCount(aw)))
@@ -82,6 +89,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		Expect((*AppWrapper)(aw).PodsReady()).Should(BeTrue())
 		podStatus, err = awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
@@ -101,6 +110,7 @@ var _ = Describe("AppWrapper Controller", func() {
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),
 		}
+		kueuePodSets = (*AppWrapper)(aw).PodSets()
 	})
 
 	AfterEach(func() {
@@ -132,6 +142,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.workloadStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.running).Should(Equal(expectedPodCount(aw) - 1))
@@ -147,6 +159,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSucceeded))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 	})
 
 	It("Running Workloads can be Suspended", func() {
@@ -154,8 +168,8 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		By("Updating aw.Spec by invoking RunWithPodSetsInfo")
 		aw := getAppWrapper(awName)
-		aw.Spec.Suspend = true
-		Expect((*AppWrapper)(aw).RestorePodSetsInfo([]podset.PodSetInfo{{}, {}})).To(BeTrue())
+		(*AppWrapper)(aw).Suspend()
+		Expect((*AppWrapper)(aw).RestorePodSetsInfo(utilslices.Map(kueuePodSets, podset.FromPodSet))).To(BeTrue())
 		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
 
 		By("Reconciling: Running -> Suspending")
@@ -166,6 +180,24 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspending))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeTrue())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeTrue())
+
+		By("Reconciling: Suspending -> Suspended")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // initiate deletion
+		Expect(err).NotTo(HaveOccurred())
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // see deletion has completed
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsActive()).Should(BeFalse())
+		Expect((*AppWrapper)(aw).IsSuspended()).Should(BeTrue())
+		podStatus, err := awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
 	})
 
 })
