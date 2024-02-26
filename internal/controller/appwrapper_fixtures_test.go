@@ -17,7 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"time"
@@ -30,9 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -61,58 +58,27 @@ func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.App
 	return aw
 }
 
-func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimumPodCount int32) wait.ConditionWithContextFunc {
-	return func(ctx context.Context) (bool, error) {
-		podList := &v1.PodList{}
-		err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: awNamespace})
-		if err != nil {
-			return false, err
-		}
-		matchingPodCount := int32(0)
-		for _, pod := range podList.Items {
-			if awn, found := pod.Labels[appWrapperLabel]; found && awn == awName {
-				for _, p := range phase {
-					if pod.Status.Phase == p {
-						matchingPodCount++
-						break
-					}
-				}
-			}
-		}
-		return minimumPodCount <= matchingPodCount, nil
-	}
-}
-
 // envTest doesn't have a Pod controller; so simulate it
-func simulatePodCompletion(aw *workloadv1beta2.AppWrapper) error {
+func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange int32) error {
 	podList := &v1.PodList{}
 	err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
 	if err != nil {
 		return err
 	}
 	for _, pod := range podList.Items {
+		if numToChange <= 0 {
+			return nil
+		}
 		if awn, found := pod.Labels[appWrapperLabel]; found && awn == aw.Name {
-			pod.Status.Phase = v1.PodSucceeded
+			pod.Status.Phase = phase
 			err = k8sClient.Status().Update(ctx, &pod)
 			if err != nil {
 				return err
 			}
-			log.FromContext(ctx).Info("spc", "pod", pod)
+			numToChange -= 1
 		}
 	}
 	return nil
-}
-
-func waitAWPodsReady(aw *workloadv1beta2.AppWrapper, timeout time.Duration) error {
-	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
-	numExpected := expectedPodCount(aw)
-	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
-}
-
-func waitAWPodsPending(aw *workloadv1beta2.AppWrapper, timeout time.Duration) error {
-	phases := []v1.PodPhase{v1.PodPending}
-	numExpected := expectedPodCount(aw)
-	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, timeout, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 }
 
 const podYAML = `

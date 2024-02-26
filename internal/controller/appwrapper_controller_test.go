@@ -17,10 +17,9 @@ limitations under the License.
 package controller
 
 import (
-	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -39,7 +38,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	}
 
 	BeforeEach(func() {
-		By("Creating an AppWrapper that wraps two Pods")
+		By("Create an AppWrapper containing two Pods")
 		aw := toAppWrapper(pod(100), pod(100))
 		aw.Spec.Suspend = true
 		Expect(k8sClient.Create(ctx, aw)).To(Succeed())
@@ -91,11 +90,41 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		Expect(waitAWPodsPending(aw, 10*time.Second)).Should(Succeed())
+		podStatus, err := awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.pending).Should(Equal(expectedPodCount(aw)))
 
-		By("Simulating pod completion")
-		Expect(simulatePodCompletion(aw)).To(Succeed())
+		By("Simulating all Pods Running")
+		Expect(setPodStatus(aw, v1.PodRunning, expectedPodCount(aw))).To(Succeed())
+		By("Reconciling: Running -> Running")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
 
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		podStatus, err = awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.running).Should(Equal(expectedPodCount(aw)))
+
+		By("Simulating one Pod Completing")
+		Expect(setPodStatus(aw, v1.PodSucceeded, 1)).To(Succeed())
+		By("Reconciling: Running -> Running")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		podStatus, err = awReconciler.workloadStatus(ctx, aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(podStatus.running).Should(Equal(expectedPodCount(aw) - 1))
+		Expect(podStatus.succeeded).Should(Equal(int32(1)))
+
+		By("Simulating all Pods Completing")
+		Expect(setPodStatus(aw, v1.PodSucceeded, expectedPodCount(aw))).To(Succeed())
 		By("Reconciling: Running -> Succeeded")
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
