@@ -124,7 +124,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 
 		By("Reconciling: Deletion processing")
-		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // initiate deletion
+		Expect(err).NotTo(HaveOccurred())
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // see deletion has completed
 		Expect(err).NotTo(HaveOccurred())
 
 		podStatus, err := awReconciler.workloadStatus(ctx, aw)
