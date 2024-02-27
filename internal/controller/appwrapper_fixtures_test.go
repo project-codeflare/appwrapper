@@ -24,9 +24,12 @@ import (
 	. "github.com/onsi/gomega"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
 
@@ -48,6 +51,36 @@ func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1
 	}
 }
 
+func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.AppWrapper {
+	aw := &workloadv1beta2.AppWrapper{}
+	err := k8sClient.Get(ctx, typeNamespacedName, aw)
+	Expect(err).NotTo(HaveOccurred())
+	return aw
+}
+
+// envTest doesn't have a Pod controller; so simulate it
+func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange int32) error {
+	podList := &v1.PodList{}
+	err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
+	if err != nil {
+		return err
+	}
+	for _, pod := range podList.Items {
+		if numToChange <= 0 {
+			return nil
+		}
+		if awn, found := pod.Labels[appWrapperLabel]; found && awn == aw.Name {
+			pod.Status.Phase = phase
+			err = k8sClient.Status().Update(ctx, &pod)
+			if err != nil {
+				return err
+			}
+			numToChange -= 1
+		}
+	}
+	return nil
+}
+
 const podYAML = `
 apiVersion: v1
 kind: Pod
@@ -58,7 +91,7 @@ spec:
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
-    command: ["sh", "-c", "sleep 1000"]
+    command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
         cpu: %v`
@@ -88,7 +121,7 @@ spec:
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
-    command: ["sh", "-c", "sleep 1000"]
+    command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
         cpu: %v`
