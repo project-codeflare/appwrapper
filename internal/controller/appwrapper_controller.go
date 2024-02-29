@@ -384,15 +384,19 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	return summary, nil
 }
 
+func replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
+	if ps.Replicas == nil {
+		return 1
+	} else {
+		return *ps.Replicas
+	}
+}
+
 func expectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	var expected int32
 	for _, c := range aw.Spec.Components {
 		for _, s := range c.PodSets {
-			if s.Replicas == nil {
-				expected++
-			} else {
-				expected += *s.Replicas
-			}
+			expected += replicas(s)
 		}
 	}
 	return expected
