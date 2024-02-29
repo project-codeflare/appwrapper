@@ -39,7 +39,7 @@ import (
 )
 
 const (
-	appWrapperLabel     = "workload.codeflare.dev/appwrapper"
+	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
 	appWrapperFinalizer = "workload.codeflare.dev/finalizer"
 )
 
@@ -275,7 +275,7 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // podMapFunc maps pods to appwrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
-	if name, ok := pod.Labels[appWrapperLabel]; ok {
+	if name, ok := pod.Labels[AppWrapperLabel]; ok {
 		if pod.Status.Phase == v1.PodSucceeded {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: name}}}
 		}
@@ -363,10 +363,10 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(aw.Namespace),
-		client.MatchingLabels{appWrapperLabel: aw.Name}); err != nil {
+		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
-	summary := &podStatusSummary{expected: expectedPodCount(aw)}
+	summary := &podStatusSummary{expected: ExpectedPodCount(aw)}
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -392,7 +392,7 @@ func replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
 	}
 }
 
-func expectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
+func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	var expected int32
 	for _, c := range aw.Spec.Components {
 		for _, s := range c.PodSets {

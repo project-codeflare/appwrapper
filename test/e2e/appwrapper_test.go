@@ -18,7 +18,7 @@ package e2e
 
 import (
 	. "github.com/onsi/ginkgo/v2"
-	// . "github.com/onsi/gomega"
+	. "github.com/onsi/gomega"
 
 	awv1b2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -35,7 +35,12 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		cleanupTestObjects(ctx, appwrappers)
 	})
 
-	It("Dummy Test", func() {
-		By("Testing nothing of interest...")
+	Describe("Creation of Different GVKs", func() {
+		It("Pods", func() {
+			aw := createAppWrapper(ctx, pod(250), pod(250))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+
 	})
 })
