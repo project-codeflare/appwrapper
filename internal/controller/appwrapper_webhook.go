@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -51,8 +52,8 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 // Default ensures that Suspend is set appropriately when an AppWrapper is created
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Applying defaults", "job", aw)
 	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+	log.FromContext(ctx).Info("Applied defaults", "job", aw)
 	return nil
 }
 
@@ -64,7 +65,7 @@ var _ webhook.CustomValidator = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 
-	allErrors := w.validateAppWrapperInvariants(ctx, aw)
+	allErrors := w.validateAppWrapperCreate(ctx, aw)
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(aw)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
 	}
@@ -83,7 +84,7 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
 
-	allErrors := w.validateAppWrapperInvariants(ctx, newAW)
+	allErrors := w.validateAppWrapperUpdate(ctx, oldAW, newAW)
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
@@ -107,13 +108,13 @@ func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 //+kubebuilder:rbac:groups=authorization.k8s.io,resources=subjectaccessreviews,verbs=create
 //+kubebuilder:rbac:groups=apiextensions.k8s.io,resources=customresourcedefinitions,verbs=list
 
-// validateAppWrapperInvariants checks these invariants:
+// validateAppWrapperCreate checks these invariants:
 //  1. AppWrappers must not contain other AppWrappers
 //  2. AppWrappers must only contain resources intended for their own namespace
 //  3. AppWrappers must not contain any resources that the user could not create directly
 //  4. Every PodSet must be well-formed: the Path must exist and must be parseable as a PodSpecTemplate
 //  5. AppWrappers must contain between 1 and 8 PodSets (Kueue invariant)
-func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
+func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	components := aw.Spec.Components
 	componentsPath := field.NewPath("spec").Child("components")
@@ -123,11 +124,6 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 		allErrors = append(allErrors, field.InternalError(componentsPath, err))
 	}
 	userInfo := request.UserInfo
-
-	// To reduce overhead, skip invariant validation when the AppWrapper controller is the user performing the update
-	if w.Config.ServiceAccountName != "" && userInfo.Username == w.Config.ServiceAccountName {
-		return allErrors
-	}
 
 	for idx, component := range components {
 		compPath := componentsPath.Index(idx)
@@ -200,6 +196,46 @@ func (w *AppWrapperWebhook) validateAppWrapperInvariants(ctx context.Context, aw
 	}
 	if podSpecCount > 8 {
 		allErrors = append(allErrors, field.Invalid(componentsPath, components, fmt.Sprintf("components contains %v podspecs; at most 8 are allowed", podSpecCount)))
+	}
+
+	return allErrors
+}
+
+// validateAppWrapperUpdate enforces that AppWrapper.Spec.Components is deeply immutable
+func (w *AppWrapperWebhook) validateAppWrapperUpdate(ctx context.Context, old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
+	// The AppWrapper controller must be allowed to mutate Spec.Components
+	// to enable it to implement RunWithPodSetsInfo and RestorePodSetsInfo
+	if request, err := admission.RequestFromContext(ctx); err == nil {
+		if w.Config.ServiceAccountName != "" && request.UserInfo.Username == w.Config.ServiceAccountName {
+			return field.ErrorList{}
+		}
+	}
+
+	allErrors := field.ErrorList{}
+	msg := "attempt to change immutable field"
+	componentsPath := field.NewPath("spec").Child("components")
+	if len(old.Spec.Components) != len(new.Spec.Components) {
+		return field.ErrorList{field.Forbidden(componentsPath, msg)}
+	}
+	for idx := range new.Spec.Components {
+		compPath := componentsPath.Index(idx)
+		oldComponent := old.Spec.Components[idx]
+		newComponent := new.Spec.Components[idx]
+		if !bytes.Equal(oldComponent.Template.Raw, newComponent.Template.Raw) {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("template").Child("raw"), msg))
+		}
+		if len(oldComponent.PodSets) != len(newComponent.PodSets) {
+			allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets"), msg))
+		} else {
+			for psIdx := range newComponent.PodSets {
+				if replicas(oldComponent.PodSets[psIdx]) != replicas(newComponent.PodSets[psIdx]) {
+					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replicas"), msg))
+				}
+				if oldComponent.PodSets[psIdx].Path != newComponent.PodSets[psIdx].Path {
+					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("path"), msg))
+				}
+			}
+		}
 	}
 
 	return allErrors

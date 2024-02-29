@@ -52,7 +52,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		By("Updating aw.Spec by invoking RunWithPodSetsInfo")
 		Expect((*AppWrapper)(aw).RunWithPodSetsInfo([]podset.PodSetInfo{markerPodSet, markerPodSet})).To(Succeed())
 		Expect(aw.Spec.Suspend).To(BeFalse())
-		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
+		Expect(k8sControllerClient.Update(ctx, aw)).To(Succeed())
 
 		By("Reconciling: Suspended -> Resuming")
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
@@ -111,7 +111,7 @@ var _ = Describe("AppWrapper Controller", func() {
 			Namespace: aw.Namespace,
 		}
 		awReconciler = &AppWrapperReconciler{
-			Client: k8sClient,
+			Client: k8sControllerClient,
 			Scheme: k8sClient.Scheme(),
 		}
 		kueuePodSets = (*AppWrapper)(aw).PodSets()
@@ -178,7 +178,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		aw := getAppWrapper(awName)
 		(*AppWrapper)(aw).Suspend()
 		Expect((*AppWrapper)(aw).RestorePodSetsInfo(utilslices.Map(kueuePodSets, podset.FromPodSet))).To(BeTrue())
-		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
+		Expect(k8sControllerClient.Update(ctx, aw)).To(Succeed())
 
 		By("Reconciling: Running -> Suspending")
 		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})

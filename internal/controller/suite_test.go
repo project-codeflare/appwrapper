@@ -53,6 +53,7 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
+var k8sControllerClient client.Client
 var k8sLimitedClient client.Client
 var testEnv *envtest.Environment
 var ctx context.Context
@@ -110,6 +111,15 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
+	// configure a client that impersonates as the AppWrapper operator
+	ctrlUserName := "appwrapper-controller"
+	ctrlCfg := *cfg
+	ctrlCfg.Impersonate = rest.ImpersonationConfig{UserName: ctrlUserName, Groups: []string{"system:masters"}}
+	_, err = testEnv.AddUser(envtest.User{Name: ctrlUserName}, &ctrlCfg)
+	Expect(err).NotTo(HaveOccurred())
+	k8sControllerClient, err = client.New(&ctrlCfg, client.Options{Scheme: scheme})
+	Expect(err).NotTo(HaveOccurred())
+
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
 	limitedUserName := "limited-user"
 	limitedCfg := *cfg
@@ -151,7 +161,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true}
+	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true, ServiceAccountName: ctrlUserName}
 	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
