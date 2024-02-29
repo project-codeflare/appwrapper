@@ -21,6 +21,7 @@ import (
 	"time"
 
 	// . "github.com/onsi/ginkgo/v2"
+	"github.com/onsi/gomega"
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -200,4 +201,29 @@ func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error 
 	numExpected := controller.ExpectedPodCount(aw)
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
 	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 90*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
+}
+
+func AppWrapperIsQueued(ctx context.Context, aw *workloadv1beta2.AppWrapper) func(g gomega.Gomega) (bool, error) {
+	name := aw.Name
+	namespace := aw.Namespace
+	return func(g gomega.Gomega) (bool, error) {
+		aw := &workloadv1beta2.AppWrapper{}
+		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
+		g.Expect(err).NotTo(gomega.HaveOccurred())
+		if aw.Spec.Suspend != true {
+			return false, nil
+		}
+		podList := &v1.PodList{}
+		err = getClient(ctx).List(context.Background(), podList, &client.ListOptions{Namespace: namespace})
+		if err != nil {
+			return false, err
+		}
+
+		for _, podFromPodList := range podList.Items {
+			if awn, found := podFromPodList.Labels[controller.AppWrapperLabel]; found && awn == name {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
 }

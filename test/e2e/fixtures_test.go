@@ -133,3 +133,44 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
+
+const statefulesetYAML = `
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: %v
+  labels:
+    app: test
+spec:
+  replicas: %v
+  selector:
+    matchLabels:
+      app: test
+  template:
+    metadata:
+      labels:
+        app: test
+    spec:
+      containers:
+	  terminationGracePeriodSeconds: 0
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 10000"]
+        resources:
+          requests:
+            cpu: %v`
+
+func statefulset(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(statefulesetYAML,
+		randName("statefulset"),
+		replicaCount,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	replicas := int32(replicaCount)
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}

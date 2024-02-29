@@ -35,12 +35,60 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		cleanupTestObjects(ctx, appwrappers)
 	})
 
-	Describe("Creation of Different GVKs", func() {
+	Describe("Creation of Fundamental GVKs", func() {
 		It("Pods", func() {
 			aw := createAppWrapper(ctx, pod(250), pod(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
+		It("Deployments", func() {
+			aw := createAppWrapper(ctx, deployment(2, 200))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+		It("StatefulSets", func() {
+			aw := createAppWrapper(ctx, statefulset(2, 200))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+		// TODO: Batch v1.Jobs
+		It("Mixed Basic Resources", func() {
+			aw := createAppWrapper(ctx, pod(100), deployment(2, 100), statefulset(2, 100), service())
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+	})
+
+	Describe("Error Handling for Invalid Resources", func() {
+		// TODO: Replicate scenarios from the AdmissionController unit tests
 
 	})
+
+	Describe("Queueing and Preemption", func() {
+		It("Basic Queuing", Label("slow"), func() {
+			By("Jobs should be admitted when there is available quota")
+			aw := createAppWrapper(ctx, deployment(2, 250))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			aw2 := createAppWrapper(ctx, deployment(2, 250))
+			appwrappers = append(appwrappers, aw2)
+			Expect(waitAWPodsReady(ctx, aw2)).Should(Succeed())
+
+			By("Jobs should be queued when quota remains")
+			aw3 := createAppWrapper(ctx, deployment(2, 250))
+			appwrappers = append(appwrappers, aw3)
+			Consistently(AppWrapperIsQueued(ctx, aw3), "20s").Should(BeTrue())
+
+		})
+
+	})
+
+	Describe("Detection of Completion Status", func() {
+
+	})
+
+	Describe("Load Testing", Label("slow"), func() {
+
+	})
+
 })
