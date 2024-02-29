@@ -151,8 +151,8 @@ spec:
       labels:
         app: test
     spec:
+      terminationGracePeriodSeconds: 0
       containers:
-	  terminationGracePeriodSeconds: 0
       - name: busybox
         image: quay.io/project-codeflare/busybox:1.36
         command: ["sh", "-c", "sleep 10000"]
