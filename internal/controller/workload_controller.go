@@ -120,7 +120,7 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 			}
 		}
 	}
-	awLabels := map[string]string{appWrapperLabel: aw.Name}
+	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 
 	podSetsInfoIndex := 0
 	for componentIndex := range aw.Spec.Components {

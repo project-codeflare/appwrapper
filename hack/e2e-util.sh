@@ -159,6 +159,16 @@ function configure_cluster {
   done
 }
 
+function wait_for_appwrapper_controller {
+    # Sleep until the appwrapper controller is running
+    echo "Waiting for pods in the appwrapper-system namespace to become ready"
+    while [[ $(kubectl get pods -n appwrapper-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+    do
+        echo -n "." && sleep 1;
+    done
+    echo ""
+}
+
 # clean up
 function cleanup {
     echo "==========================>>>>> Cleaning up... <<<<<=========================="
@@ -200,25 +210,14 @@ function cleanup {
       echo "'all' Namespaces  list..."
       kubectl get namespaces
 
-      # TODO:  Need to update this for appwrapper system/controller
-
-      local mcad_dispatcher_pod=$(kubectl get pods -n mcad-system | grep mcad-controller | grep -v mcad-controller-runner | awk '{print $1}')
-      local mcad_runner_pod=$(kubectl get pods -n mcad-system | grep mcad-controller-runner | awk '{print $1}')
-      if [[ "$mcad_dispatcher_pod" != "" ]]
+      local appwrapper_controller_pod=$(kubectl get pods -n appwrapper-system | grep appwrapper-controller | awk '{print $1}')
+      if [[ "$appwrapper_controller_pod" != "" ]]
       then
         echo "===================================================================================="
-        echo "==========================>>>>> MCAD Controller Logs <<<<<=========================="
+        echo "==========================>>>>> AppWrapper Controller Logs <<<<<=========================="
         echo "===================================================================================="
-        echo "kubectl logs ${mcad_dispatcher_pod} -n mcad-system"
-        kubectl logs ${mcad_dispatcher_pod} -n mcad-system
-      fi
-      if [[ "$mcad_runner_pod" != "" ]]
-      then
-        echo "===================================================================================="
-        echo "==========================>>>>> MCAD Runner Logs <<<<<=============================="
-        echo "===================================================================================="
-        echo "kubectl logs ${mcad_runner_pod} -n mcad-system"
-        kubectl logs ${mcad_runner_pod} -n mcad-system
+        echo "kubectl logs ${appwrapper_controller_pod} -n appwrapper-system"
+        kubectl logs ${appwrapper_controller_pod} -n appwrapper-system
       fi
     fi
 
