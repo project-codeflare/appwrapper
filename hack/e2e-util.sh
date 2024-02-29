@@ -159,6 +159,16 @@ function configure_cluster {
   done
 }
 
+function wait_for_appwrapper_controller {
+    # Sleep until the appwrapper controller is running
+    echo "Waiting for pods in the appwrapper-system namespace to become ready"
+    while [[ $(kubectl get pods -n appwrapper-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+    do
+        echo -n "." && sleep 1;
+    done
+    echo ""
+}
+
 # clean up
 function cleanup {
     echo "==========================>>>>> Cleaning up... <<<<<=========================="
@@ -199,8 +209,6 @@ function cleanup {
       echo "---"
       echo "'all' Namespaces  list..."
       kubectl get namespaces
-
-      # TODO:  Need to update this for appwrapper system/controller
 
       local appwrapper_controller_pod=$(kubectl get pods -n appwrapper-system | grep appwrapper-controller | awk '{print $1}')
       if [[ "$appwrapper_controller_pod" != "" ]]

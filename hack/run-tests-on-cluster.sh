@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Run the e2e tests on an existing cluster with mcad already installed
+# Run the e2e tests on an existing cluster with kueue and AppWrapper already installed
 
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 export GORACE=1
@@ -23,6 +23,8 @@ export KUTTL_TEST_SUITES=("")
 source ${ROOT_DIR}/hack/e2e-util.sh
 
 trap cleanup EXIT
+
+wait_for_appwrapper_controller
 
 run_kuttl_test_suite
 go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m ./test/e2e
