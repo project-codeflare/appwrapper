@@ -90,6 +90,15 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	})
 
+	Describe("Recognition of Child Jobs", func() {
+		// TODO: Test scenarios where the AW "just fits" in the quota and
+		//       contains components that Kueue might try to queue
+		//       but should not in this case because they are using the parent workload's quota
+		//  1. batch v1 jobs
+		//  2. pytorch jobs (which themself contain child Jobs)
+
+	})
+
 	Describe("Detection of Completion Status", func() {
 
 	})
