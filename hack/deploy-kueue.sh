@@ -20,7 +20,7 @@ export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 
 echo "Deploying Kueue version $KUEUE_VERSION"
 
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml
+kubectl apply --server-side -f $ROOT_DIR/hack/kueue/kueue-manifests-${KUEUE_VERSION}.yaml
 
 # Sleep until the kueue manager is running
 echo "Waiting for pods in the kueue-system namespace to become ready"
@@ -36,7 +36,7 @@ echo "Attempting to define default local queue"
 # This won't work until kueue's webhooks are actually configured and working,
 # so first sleep for five seconds, then try it in a loop
 sleep 5
-until kubectl apply -f $ROOT_DIR/hack/kueue-config.yaml
+until kubectl apply -f $ROOT_DIR/hack/kueue/default-queues.yaml
 do
     echo -n "." && sleep 1;
 done
