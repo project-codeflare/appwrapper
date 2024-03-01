@@ -330,7 +330,7 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
-	// TODO forceful deletion
+	// TODO forceful deletion: See https://github.com/project-codeflare/appwrapper/issues/36
 	log := log.FromContext(ctx)
 	remaining := 0
 	for _, component := range aw.Spec.Components {

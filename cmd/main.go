@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"flag"
 	"os"
@@ -160,8 +159,7 @@ func main() {
 		}
 	}
 	//+kubebuilder:scaffold:builder
-
-	ctx := context.TODO() // TODO
+	ctx := ctrl.SetupSignalHandler()
 	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), controller.GVK); err != nil {
 		setupLog.Error(err, "Setting up indexes", "GVK", controller.GVK)
 		os.Exit(1)
@@ -177,7 +175,7 @@ func main() {
 	}
 
 	setupLog.Info("starting manager")
-	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
+	if err := mgr.Start(ctx); err != nil {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
