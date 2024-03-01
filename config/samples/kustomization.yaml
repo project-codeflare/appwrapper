@@ -1,4 +1,0 @@
-## Append samples of your project ##
-resources:
-- workload_v1beta2_appwrapper.yaml
-#+kubebuilder:scaffold:manifestskustomizesamples
