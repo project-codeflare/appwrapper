@@ -48,6 +48,7 @@ metadata:
   name: %v
 spec:
   restartPolicy: Never
+  terminationGracePeriodSeconds: 0
   containers:
   - name: busybox
     image: quay.io/project-codeflare/busybox:1.36
@@ -171,6 +172,101 @@ func statefulset(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperCom
 	replicas := int32(replicaCount)
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const batchJobYAML = `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: %v
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 600"]
+        resources:
+          requests:
+            cpu: %v
+`
+
+func batchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(batchJobYAML,
+		randName("batchjob"),
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	replicas := int32(1)
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const pytorchYAML = `
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: %v
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      replicas: %v
+      restartPolicy: OnFailure
+      template:
+        spec:
+          terminationGracePeriodSeconds: 0
+          containers:
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist:v1beta1-45c5727
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
+            resources:
+              requests:
+                cpu: %v
+    Worker:
+      replicas: %v
+      restartPolicy: OnFailure
+      template:
+        spec:
+          terminationGracePeriodSeconds: 0
+          containers:
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist:v1beta1-45c5727
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
+            resources:
+              requests:
+                cpu: %v
+`
+
+func pytorchjob(replicasMaster int, milliCPUMaster int64, replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(pytorchYAML,
+		randName("pytorchjob"),
+		replicasMaster,
+		resource.NewMilliQuantity(milliCPUMaster, resource.DecimalSI),
+		replicasWorker,
+		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
+	)
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	masters := int32(replicasMaster)
+	workers := int32(replicasWorker)
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Replicas: &masters, Path: "template.spec.pytorchReplicaSpecs.Master.template"},
+			{Replicas: &workers, Path: "template.spec.pytorchReplicaSpecs.Worker.template"},
+		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }

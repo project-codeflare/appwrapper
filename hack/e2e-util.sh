@@ -21,6 +21,8 @@ export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
+export KUBEFLOW_VERSION=v1.7.0
+export CERTMANAGER_VERSION=v1.13.3
 DUMP_LOGS="true"
 
 function update_test_host {
@@ -149,7 +151,7 @@ function kind_up_cluster {
 
 function configure_cluster {
   echo "Installing cert-manager"
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.3/cert-manager.yaml
+  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$CERTMANAGER_VERSION/cert-manager.yaml
 
   # sleep to ensure cert-manager is fully functional
   echo "Waiting for pod in the cert-manager namespace to become ready"
@@ -157,6 +159,18 @@ function configure_cluster {
   do
     echo -n "." && sleep 1;
   done
+  echo ""
+
+  echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
+  kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
+
+  # Sleep until the kubeflow operator is running
+  echo "Waiting for pods in the kueueflow namespace to become ready"
+  while [[ $(kubectl get pods -n kubeflow -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+  do
+      echo -n "." && sleep 1;
+  done
+  echo ""
 }
 
 function wait_for_appwrapper_controller {
