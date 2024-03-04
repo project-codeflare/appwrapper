@@ -1,7 +1,7 @@
 apiVersion: workload.codeflare.dev/v1beta2
 kind: AppWrapper
 metadata:
-  name: sample
+  name: sample-pod
   annotations:
     kueue.x-k8s.io/queue-name: user-queue
 spec:
