@@ -17,8 +17,6 @@ spec:
       kind: PyTorchJob
       metadata:
         name: pytorch-simple
-        annotations:
-          kueue.x-k8s.io/queue-name: user-queue
       spec:
         pytorchReplicaSpecs:
           Master:
