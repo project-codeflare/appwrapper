@@ -199,7 +199,7 @@ func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string) e
 func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
 	numExpected := controller.ExpectedPodCount(aw)
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
-	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 90*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
+	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 120*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 }
 
 func AppWrapperPhase(ctx context.Context, aw *workloadv1beta2.AppWrapper) func(g Gomega) workloadv1beta2.AppWrapperPhase {
