@@ -15,8 +15,6 @@
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export CLUSTER_CONTEXT="--name test"
-export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
-export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
 export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
@@ -24,6 +22,12 @@ export KUTTL_VERSION=0.15.0
 export KUBEFLOW_VERSION=v1.7.0
 export CERTMANAGER_VERSION=v1.13.3
 DUMP_LOGS="true"
+
+# These are images used by the e2e tests.
+# Pull and kind load to avoid long delays during testing
+export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
+export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
+export IMAGE_PYTORCH_SAMPLE="docker.io/kubeflowkatib/pytorch-mnist:v1beta1-45c5727"
 
 function update_test_host {
 
@@ -111,19 +115,15 @@ function check_prerequisites {
 }
 
 function pull_images {
-  docker pull ${IMAGE_ECHOSERVER}
-  if [ $? -ne 0 ]
-  then
-    echo "Failed to pull ${IMAGE_ECHOSERVER}"
-    exit 1
-  fi
-
-  docker pull ${IMAGE_BUSY_BOX_LATEST}
-  if [ $? -ne 0 ]
-  then
-    echo "Failed to pull ${IMAGE_BUSY_BOX_LATEST}"
-    exit 1
-  fi
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_PYTORCH_SAMPLE}
+  do
+      docker pull $image
+      if [ $? -ne 0 ]
+      then
+          echo "Failed to pull $image"
+          exit 1
+      fi
+  done
 
   docker images
 }
@@ -138,7 +138,7 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_PYTORCH_SAMPLE}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
