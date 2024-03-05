@@ -53,12 +53,28 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
-		// TODO: Batch v1.Jobs
-		It("Mixed Basic Resources", func() {
-			aw := createAppWrapper(ctx, pod(100), deployment(2, 100), statefulset(2, 100), service())
+		It("Batch Jobs", func() {
+			aw := createAppWrapper(ctx, batchjob(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
+
+		It("Mixed Basic Resources", func() {
+			aw := createAppWrapper(ctx, pod(100), deployment(2, 100), statefulset(2, 100), service(), batchjob(100))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+	})
+
+	Describe("Creation of Kubeflow Training Operator GVKs", func() {
+		It("PyTorch Jobs", func() {
+			aw := createAppWrapper(ctx, pytorchjob(1, 100, 2, 250))
+			appwrappers = append(appwrappers, aw)
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+		})
+
+		// TODO: Additional Kubeflow Training Operator GVKs of interest
+
 	})
 
 	Describe("Error Handling for Invalid Resources", func() {
@@ -87,6 +103,15 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			appwrappers = []*workloadv1beta2.AppWrapper{aw2, aw3}
 			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed())
 		})
+
+	})
+
+	Describe("Recognition of Child Jobs", func() {
+		// TODO: Test scenarios where the AW "just fits" in the quota and
+		//       contains components that Kueue might try to queue
+		//       but should not in this case because they are using the parent workload's quota
+		//  1. batch v1 jobs
+		//  2. pytorch jobs (which themself contain child Jobs)
 
 	})
 

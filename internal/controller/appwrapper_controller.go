@@ -34,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/kueue/pkg/controller/constants"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -315,15 +317,28 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 	if err != nil {
 		return err, true // fatal
 	}
+
+	ref := &metav1.OwnerReference{APIVersion: GVK.GroupVersion().String(), Kind: GVK.Kind, Name: aw.Name, UID: aw.UID}
+	myWorkloadName, err := jobframework.GetWorkloadNameForOwnerRef(ref)
+	if err != nil {
+		return err, true
+	}
+
 	for _, obj := range objects {
+		annotations := obj.GetAnnotations()
+		if annotations == nil {
+			annotations = make(map[string]string)
+		}
+		annotations[constants.ParentWorkloadAnnotation] = myWorkloadName
+		obj.SetAnnotations(annotations)
+		if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
+			return err, true
+		}
 		if err := r.Create(ctx, obj); err != nil {
 			if apierrors.IsAlreadyExists(err) {
 				continue // ignore existing component
 			}
 			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
-		}
-		if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
-			return err, true
 		}
 	}
 	return nil, false

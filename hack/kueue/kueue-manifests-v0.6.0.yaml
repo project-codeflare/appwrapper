@@ -11063,7 +11063,7 @@ data:
     #pprofBindAddress: :8082
     #waitForPodsReady:
     #  enable: true
-    manageJobsWithoutQueueName: true
+    # manageJobsWithoutQueueName: true
     #internalCertManagement:
     #  enable: false
     #  webhookServiceName: ""
