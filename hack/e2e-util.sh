@@ -22,7 +22,7 @@ export KUTTL_VERSION=0.15.0
 export CERTMANAGER_VERSION=v1.13.3
 DUMP_LOGS="true"
 
-# These must be kept in synch -- we prepull and load these to mitigate dockerhub rate limits
+# These must be kept in synch -- we pull and load the image to mitigate dockerhub rate limits
 export KUBEFLOW_VERSION=v1.7.0
 export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-855e096"
 
