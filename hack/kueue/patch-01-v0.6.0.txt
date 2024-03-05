@@ -1,0 +1,47 @@
+11000,11015d10999
+<   labels:
+<     control-plane: controller-manager
+<   name: kueue-visibility-server-auth-reader
+<   namespace: kube-system
+< roleRef:
+<   apiGroup: rbac.authorization.k8s.io
+<   kind: Role
+<   name: extension-apiserver-authentication-reader
+< subjects:
+< - kind: ServiceAccount
+<   name: kueue-controller-manager
+<   namespace: kueue-system
+< ---
+< apiVersion: rbac.authorization.k8s.io/v1
+< kind: RoleBinding
+< metadata:
+11136,11149d11119
+<   name: kueue-visibility-server
+<   namespace: kueue-system
+< spec:
+<   ports:
+<   - name: https
+<     port: 443
+<     protocol: TCP
+<     targetPort: 8082
+<   selector:
+<     control-plane: controller-manager
+< ---
+< apiVersion: v1
+< kind: Service
+< metadata:
+11246,11259d11215
+< ---
+< apiVersion: apiregistration.k8s.io/v1
+< kind: APIService
+< metadata:
+<   name: v1alpha1.visibility.kueue.x-k8s.io
+< spec:
+<   group: visibility.kueue.x-k8s.io
+<   groupPriorityMinimum: 100
+<   insecureSkipTLSVerify: true
+<   service:
+<     name: kueue-visibility-server
+<     namespace: kueue-system
+<   version: v1alpha1
+<   versionPriority: 100
