@@ -68,7 +68,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	Describe("Creation of Kubeflow Training Operator GVKs", func() {
 		It("PyTorch Jobs", func() {
-			aw := createAppWrapper(ctx, pytorchjob(1, 100, 2, 250))
+			aw := createAppWrapper(ctx, pytorchjob(2, 250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
