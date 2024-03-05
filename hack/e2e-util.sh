@@ -19,14 +19,15 @@ export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
-export KUBEFLOW_VERSION=v1.7.0
 export CERTMANAGER_VERSION=v1.13.3
+export KUBEFLOW_VERSION=v1.7.0
 DUMP_LOGS="true"
 
-# These are images used by the e2e tests.
+# These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
+export IMAGE_ALPINE_310="docker.io/alpine:3.10"
 
 function update_test_host {
 
@@ -114,7 +115,7 @@ function check_prerequisites {
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_ALPINE_310}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -137,7 +138,7 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_ALPINE_310}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
