@@ -209,8 +209,6 @@ func batchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
-// Using busybox is a hack to avoid pulling a massive pytorch image onto kind cluster in the GitHub runner.
-// To test the AppWrapper side of things, we don't actually care what the containers are doing
 const pytorchYAML = `
 apiVersion: "kubeflow.org/v1"
 kind: PyTorchJob
@@ -225,9 +223,12 @@ spec:
         spec:
           terminationGracePeriodSeconds: 0
           containers:
-          - name: busybox
-            image: quay.io/project-codeflare/busybox:1.36
-            command: ["sh", "-c", "sleep 120"]
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
             resources:
               requests:
                 cpu: %v
@@ -238,9 +239,12 @@ spec:
         spec:
           terminationGracePeriodSeconds: 0
           containers:
-          - name: busybox
-            image: quay.io/project-codeflare/busybox:1.36
-            command: ["sh", "-c", "sleep 120"]
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
             resources:
               requests:
                 cpu: %v
