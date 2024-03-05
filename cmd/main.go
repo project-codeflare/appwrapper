@@ -34,7 +34,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/controller"
@@ -133,38 +132,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := controller.WorkloadReconciler(
-		mgr.GetClient(),
-		mgr.GetEventRecorderFor("kueue"),
-		jobframework.WithManageJobsWithoutQueueName(config.ManageJobsWithoutQueueName),
-	).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "Unable to create controller", "controller", "Workload")
-		os.Exit(1)
-	}
-
-	if err = (&controller.AppWrapperReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Config: &config,
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "AppWrapper")
-		os.Exit(1)
-	}
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err = (&controller.AppWrapperWebhook{
-			Config: &config,
-		}).SetupWebhookWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create webhook", "webhook", "AppWrapper")
-			os.Exit(1)
-		}
-	}
-	//+kubebuilder:scaffold:builder
 	ctx := ctrl.SetupSignalHandler()
-	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), controller.GVK); err != nil {
-		setupLog.Error(err, "Setting up indexes", "GVK", controller.GVK)
+	err = controller.SetupWithManager(ctx, mgr, &config)
+	if err != nil {
+		setupLog.Error(err, "unable to start appwrapper controllers")
 		os.Exit(1)
 	}
 
+	//+kubebuilder:scaffold:builder
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")
 		os.Exit(1)
