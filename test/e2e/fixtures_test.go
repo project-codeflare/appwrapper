@@ -209,6 +209,9 @@ func batchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
+// This is not a useful PyTorchJob:
+// 1. Using a dummy busybox image to avoid pulling a large & rate-limited image from dockerhub
+// 2. We avoid needing the injected sidecar (alpine:3.10 from dockerhub) by not specifying a Master
 const pytorchYAML = `
 apiVersion: "kubeflow.org/v1"
 kind: PyTorchJob
@@ -216,22 +219,6 @@ metadata:
   name: %v
 spec:
   pytorchReplicaSpecs:
-    Master:
-      replicas: %v
-      restartPolicy: OnFailure
-      template:
-        spec:
-          terminationGracePeriodSeconds: 0
-          containers:
-          - name: pytorch
-            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
-            command:
-            - "python3"
-            - "/opt/pytorch-mnist/mnist.py"
-            - "--epochs=1"
-            resources:
-              requests:
-                cpu: %v
     Worker:
       replicas: %v
       restartPolicy: OnFailure
@@ -240,31 +227,24 @@ spec:
           terminationGracePeriodSeconds: 0
           containers:
           - name: pytorch
-            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
-            command:
-            - "python3"
-            - "/opt/pytorch-mnist/mnist.py"
-            - "--epochs=1"
+            image: quay.io/project-codeflare/busybox:1.36
+            command: ["sh", "-c", "sleep 10"]
             resources:
               requests:
                 cpu: %v
 `
 
-func pytorchjob(replicasMaster int, milliCPUMaster int64, replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+func pytorchjob(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(pytorchYAML,
 		randName("pytorchjob"),
-		replicasMaster,
-		resource.NewMilliQuantity(milliCPUMaster, resource.DecimalSI),
 		replicasWorker,
 		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
 	)
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	masters := int32(replicasMaster)
 	workers := int32(replicasWorker)
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
-			{Replicas: &masters, Path: "template.spec.pytorchReplicaSpecs.Master.template"},
 			{Replicas: &workers, Path: "template.spec.pytorchReplicaSpecs.Worker.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
