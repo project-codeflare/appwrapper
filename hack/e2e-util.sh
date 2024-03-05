@@ -27,7 +27,6 @@ DUMP_LOGS="true"
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
-export IMAGE_PYTORCH_SAMPLE="docker.io/kubeflowkatib/pytorch-mnist:v1beta1-45c5727"
 
 function update_test_host {
 
@@ -115,7 +114,7 @@ function check_prerequisites {
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_PYTORCH_SAMPLE}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -138,7 +137,7 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_PYTORCH_SAMPLE}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
