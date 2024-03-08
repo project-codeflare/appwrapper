@@ -26,8 +26,7 @@ import (
 )
 
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool   `json:"manageJobsWithoutQueueName,omitempty"`
-	ServiceAccountName         string `json:"serviceAccountName,omitempty"`
+	ManageJobsWithoutQueueName bool `json:"manageJobsWithoutQueueName,omitempty"`
 }
 
 // SetupWithManager creates and configures all components of the AppWrapper controller

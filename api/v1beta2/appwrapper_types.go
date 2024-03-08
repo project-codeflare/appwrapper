@@ -17,6 +17,7 @@ limitations under the License.
 package v1beta2
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -35,6 +36,9 @@ type AppWrapperComponent struct {
 	// PodSets contained in the component
 	PodSets []AppWrapperPodSet `json:"podSets"`
 
+	// PodSetInfos assigned to the Component by Kueue
+	PodSetInfos []AppWrapperPodSetInfo `json:"podSetInfos,omitempty"`
+
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:EmbeddedResource
 	// Template for the component
@@ -48,6 +52,13 @@ type AppWrapperPodSet struct {
 
 	// Path to the PodTemplateSpec
 	Path string `json:"path"`
+}
+
+type AppWrapperPodSetInfo struct {
+	Annotations  map[string]string   `json:"annotations,omitempty"`
+	Labels       map[string]string   `json:"labels,omitempty"`
+	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
+	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of the appwrapper

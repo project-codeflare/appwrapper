@@ -84,7 +84,7 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
 
-	allErrors := w.validateAppWrapperUpdate(ctx, oldAW, newAW)
+	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
 	if w.Config.ManageJobsWithoutQueueName || jobframework.QueueName((*AppWrapper)(newAW)) != "" {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
 		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
@@ -201,16 +201,8 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 	return allErrors
 }
 
-// validateAppWrapperUpdate enforces that AppWrapper.Spec.Components is deeply immutable
-func (w *AppWrapperWebhook) validateAppWrapperUpdate(ctx context.Context, old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
-	// The AppWrapper controller must be allowed to mutate Spec.Components
-	// to enable it to implement RunWithPodSetsInfo and RestorePodSetsInfo
-	if request, err := admission.RequestFromContext(ctx); err == nil {
-		if w.Config.ServiceAccountName != "" && request.UserInfo.Username == w.Config.ServiceAccountName {
-			return field.ErrorList{}
-		}
-	}
-
+// validateAppWrapperUpdate enforces deep immutablity of all fields that were validated by validateAppWrapperCreate
+func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	msg := "attempt to change immutable field"
 	componentsPath := field.NewPath("spec").Child("components")

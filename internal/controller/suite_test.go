@@ -161,7 +161,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true, ServiceAccountName: ctrlUserName}
+	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true}
 	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
