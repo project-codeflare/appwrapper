@@ -36,7 +36,7 @@ type AppWrapperComponent struct {
 	// PodSets contained in the component
 	PodSets []AppWrapperPodSet `json:"podSets"`
 
-	// PodSetInfos assigned to the Components by Kueue
+	// PodSetInfos assigned to the Component by Kueue
 	PodSetInfos []AppWrapperPodSetInfo `json:"podSetInfos,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
