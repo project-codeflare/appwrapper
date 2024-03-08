@@ -202,15 +202,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 }
 
 // validateAppWrapperUpdate enforces that AppWrapper.Spec.Components is deeply immutable
-func (w *AppWrapperWebhook) validateAppWrapperUpdate(ctx context.Context, old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
-	// The AppWrapper controller must be allowed to mutate Spec.Components
-	// to enable it to implement RunWithPodSetsInfo and RestorePodSetsInfo
-	if request, err := admission.RequestFromContext(ctx); err == nil {
-		if w.Config.ServiceAccountName != "" && request.UserInfo.Username == w.Config.ServiceAccountName {
-			return field.ErrorList{}
-		}
-	}
-
+func (w *AppWrapperWebhook) validateAppWrapperUpdate(_ context.Context, old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	msg := "attempt to change immutable field"
 	componentsPath := field.NewPath("spec").Child("components")

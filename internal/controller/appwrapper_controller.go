@@ -34,8 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/kueue/pkg/controller/constants"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
+	"sigs.k8s.io/kueue/pkg/podset"
+	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -299,38 +299,98 @@ func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.U
 	return obj, nil
 }
 
-func parseComponents(aw *workloadv1beta2.AppWrapper) ([]client.Object, error) {
-	components := aw.Spec.Components
-	objects := make([]client.Object, len(components))
-	for i, component := range components {
-		obj, err := parseComponent(aw, component.Template.Raw)
-		if err != nil {
-			return nil, err
+func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta2.AppWrapperComponent) (client.Object, error) {
+	toMap := func(x interface{}) map[string]string {
+		if x == nil {
+			return nil
+		} else {
+			if sm, ok := x.(map[string]string); ok {
+				return sm
+			} else if im, ok := x.(map[string]interface{}); ok {
+				sm := make(map[string]string, len(im))
+				for k, v := range im {
+					str, ok := v.(string)
+					if ok {
+						sm[k] = str
+					} else {
+						sm[k] = fmt.Sprint(v)
+					}
+				}
+				return sm
+			} else {
+				return nil
+			}
 		}
-		objects[i] = obj
 	}
-	return objects, nil
+	awLabels := map[string]string{AppWrapperLabel: aw.Name}
+
+	obj, err := parseComponent(aw, component.Template.Raw)
+	if err != nil {
+		return nil, err
+	}
+
+	for podSetsIdx, podSet := range component.PodSets {
+		toInject := component.PodSetInfos[podSetsIdx]
+
+		p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
+		if err != nil {
+			return nil, err // Should not happen, path validity is enforced by validateAppWrapperInvariants
+		}
+		if md, ok := p["metadata"]; !ok || md == nil {
+			p["metadata"] = make(map[string]interface{})
+		}
+		metadata := p["metadata"].(map[string]interface{})
+		spec := p["spec"].(map[string]interface{}) // Must exist, enforced by validateAppWrapperInvariants
+
+		// Annotations
+		if len(toInject.Annotations) > 0 {
+			existing := toMap(metadata["annotations"])
+			if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
+				return nil, podset.BadPodSetsUpdateError("annotations", err)
+			}
+			metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
+		}
+
+		// Labels
+		mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
+		existing := toMap(metadata["labels"])
+		if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
+			return nil, podset.BadPodSetsUpdateError("labels", err)
+		}
+		metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
+
+		// NodeSelectors
+		if len(toInject.NodeSelector) > 0 {
+			existing := toMap(metadata["nodeSelector"])
+			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
+				return nil, podset.BadPodSetsUpdateError("nodeSelector", err)
+			}
+			metadata["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
+		}
+
+		// Tolerations
+		if len(toInject.Tolerations) > 0 {
+			if _, ok := spec["tolerations"]; !ok {
+				spec["tolerations"] = []interface{}{}
+			}
+			tolerations := spec["tolerations"].([]interface{})
+			for _, addition := range toInject.Tolerations {
+				tolerations = append(tolerations, addition)
+			}
+			spec["tolerations"] = tolerations
+		}
+	}
+
+	return obj, nil
 }
 
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
-	objects, err := parseComponents(aw)
-	if err != nil {
-		return err, true // fatal
-	}
-
-	ref := &metav1.OwnerReference{APIVersion: GVK.GroupVersion().String(), Kind: GVK.Kind, Name: aw.Name, UID: aw.UID}
-	myWorkloadName, err := jobframework.GetWorkloadNameForOwnerRef(ref)
-	if err != nil {
-		return err, true
-	}
-
-	for _, obj := range objects {
-		annotations := obj.GetAnnotations()
-		if annotations == nil {
-			annotations = make(map[string]string)
+	for _, component := range aw.Spec.Components {
+		obj, err := materializeObject(aw, &component)
+		if err != nil {
+			return err, true
 		}
-		annotations[constants.ParentWorkloadAnnotation] = myWorkloadName
-		obj.SetAnnotations(annotations)
+
 		if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
 			return err, true
 		}
