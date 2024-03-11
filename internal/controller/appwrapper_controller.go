@@ -330,6 +330,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return nil, err, true
 	}
+	obj.SetLabels(utilmaps.MergeKeepFirst(awLabels, obj.GetLabels()))
 
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := component.PodSetInfos[podSetsIdx]
