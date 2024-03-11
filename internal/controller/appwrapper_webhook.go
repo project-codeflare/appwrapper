@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,11 +30,15 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 type AppWrapperWebhook struct {
