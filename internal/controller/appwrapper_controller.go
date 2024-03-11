@@ -34,12 +34,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	kconstants "sigs.k8s.io/kueue/pkg/constants"
+	kcconstants "sigs.k8s.io/kueue/pkg/controller/constants"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 	"sigs.k8s.io/kueue/pkg/workload"
 
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	"sigs.k8s.io/kueue/pkg/controller/constants"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -47,6 +48,7 @@ import (
 const (
 	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
 	appWrapperFinalizer = "workload.codeflare.dev/finalizer"
+	childJobQueueName   = "workload.codeflare.dev.admitted"
 )
 
 // AppWrapperReconciler reconciles an appwrapper
@@ -189,6 +191,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
+			if !r.propagateCompletion(ctx, aw, "Parent finished successfully") {
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
@@ -319,7 +324,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 		}
 	}
-	awLabels := map[string]string{AppWrapperLabel: aw.Name, constants.PrebuiltWorkloadLabel: childWorkloadName(aw, componentIdx)}
+	awLabels := map[string]string{AppWrapperLabel: aw.Name, kcconstants.PrebuiltWorkloadLabel: childWorkloadName(aw, componentIdx)}
 
 	obj, err := parseComponent(aw, component.Template.Raw)
 	if err != nil {
@@ -409,7 +414,7 @@ func (r *AppWrapperReconciler) ensurePrebuiltWorkload(ctx context.Context, aw *w
 		},
 		Spec: kueue.WorkloadSpec{
 			PodSets:   podSets,
-			QueueName: "",
+			QueueName: childJobQueueName,
 		},
 	}
 
@@ -459,6 +464,26 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 		}
 	}
 	return nil, false
+}
+
+func (r *AppWrapperReconciler) propagateCompletion(ctx context.Context, aw *workloadv1beta2.AppWrapper, msg string) bool {
+	for componentIdx, component := range aw.Spec.Components {
+		if len(component.PodSets) > 0 {
+			wl := &kueue.Workload{}
+			err := r.Client.Get(ctx, types.NamespacedName{Name: childWorkloadName(aw, componentIdx), Namespace: aw.Namespace}, wl)
+			if err != nil && !apierrors.IsNotFound(err) {
+				return false
+			}
+			if !meta.IsStatusConditionTrue(wl.Status.Conditions, kueue.WorkloadFinished) {
+				err := workload.UpdateStatus(ctx, r.Client, wl, kueue.WorkloadFinished, metav1.ConditionTrue, "ParentJobFinished", msg, kconstants.JobControllerName)
+				if err != nil && !apierrors.IsNotFound(err) {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
