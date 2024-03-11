@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	kueueControllerConstants "sigs.k8s.io/kueue/pkg/controller/constants"
+	"sigs.k8s.io/kueue/pkg/controller/constants"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 	"sigs.k8s.io/kueue/pkg/workload"
@@ -327,7 +327,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return nil, err, true
 	}
-	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, kueueControllerConstants.QueueLabel: childJobQueueName}))
+	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
 
 	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 	for podSetsIdx, podSet := range component.PodSets {
@@ -427,7 +427,7 @@ func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workl
 					workload.SetQuotaReservation(newWorkload, &admission)
 					_ = workload.SyncAdmittedCondition(newWorkload)
 					if err = workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false); err != nil {
-						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "component", obj, "workload", wl, "newworkload", newWorkload)
+						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "componentIdx", componentIdx, "workload", wl, "newworkload", newWorkload)
 					}
 				}
 			}

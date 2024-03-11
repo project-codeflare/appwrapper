@@ -86,13 +86,13 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 	podSetsInfoIndex := 0
 	for componentIdx := range aw.Spec.Components {
 		component := &aw.Spec.Components[componentIdx]
-		if len(component.PodSets) != len(component.PodSetInfos) {
+		if len(component.PodSetInfos) != len(component.PodSets) {
 			component.PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, len(component.PodSets))
 		}
 		for podSetIdx := range component.PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex > len(podSetsInfo) {
-				continue // we're going to return an error below...just continuing to get an accurate count for the error message
+				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
 			component.PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
 				Annotations:  podSetsInfo[podSetIdx].Annotations,
