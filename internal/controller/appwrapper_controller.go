@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	kueueConstants "sigs.k8s.io/kueue/pkg/constants"
 	kueueControllerConstants "sigs.k8s.io/kueue/pkg/controller/constants"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
@@ -192,9 +191,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
-			if !r.propagateCompletion(ctx, aw, "Parent finished successfully") {
-				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
-			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
@@ -437,34 +433,6 @@ func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workl
 			}
 		}
 	}
-}
-
-func (r *AppWrapperReconciler) propagateCompletion(ctx context.Context, aw *workloadv1beta2.AppWrapper, msg string) bool {
-	for _, component := range aw.Spec.Components {
-		if len(component.PodSets) > 0 {
-			obj, err := parseComponent(aw, component.Template.Raw)
-			if err != nil {
-				return false
-			}
-			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
-			wl := &kueue.Workload{}
-			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err != nil {
-				if apierrors.IsNotFound(err) {
-					continue
-				} else {
-					return false
-				}
-			}
-			if !workload.IsFinished(wl) {
-				err := workload.UpdateStatus(ctx, r.Client, wl, kueue.WorkloadFinished, metav1.ConditionTrue, "ParentJobFinished", msg, kueueConstants.JobControllerName)
-				if err != nil && !apierrors.IsNotFound(err) {
-					return false
-				}
-			}
-		}
-	}
-
-	return true
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
