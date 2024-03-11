@@ -17,8 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -68,26 +66,15 @@ func (aw *AppWrapper) GVK() schema.GroupVersionKind {
 
 func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	podSets := []kueue.PodSet{}
-	i := 0
-	for _, component := range aw.Spec.Components {
-		obj := &unstructured.Unstructured{}
-		if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
-			continue
-		}
-
-		for _, podSet := range component.PodSets {
-			replicas := int32(1)
-			if podSet.Replicas != nil {
-				replicas = *podSet.Replicas
+	for componentIdx, component := range aw.Spec.Components {
+		if len(component.PodSets) > 0 {
+			obj := &unstructured.Unstructured{}
+			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+				continue // Should be unreachable; Template.Raw validated by our AdmissionController
 			}
-			template, err := getPodTemplateSpec(obj, podSet.Path)
+			toAdd, err := getKueuePodSets(obj, &component, aw.Name, componentIdx)
 			if err == nil {
-				podSets = append(podSets, kueue.PodSet{
-					Name:     aw.Name + "-" + fmt.Sprint(i),
-					Template: *template,
-					Count:    replicas,
-				})
-				i++
+				podSets = append(podSets, toAdd...)
 			}
 		}
 	}
