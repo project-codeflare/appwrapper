@@ -34,13 +34,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	kconstants "sigs.k8s.io/kueue/pkg/constants"
-	kcconstants "sigs.k8s.io/kueue/pkg/controller/constants"
+	kueueConstants "sigs.k8s.io/kueue/pkg/constants"
+	kueueControllerConstants "sigs.k8s.io/kueue/pkg/controller/constants"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 	"sigs.k8s.io/kueue/pkg/workload"
 
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -221,6 +222,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
+		r.propagateAdmission(ctx, aw)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:   string(workloadv1beta2.PodsReady),
 			Status: metav1.ConditionFalse,
@@ -324,14 +326,14 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 		}
 	}
-	awLabels := map[string]string{AppWrapperLabel: aw.Name, kcconstants.PrebuiltWorkloadLabel: childWorkloadName(aw, componentIdx)}
 
 	obj, err := parseComponent(aw, component.Template.Raw)
 	if err != nil {
 		return nil, err, true
 	}
-	obj.SetLabels(utilmaps.MergeKeepFirst(awLabels, obj.GetLabels()))
+	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, kueueControllerConstants.QueueLabel: childJobQueueName}))
 
+	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := component.PodSetInfos[podSetsIdx]
 
@@ -397,86 +399,64 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	return obj, nil, false
 }
 
-func (r *AppWrapperReconciler) ensurePrebuiltWorkload(ctx context.Context, aw *workloadv1beta2.AppWrapper, obj *unstructured.Unstructured, componentNumber int) (*kueue.Workload, error, bool) {
-	podSets, err := getKueuePodSets(obj, &aw.Spec.Components[componentNumber], aw.Name, componentNumber)
-	if err != nil {
-		return nil, err, true
-	}
-	for i := range podSets {
-		for j := range podSets[i].Template.Spec.Containers {
-			// Resources are tracked in aw's workload; do not double count
-			podSets[i].Template.Spec.Containers[j].Resources = v1.ResourceRequirements{}
-		}
-	}
-	wl := &kueue.Workload{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      childWorkloadName(aw, componentNumber),
-			Namespace: aw.Namespace,
-		},
-		Spec: kueue.WorkloadSpec{
-			PodSets:   podSets,
-			QueueName: childJobQueueName,
-		},
-	}
-
-	if err := ctrl.SetControllerReference(obj, wl, r.Scheme); err != nil {
-		return nil, err, true
-	}
-
-	if err := r.Create(ctx, wl); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
-			return nil, err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
-		}
-	}
-
-	return wl, nil, false
-}
-
-func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workloadv1beta2.AppWrapper, wl *kueue.Workload, componentIdx int) error {
-	admission := kueue.Admission{
-		ClusterQueue:      "cluster-queue",
-		PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
-	}
-	for i := range admission.PodSetAssignments {
-		admission.PodSetAssignments[i].Name = fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, i)
-	}
-	newWorkload := wl.DeepCopy()
-	workload.SetQuotaReservation(newWorkload, &admission)
-	_ = workload.SyncAdmittedCondition(newWorkload)
-	return workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false)
-}
-
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
-	for componentIdx, component := range aw.Spec.Components {
-		obj, err, fatal := r.createComponent(ctx, aw, componentIdx)
+	for componentIdx := range aw.Spec.Components {
+		_, err, fatal := r.createComponent(ctx, aw, componentIdx)
 		if err != nil {
 			return err, fatal
-		}
-		if len(component.PodSets) > 0 {
-			wl, err, fatal := r.ensurePrebuiltWorkload(ctx, aw, obj, componentIdx)
-			if err != nil {
-				return err, fatal
-			}
-			err = r.propagateAdmission(ctx, aw, wl, componentIdx)
-			if err != nil {
-				log.FromContext(ctx).Info("propAdmit", "error", err)
-				return err, false
-			}
 		}
 	}
 	return nil, false
 }
 
-func (r *AppWrapperReconciler) propagateCompletion(ctx context.Context, aw *workloadv1beta2.AppWrapper, msg string) bool {
+func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workloadv1beta2.AppWrapper) {
 	for componentIdx, component := range aw.Spec.Components {
 		if len(component.PodSets) > 0 {
+			obj, err := parseComponent(aw, component.Template.Raw)
+			if err != nil {
+				return
+			}
+			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
 			wl := &kueue.Workload{}
-			err := r.Client.Get(ctx, types.NamespacedName{Name: childWorkloadName(aw, componentIdx), Namespace: aw.Namespace}, wl)
-			if err != nil && !apierrors.IsNotFound(err) {
+			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
+				if !workload.IsAdmitted(wl) {
+					admission := kueue.Admission{
+						ClusterQueue:      childJobQueueName,
+						PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
+					}
+					for i := range admission.PodSetAssignments {
+						admission.PodSetAssignments[i].Name = wl.Spec.PodSets[i].Name
+					}
+					newWorkload := wl.DeepCopy()
+					workload.SetQuotaReservation(newWorkload, &admission)
+					_ = workload.SyncAdmittedCondition(newWorkload)
+					if err = workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false); err != nil {
+						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "component", obj, "workload", wl, "newworkload", newWorkload)
+					}
+				}
+			}
+		}
+	}
+}
+
+func (r *AppWrapperReconciler) propagateCompletion(ctx context.Context, aw *workloadv1beta2.AppWrapper, msg string) bool {
+	for _, component := range aw.Spec.Components {
+		if len(component.PodSets) > 0 {
+			obj, err := parseComponent(aw, component.Template.Raw)
+			if err != nil {
 				return false
 			}
-			if !meta.IsStatusConditionTrue(wl.Status.Conditions, kueue.WorkloadFinished) {
-				err := workload.UpdateStatus(ctx, r.Client, wl, kueue.WorkloadFinished, metav1.ConditionTrue, "ParentJobFinished", msg, kconstants.JobControllerName)
+			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
+			wl := &kueue.Workload{}
+			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err != nil {
+				if apierrors.IsNotFound(err) {
+					continue
+				} else {
+					return false
+				}
+			}
+			if !workload.IsFinished(wl) {
+				err := workload.UpdateStatus(ctx, r.Client, wl, kueue.WorkloadFinished, metav1.ConditionTrue, "ParentJobFinished", msg, kueueConstants.JobControllerName)
 				if err != nil && !apierrors.IsNotFound(err) {
 					return false
 				}

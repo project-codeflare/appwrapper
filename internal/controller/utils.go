@@ -94,7 +94,3 @@ func getRawTemplate(obj map[string]interface{}, path string) (map[string]interfa
 	}
 	return obj, nil
 }
-
-func childWorkloadName(aw *workloadv1beta2.AppWrapper, componentNumber int) string {
-	return fmt.Sprintf("%v-%v", aw.UID, componentNumber)
-}
