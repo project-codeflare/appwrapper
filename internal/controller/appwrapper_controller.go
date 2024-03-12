@@ -28,14 +28,20 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
+	"sigs.k8s.io/kueue/pkg/controller/constants"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
+	"sigs.k8s.io/kueue/pkg/workload"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -43,6 +49,7 @@ import (
 const (
 	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
 	appWrapperFinalizer = "workload.codeflare.dev/finalizer"
+	childJobQueueName   = "workload.codeflare.dev.admitted"
 )
 
 // AppWrapperReconciler reconciles an appwrapper
@@ -212,6 +219,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
+		r.propagateAdmission(ctx, aw)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:   string(workloadv1beta2.PodsReady),
 			Status: metav1.ConditionFalse,
@@ -266,14 +274,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
-func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
-		For(&workloadv1beta2.AppWrapper{}).
-		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
-		Complete(r)
-}
-
 // podMapFunc maps pods to appwrappers
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
@@ -299,7 +299,8 @@ func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.U
 	return obj, nil
 }
 
-func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta2.AppWrapperComponent) (client.Object, error) {
+func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (*unstructured.Unstructured, error, bool) {
+	component := aw.Spec.Components[componentIdx]
 	toMap := func(x interface{}) map[string]string {
 		if x == nil {
 			return nil
@@ -322,19 +323,20 @@ func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta
 			}
 		}
 	}
-	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 
 	obj, err := parseComponent(aw, component.Template.Raw)
 	if err != nil {
-		return nil, err
+		return nil, err, true
 	}
+	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
 
+	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := component.PodSetInfos[podSetsIdx]
 
 		p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
 		if err != nil {
-			return nil, err // Should not happen, path validity is enforced by validateAppWrapperInvariants
+			return nil, err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
 		}
 		if md, ok := p["metadata"]; !ok || md == nil {
 			p["metadata"] = make(map[string]interface{})
@@ -346,7 +348,7 @@ func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta
 		if len(toInject.Annotations) > 0 {
 			existing := toMap(metadata["annotations"])
 			if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
-				return nil, podset.BadPodSetsUpdateError("annotations", err)
+				return nil, podset.BadPodSetsUpdateError("annotations", err), true
 			}
 			metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
 		}
@@ -355,7 +357,7 @@ func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta
 		mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
 		existing := toMap(metadata["labels"])
 		if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
-			return nil, podset.BadPodSetsUpdateError("labels", err)
+			return nil, podset.BadPodSetsUpdateError("labels", err), true
 		}
 		metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
 
@@ -363,7 +365,7 @@ func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta
 		if len(toInject.NodeSelector) > 0 {
 			existing := toMap(metadata["nodeSelector"])
 			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
-				return nil, podset.BadPodSetsUpdateError("nodeSelector", err)
+				return nil, podset.BadPodSetsUpdateError("nodeSelector", err), true
 			}
 			metadata["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 		}
@@ -381,27 +383,57 @@ func materializeObject(aw *workloadv1beta2.AppWrapper, component *workloadv1beta
 		}
 	}
 
-	return obj, nil
+	if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
+		return nil, err, true
+	}
+
+	if err := r.Create(ctx, obj); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return nil, err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
+		}
+	}
+
+	return obj, nil, false
 }
 
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
-	for _, component := range aw.Spec.Components {
-		obj, err := materializeObject(aw, &component)
+	for componentIdx := range aw.Spec.Components {
+		_, err, fatal := r.createComponent(ctx, aw, componentIdx)
 		if err != nil {
-			return err, true
-		}
-
-		if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
-			return err, true
-		}
-		if err := r.Create(ctx, obj); err != nil {
-			if apierrors.IsAlreadyExists(err) {
-				continue // ignore existing component
-			}
-			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
+			return err, fatal
 		}
 	}
 	return nil, false
+}
+
+func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workloadv1beta2.AppWrapper) {
+	for componentIdx, component := range aw.Spec.Components {
+		if len(component.PodSets) > 0 {
+			obj, err := parseComponent(aw, component.Template.Raw)
+			if err != nil {
+				return
+			}
+			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
+			wl := &kueue.Workload{}
+			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
+				if !workload.IsAdmitted(wl) {
+					admission := kueue.Admission{
+						ClusterQueue:      childJobQueueName,
+						PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
+					}
+					for i := range admission.PodSetAssignments {
+						admission.PodSetAssignments[i].Name = wl.Spec.PodSets[i].Name
+					}
+					newWorkload := wl.DeepCopy()
+					workload.SetQuotaReservation(newWorkload, &admission)
+					_ = workload.SyncAdmittedCondition(newWorkload)
+					if err = workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false); err != nil {
+						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "componentIdx", componentIdx, "workload", wl, "newworkload", newWorkload)
+					}
+				}
+			}
+		}
+	}
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
@@ -475,4 +507,12 @@ func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 		}
 	}
 	return expected
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&workloadv1beta2.AppWrapper{}).
+		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		Complete(r)
 }
