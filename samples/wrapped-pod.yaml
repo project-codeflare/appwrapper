@@ -14,7 +14,7 @@ spec:
       apiVersion: v1
       kind: Pod
       metadata:
-        name: sample-pod-pod
+        name: sample-pod
       spec:
         restartPolicy: Never
         initContainers:
