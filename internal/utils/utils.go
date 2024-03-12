@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package utils
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ import (
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
 func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
-	candidatePTS, err := getRawTemplate(obj.UnstructuredContent(), path)
+	candidatePTS, err := GetRawTemplate(obj.UnstructuredContent(), path)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 }
 
 // return the subobject found at the given path, or nil if the path is invalid
-func getRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
+func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
 	parts := strings.Split(path, ".")
 	if parts[0] != "template" {
 		return nil, fmt.Errorf("first element of the path must be 'template'")

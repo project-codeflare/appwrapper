@@ -39,6 +39,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 type AppWrapperWebhook struct {
@@ -171,7 +172,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := GetPodTemplateSpec(unstruct, ps.Path); err != nil {
+			if _, err := utils.GetPodTemplateSpec(unstruct, ps.Path); err != nil {
 				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}

@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/workload"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 const (
@@ -339,7 +340,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := component.PodSetInfos[podSetsIdx]
 
-		p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
+		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
 		if err != nil {
 			return nil, err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
 		}
