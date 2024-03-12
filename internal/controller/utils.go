@@ -23,13 +23,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
-// getPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
-func getPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
+// GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
+func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
 	candidatePTS, err := getRawTemplate(obj.UnstructuredContent(), path)
 	if err != nil {
 		return nil, err
@@ -57,26 +54,6 @@ func getPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 	}
 
 	return template, nil
-}
-
-func getKueuePodSets(obj *unstructured.Unstructured, component *workloadv1beta2.AppWrapperComponent, awName string, componentIdx int) ([]kueue.PodSet, error) {
-	podSets := []kueue.PodSet{}
-	for psIdx, podSet := range component.PodSets {
-		replicas := int32(1)
-		if podSet.Replicas != nil {
-			replicas = *podSet.Replicas
-		}
-		template, err := getPodTemplateSpec(obj, podSet.Path)
-		if err != nil {
-			return nil, err
-		}
-		podSets = append(podSets, kueue.PodSet{
-			Name:     fmt.Sprintf("%s-%v-%v", awName, componentIdx, psIdx),
-			Template: *template,
-			Count:    replicas,
-		})
-	}
-	return podSets, nil
 }
 
 // return the subobject found at the given path, or nil if the path is invalid

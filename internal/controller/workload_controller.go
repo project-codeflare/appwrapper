@@ -17,6 +17,8 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -74,9 +76,18 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
 				continue // Should be unreachable; Template.Raw validated by our AdmissionController
 			}
-			toAdd, err := getKueuePodSets(obj, &component, aw.Name, componentIdx)
-			if err == nil {
-				podSets = append(podSets, toAdd...)
+			for psIdx, podSet := range component.PodSets {
+				replicas := int32(1)
+				if podSet.Replicas != nil {
+					replicas = *podSet.Replicas
+				}
+				if template, err := GetPodTemplateSpec(obj, podSet.Path); err == nil {
+					podSets = append(podSets, kueue.PodSet{
+						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, psIdx),
+						Template: *template,
+						Count:    replicas,
+					})
+				}
 			}
 		}
 	}

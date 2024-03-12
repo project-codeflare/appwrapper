@@ -185,7 +185,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := getPodTemplateSpec(unstruct, ps.Path); err != nil {
+			if _, err := GetPodTemplateSpec(unstruct, ps.Path); err != nil {
 				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}

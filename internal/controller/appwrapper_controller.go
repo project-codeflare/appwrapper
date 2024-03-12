@@ -67,9 +67,14 @@ type podStatusSummary struct {
 	failed    int32
 }
 
+// permission to fully control appwrappers
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
+
+// permission to manipulate workloads controlling appwrapper components to enable admitting them to our pseudo-clusterqueue
+// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads,verbs=get
+// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads/status,verbs=get;update;patch
 
 // permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters
 
