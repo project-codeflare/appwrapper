@@ -50,7 +50,7 @@ import (
 
 const (
 	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
-	appWrapperFinalizer = "workload.codeflare.dev/finalizer"
+	AppWrapperFinalizer = "workload.codeflare.dev/finalizer"
 	childJobQueueName   = "workload.codeflare.dev.admitted"
 )
 
@@ -102,7 +102,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// handle deletion first
 	if !aw.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(aw, appWrapperFinalizer) {
+		if controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
 			statusUpdated := false
 			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 				if !r.deleteComponents(ctx, aw) {
@@ -138,7 +138,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				}
 			}
 
-			if controllerutil.RemoveFinalizer(aw, appWrapperFinalizer) {
+			if controllerutil.RemoveFinalizer(aw, AppWrapperFinalizer) {
 				if err := r.Update(ctx, aw); err != nil {
 					return ctrl.Result{}, err
 				}
@@ -151,7 +151,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	switch aw.Status.Phase {
 
 	case workloadv1beta2.AppWrapperEmpty: // initial state, inject finalizer
-		if controllerutil.AddFinalizer(aw, appWrapperFinalizer) {
+		if controllerutil.AddFinalizer(aw, AppWrapperFinalizer) {
 			if err := r.Update(ctx, aw); err != nil {
 				return ctrl.Result{}, err
 			}

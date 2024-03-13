@@ -49,7 +49,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		aw := getAppWrapper(awName)
 		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspended))
-		Expect(controllerutil.ContainsFinalizer(aw, appWrapperFinalizer)).Should(BeTrue())
+		Expect(controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer)).Should(BeTrue())
 
 		By("Updating aw.Spec by invoking RunWithPodSetsInfo")
 		Expect((*workload.AppWrapper)(aw).RunWithPodSetsInfo([]podset.PodSetInfo{markerPodSet, markerPodSet})).To(Succeed())

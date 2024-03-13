@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/yaml"
 )
 
@@ -46,6 +47,13 @@ func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1
 		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
 		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
 	}
+}
+
+func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.AppWrapper {
+	aw := &workloadv1beta2.AppWrapper{}
+	err := k8sClient.Get(ctx, typeNamespacedName, aw)
+	Expect(err).NotTo(HaveOccurred())
+	return aw
 }
 
 const podYAML = `

@@ -23,7 +23,6 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,6 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
