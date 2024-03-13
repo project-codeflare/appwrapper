@@ -26,6 +26,7 @@ import (
 	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
+	"github.com/project-codeflare/appwrapper/internal/webhook"
 
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )
@@ -49,7 +50,7 @@ func SetupWithManager(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 	}
 
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err := (&workload.AppWrapperWebhook{
+		if err := (&webhook.AppWrapperWebhook{
 			Config: awConfig,
 		}).SetupWebhookWithManager(mgr); err != nil {
 			return fmt.Errorf("appwrapper webhook: %w", err)

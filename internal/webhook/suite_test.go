@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package appwrapper
+package webhook
 
 import (
 	"context"
@@ -33,6 +33,7 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -46,7 +47,6 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/config"
-	awwh "github.com/project-codeflare/appwrapper/internal/webhook"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
@@ -55,7 +55,7 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
-var k8sControllerClient client.Client
+var k8sLimitedClient client.Client
 var testEnv *envtest.Environment
 var ctx context.Context
 var cancel context.CancelFunc
@@ -63,7 +63,7 @@ var cancel context.CancelFunc
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "AppWrapper Controller Unit Tests")
+	RunSpecs(t, "Workload Controller Unit Tests")
 }
 
 var _ = BeforeSuite(func() {
@@ -73,7 +73,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: false,
 
 		// The BinaryAssetsDirectory is only required if you want to run the tests directly
@@ -81,11 +81,11 @@ var _ = BeforeSuite(func() {
 		// default path defined in controller-runtime which is /usr/local/kubebuilder/.
 		// Note that you must have the required binaries setup under the bin directory to perform
 		// the tests directly. When we run make test it will be setup and used automatically.
-		BinaryAssetsDirectory: filepath.Join("..", "..", "..", "bin", "k8s",
+		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
 			fmt.Sprintf("1.29.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			Paths: []string{filepath.Join("..", "..", "..", "config", "webhook")},
+			Paths: []string{filepath.Join("..", "..", "config", "webhook")},
 		},
 	}
 
@@ -114,13 +114,31 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// configure a client that impersonates as the AppWrapper operator
-	ctrlUserName := "appwrapper-controller"
-	ctrlCfg := *cfg
-	ctrlCfg.Impersonate = rest.ImpersonationConfig{UserName: ctrlUserName, Groups: []string{"system:masters"}}
-	_, err = testEnv.AddUser(envtest.User{Name: ctrlUserName}, &ctrlCfg)
+	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
+	limitedUserName := "limited-user"
+	limitedCfg := *cfg
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName}
+	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName, Groups: []string{}}, &limitedCfg)
 	Expect(err).NotTo(HaveOccurred())
-	k8sControllerClient, err = client.New(&ctrlCfg, client.Options{Scheme: scheme})
+	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: "limited-role"},
+		Rules: []rbacv1.PolicyRule{
+			{Verbs: []string{"*"}, APIGroups: []string{"workload.codeflare.dev"}, Resources: []string{"appwrappers"}},
+			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
+			{Verbs: []string{"get"}, APIGroups: []string{"apps"}, Resources: []string{"deployments"}},
+		},
+	}
+	err = k8sClient.Create(ctx, clusterRole)
+	Expect(err).NotTo(HaveOccurred())
+	clusterRoleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: "limited-role-binding"},
+		Subjects:   []rbacv1.Subject{{Kind: rbacv1.UserKind, Name: limitedUserName}},
+		RoleRef:    rbacv1.RoleRef{APIGroup: "rbac.authorization.k8s.io", Kind: "ClusterRole", Name: clusterRole.Name},
+	}
+	err = k8sClient.Create(ctx, clusterRoleBinding)
+	Expect(err).NotTo(HaveOccurred())
+
+	k8sLimitedClient, err = client.New(&limitedCfg, client.Options{Scheme: scheme})
 	Expect(err).NotTo(HaveOccurred())
 
 	// start webhook server using Manager
@@ -138,7 +156,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	awConfig := config.AppWrapperConfig{ManageJobsWithoutQueueName: true}
-	err = (&awwh.AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
+	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

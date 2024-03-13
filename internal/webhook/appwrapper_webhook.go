@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package workload
+package webhook
 
 import (
 	"bytes"
@@ -40,6 +40,7 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/config"
+	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
@@ -58,7 +59,7 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
-	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+	jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
 	return nil
 }
 
@@ -72,7 +73,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 	log.FromContext(ctx).Info("Validating create", "job", aw)
 
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
-	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
+	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*wlc.AppWrapper)(aw))...)
 
 	return nil, allErrors.ToAggregate()
 }
@@ -84,8 +85,8 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	log.FromContext(ctx).Info("Validating update", "job", newAW)
 
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
+	allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
+	allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
 
 	return nil, allErrors.ToAggregate()
 }
@@ -125,7 +126,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 		}
 
 		// 1. Deny nested AppWrappers
-		if *gvk == GVK {
+		if *gvk == wlc.GVK {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
 		}
 
