@@ -36,12 +36,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/kueue/pkg/controller/constants"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
-	"sigs.k8s.io/kueue/pkg/workload"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/config"
@@ -73,10 +70,6 @@ type podStatusSummary struct {
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
-
-// permission to manipulate workloads controlling appwrapper components to enable admitting them to our pseudo-clusterqueue
-// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads,verbs=get
-// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads/status,verbs=get;update;patch
 
 // permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters
 
@@ -226,7 +219,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
-		r.propagateAdmission(ctx, aw)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:   string(workloadv1beta2.PodsReady),
 			Status: metav1.ConditionFalse,
@@ -411,36 +403,6 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 		}
 	}
 	return nil, false
-}
-
-func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workloadv1beta2.AppWrapper) {
-	for componentIdx, component := range aw.Spec.Components {
-		if len(component.PodSets) > 0 {
-			obj, err := parseComponent(aw, component.Template.Raw)
-			if err != nil {
-				return
-			}
-			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
-			wl := &kueue.Workload{}
-			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
-				if !workload.IsAdmitted(wl) {
-					admission := kueue.Admission{
-						ClusterQueue:      childJobQueueName,
-						PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
-					}
-					for i := range admission.PodSetAssignments {
-						admission.PodSetAssignments[i].Name = wl.Spec.PodSets[i].Name
-					}
-					newWorkload := wl.DeepCopy()
-					workload.SetQuotaReservation(newWorkload, &admission)
-					_ = workload.SyncAdmittedCondition(newWorkload)
-					if err = workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false); err != nil {
-						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "componentIdx", componentIdx, "workload", wl, "newworkload", newWorkload)
-					}
-				}
-			}
-		}
-	}
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {

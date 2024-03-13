@@ -41,6 +41,13 @@ func SetupWithManager(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 		return fmt.Errorf("workload controller: %w", err)
 	}
 
+	if err := (&workload.ChildWorkloadReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("child admission controller: %w", err)
+	}
+
 	if err := (&appwrapper.AppWrapperReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
