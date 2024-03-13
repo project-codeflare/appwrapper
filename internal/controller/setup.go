@@ -23,40 +23,40 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
+	"github.com/project-codeflare/appwrapper/internal/config"
+	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
+	"github.com/project-codeflare/appwrapper/internal/controller/workload"
+
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )
 
-type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool `json:"manageJobsWithoutQueueName,omitempty"`
-}
-
 // SetupWithManager creates and configures all components of the AppWrapper controller
-func SetupWithManager(ctx context.Context, mgr ctrl.Manager, config *AppWrapperConfig) error {
-	if err := WorkloadReconciler(
+func SetupWithManager(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
+	if err := workload.WorkloadReconciler(
 		mgr.GetClient(),
 		mgr.GetEventRecorderFor("kueue"),
-		jobframework.WithManageJobsWithoutQueueName(config.ManageJobsWithoutQueueName),
+		jobframework.WithManageJobsWithoutQueueName(awConfig.ManageJobsWithoutQueueName),
 	).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("workload controller: %w", err)
 	}
 
-	if err := (&AppWrapperReconciler{
+	if err := (&appwrapper.AppWrapperReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
-		Config: config,
+		Config: awConfig,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("appwrapper controller: %w", err)
 	}
 
 	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
-		if err := (&AppWrapperWebhook{
-			Config: config,
+		if err := (&workload.AppWrapperWebhook{
+			Config: awConfig,
 		}).SetupWebhookWithManager(mgr); err != nil {
 			return fmt.Errorf("appwrapper webhook: %w", err)
 		}
 	}
 
-	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), GVK); err != nil {
+	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
 		return fmt.Errorf("appwrapper indexer: %w", err)
 	}
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package workload
 
 import (
 	"context"
@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
@@ -63,7 +64,7 @@ var cancel context.CancelFunc
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "AppWrapper Unit Tests")
+	RunSpecs(t, "Workload Controller Unit Tests")
 }
 
 var _ = BeforeSuite(func() {
@@ -73,7 +74,7 @@ var _ = BeforeSuite(func() {
 
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: false,
 
 		// The BinaryAssetsDirectory is only required if you want to run the tests directly
@@ -81,11 +82,11 @@ var _ = BeforeSuite(func() {
 		// default path defined in controller-runtime which is /usr/local/kubebuilder/.
 		// Note that you must have the required binaries setup under the bin directory to perform
 		// the tests directly. When we run make test it will be setup and used automatically.
-		BinaryAssetsDirectory: filepath.Join("..", "..", "bin", "k8s",
+		BinaryAssetsDirectory: filepath.Join("..", "..", "..", "bin", "k8s",
 			fmt.Sprintf("1.29.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			Paths: []string{filepath.Join("..", "..", "config", "webhook")},
+			Paths: []string{filepath.Join("..", "..", "..", "config", "webhook")},
 		},
 	}
 
@@ -164,7 +165,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true}
+	awConfig := config.AppWrapperConfig{ManageJobsWithoutQueueName: true}
 	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 

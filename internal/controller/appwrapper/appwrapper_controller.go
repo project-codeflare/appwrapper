@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package appwrapper
 
 import (
 	"context"
@@ -44,6 +44,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/workload"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
@@ -57,7 +58,7 @@ const (
 type AppWrapperReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Config *AppWrapperConfig
+	Config *config.AppWrapperConfig
 }
 
 type podStatusSummary struct {
@@ -479,7 +480,7 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
-	summary := &podStatusSummary{expected: ExpectedPodCount(aw)}
+	summary := &podStatusSummary{expected: utils.ExpectedPodCount(aw)}
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -495,24 +496,6 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	}
 
 	return summary, nil
-}
-
-func replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
-	if ps.Replicas == nil {
-		return 1
-	} else {
-		return *ps.Replicas
-	}
-}
-
-func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
-	var expected int32
-	for _, c := range aw.Spec.Components {
-		for _, s := range c.PodSets {
-			expected += replicas(s)
-		}
-	}
-	return expected
 }
 
 // SetupWithManager sets up the controller with the Manager.

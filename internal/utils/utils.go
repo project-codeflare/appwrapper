@@ -23,6 +23,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
@@ -70,4 +72,22 @@ func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interfa
 		}
 	}
 	return obj, nil
+}
+
+func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
+	if ps.Replicas == nil {
+		return 1
+	} else {
+		return *ps.Replicas
+	}
+}
+
+func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
+	var expected int32
+	for _, c := range aw.Spec.Components {
+		for _, s := range c.PodSets {
+			expected += Replicas(s)
+		}
+	}
+	return expected
 }

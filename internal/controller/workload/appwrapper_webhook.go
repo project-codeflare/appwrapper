@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package workload
 
 import (
 	"bytes"
@@ -39,11 +39,12 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 type AppWrapperWebhook struct {
-	Config                *AppWrapperConfig
+	Config                *config.AppWrapperConfig
 	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
 	DiscoveryClient       *discovery.DiscoveryClient
 	kindToResourceCache   map[string]string
@@ -210,7 +211,7 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets"), msg))
 		} else {
 			for psIdx := range newComponent.PodSets {
-				if replicas(oldComponent.PodSets[psIdx]) != replicas(newComponent.PodSets[psIdx]) {
+				if utils.Replicas(oldComponent.PodSets[psIdx]) != utils.Replicas(newComponent.PodSets[psIdx]) {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replicas"), msg))
 				}
 				if oldComponent.PodSets[psIdx].Path != newComponent.PodSets[psIdx].Path {

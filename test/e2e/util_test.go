@@ -37,7 +37,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/controller"
+	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 const (
@@ -161,7 +162,7 @@ func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimum
 
 		matchingPodCount := int32(0)
 		for _, pod := range podList.Items {
-			if awn, found := pod.Labels[controller.AppWrapperLabel]; found && awn == awName {
+			if awn, found := pod.Labels[appwrapper.AppWrapperLabel]; found && awn == awName {
 				for _, p := range phase {
 					if pod.Status.Phase == p {
 						matchingPodCount++
@@ -184,7 +185,7 @@ func noPodsExist(awNamespace string, awName string) wait.ConditionWithContextFun
 		}
 
 		for _, podFromPodList := range podList.Items {
-			if awn, found := podFromPodList.Labels[controller.AppWrapperLabel]; found && awn == awName {
+			if awn, found := podFromPodList.Labels[appwrapper.AppWrapperLabel]; found && awn == awName {
 				return false, nil
 			}
 		}
@@ -197,7 +198,7 @@ func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string) e
 }
 
 func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
-	numExpected := controller.ExpectedPodCount(aw)
+	numExpected := utils.ExpectedPodCount(aw)
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
 	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 120*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 }
