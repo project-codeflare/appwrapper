@@ -36,6 +36,7 @@ import (
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
@@ -61,7 +62,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 
-	config := controller.AppWrapperConfig{}
+	awConfig := config.AppWrapperConfig{}
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -72,7 +73,7 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.BoolVar(&config.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
+	flag.BoolVar(&awConfig.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -81,7 +82,7 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
-	setupLog.Info("Configuration", "config", config)
+	setupLog.Info("Configuration", "config", awConfig)
 
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
@@ -132,7 +133,7 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	err = controller.SetupWithManager(ctx, mgr, &config)
+	err = controller.SetupWithManager(ctx, mgr, &awConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to start appwrapper controllers")
 		os.Exit(1)

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package webhook
 
 import (
 	"encoding/json"
@@ -25,6 +25,7 @@ import (
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 var _ = Describe("AppWrapper Webhook Tests", func() {
@@ -85,6 +86,41 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Template: runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
+		Context("aw.Spec.Components is immutable", func() {
+			It("Updates to non-sensitive fields are allowed", func() {
+				aw := toAppWrapper(pod(100), deployment(4, 100))
+				awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+				Expect(k8sClient.Create(ctx, aw)).Should(Succeed())
+
+				aw = getAppWrapper(awName)
+				aw.Spec.Suspend = true
+				Expect(k8sClient.Update(ctx, aw)).Should(Succeed())
+
+				aw = getAppWrapper(awName)
+				aw.Spec.Components[1].PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, 1)
+				Expect(k8sClient.Update(ctx, aw)).Should(Succeed())
+			})
+
+			It("Updates to sensitive fields are rejected", func() {
+				aw := toAppWrapper(pod(100), deployment(4, 100))
+				awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+				Expect(k8sClient.Create(ctx, aw)).Should(Succeed())
+
+				aw = getAppWrapper(awName)
+				aw.Spec.Components[0].Template = aw.Spec.Components[1].Template
+				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+				aw = getAppWrapper(awName)
+				aw.Spec.Components[0].PodSets[0].Path = "bad"
+				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+				aw = getAppWrapper(awName)
+				rc := int32(12)
+				aw.Spec.Components[0].PodSets[0].Replicas = &rc
+				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+			})
 		})
 
 		Context("RBAC is enforced for wrapped resouces", func() {

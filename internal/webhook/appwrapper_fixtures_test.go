@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package webhook
 
 import (
 	"fmt"
@@ -24,12 +24,10 @@ import (
 	. "github.com/onsi/gomega"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 )
 
@@ -56,29 +54,6 @@ func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.App
 	err := k8sClient.Get(ctx, typeNamespacedName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
-}
-
-// envTest doesn't have a Pod controller; so simulate it
-func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange int32) error {
-	podList := &v1.PodList{}
-	err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
-	if err != nil {
-		return err
-	}
-	for _, pod := range podList.Items {
-		if numToChange <= 0 {
-			return nil
-		}
-		if awn, found := pod.Labels[AppWrapperLabel]; found && awn == aw.Name {
-			pod.Status.Phase = phase
-			err = k8sClient.Status().Update(ctx, &pod)
-			if err != nil {
-				return err
-			}
-			numToChange -= 1
-		}
-	}
-	return nil
 }
 
 const podYAML = `

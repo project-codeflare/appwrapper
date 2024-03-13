@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package workload
 
 import (
 	"fmt"
@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/podset"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 // +kubebuilder:rbac:groups=scheduling.k8s.io,resources=priorityclasses,verbs=list;get;watch
@@ -81,7 +82,7 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 				if podSet.Replicas != nil {
 					replicas = *podSet.Replicas
 				}
-				if template, err := GetPodTemplateSpec(obj, podSet.Path); err == nil {
+				if template, err := utils.GetPodTemplateSpec(obj, podSet.Path); err == nil {
 					podSets = append(podSets, kueue.PodSet{
 						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, psIdx),
 						Template: *template,

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package appwrapper
 
 import (
 	"context"
@@ -36,19 +36,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/kueue/pkg/controller/constants"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
-	"sigs.k8s.io/kueue/pkg/workload"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 const (
 	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
-	appWrapperFinalizer = "workload.codeflare.dev/finalizer"
+	AppWrapperFinalizer = "workload.codeflare.dev/finalizer"
 	childJobQueueName   = "workload.codeflare.dev.admitted"
 )
 
@@ -56,7 +55,7 @@ const (
 type AppWrapperReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	Config *AppWrapperConfig
+	Config *config.AppWrapperConfig
 }
 
 type podStatusSummary struct {
@@ -71,10 +70,6 @@ type podStatusSummary struct {
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
-
-// permission to manipulate workloads controlling appwrapper components to enable admitting them to our pseudo-clusterqueue
-// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads,verbs=get
-// +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloads/status,verbs=get;update;patch
 
 // permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters
 
@@ -100,7 +95,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	// handle deletion first
 	if !aw.DeletionTimestamp.IsZero() {
-		if controllerutil.ContainsFinalizer(aw, appWrapperFinalizer) {
+		if controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
 			statusUpdated := false
 			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 				if !r.deleteComponents(ctx, aw) {
@@ -136,7 +131,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				}
 			}
 
-			if controllerutil.RemoveFinalizer(aw, appWrapperFinalizer) {
+			if controllerutil.RemoveFinalizer(aw, AppWrapperFinalizer) {
 				if err := r.Update(ctx, aw); err != nil {
 					return ctrl.Result{}, err
 				}
@@ -149,7 +144,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	switch aw.Status.Phase {
 
 	case workloadv1beta2.AppWrapperEmpty: // initial state, inject finalizer
-		if controllerutil.AddFinalizer(aw, appWrapperFinalizer) {
+		if controllerutil.AddFinalizer(aw, AppWrapperFinalizer) {
 			if err := r.Update(ctx, aw); err != nil {
 				return ctrl.Result{}, err
 			}
@@ -224,7 +219,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
-		r.propagateAdmission(ctx, aw)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:   string(workloadv1beta2.PodsReady),
 			Status: metav1.ConditionFalse,
@@ -339,7 +333,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := component.PodSetInfos[podSetsIdx]
 
-		p, err := getRawTemplate(obj.UnstructuredContent(), podSet.Path)
+		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
 		if err != nil {
 			return nil, err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
 		}
@@ -411,36 +405,6 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 	return nil, false
 }
 
-func (r *AppWrapperReconciler) propagateAdmission(ctx context.Context, aw *workloadv1beta2.AppWrapper) {
-	for componentIdx, component := range aw.Spec.Components {
-		if len(component.PodSets) > 0 {
-			obj, err := parseComponent(aw, component.Template.Raw)
-			if err != nil {
-				return
-			}
-			wlName := jobframework.GetWorkloadNameForOwnerWithGVK(obj.GetName(), obj.GroupVersionKind())
-			wl := &kueue.Workload{}
-			if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
-				if !workload.IsAdmitted(wl) {
-					admission := kueue.Admission{
-						ClusterQueue:      childJobQueueName,
-						PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
-					}
-					for i := range admission.PodSetAssignments {
-						admission.PodSetAssignments[i].Name = wl.Spec.PodSets[i].Name
-					}
-					newWorkload := wl.DeepCopy()
-					workload.SetQuotaReservation(newWorkload, &admission)
-					_ = workload.SyncAdmittedCondition(newWorkload)
-					if err = workload.ApplyAdmissionStatus(ctx, r.Client, newWorkload, false); err != nil {
-						log.FromContext(ctx).Error(err, "syncing admission", "appwrapper", aw, "componentIdx", componentIdx, "workload", wl, "newworkload", newWorkload)
-					}
-				}
-			}
-		}
-	}
-}
-
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
 	// TODO forceful deletion: See https://github.com/project-codeflare/appwrapper/issues/36
 	log := log.FromContext(ctx)
@@ -478,7 +442,7 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
-	summary := &podStatusSummary{expected: ExpectedPodCount(aw)}
+	summary := &podStatusSummary{expected: utils.ExpectedPodCount(aw)}
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -494,24 +458,6 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	}
 
 	return summary, nil
-}
-
-func replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
-	if ps.Replicas == nil {
-		return 1
-	} else {
-		return *ps.Replicas
-	}
-}
-
-func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
-	var expected int32
-	for _, c := range aw.Spec.Components {
-		for _, s := range c.PodSets {
-			expected += replicas(s)
-		}
-	}
-	return expected
 }
 
 // SetupWithManager sets up the controller with the Manager.

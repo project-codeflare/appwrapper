@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package webhook
 
 import (
 	"bytes"
@@ -39,10 +39,13 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
+	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
+	"github.com/project-codeflare/appwrapper/internal/utils"
 )
 
 type AppWrapperWebhook struct {
-	Config                *AppWrapperConfig
+	Config                *config.AppWrapperConfig
 	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
 	DiscoveryClient       *discovery.DiscoveryClient
 	kindToResourceCache   map[string]string
@@ -56,7 +59,7 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
-	jobframework.ApplyDefaultForSuspend((*AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+	jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
 	return nil
 }
 
@@ -70,7 +73,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 	log.FromContext(ctx).Info("Validating create", "job", aw)
 
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
-	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*AppWrapper)(aw))...)
+	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*wlc.AppWrapper)(aw))...)
 
 	return nil, allErrors.ToAggregate()
 }
@@ -82,8 +85,8 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	log.FromContext(ctx).Info("Validating update", "job", newAW)
 
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*AppWrapper)(oldAW), (*AppWrapper)(newAW))...)
+	allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
+	allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
 
 	return nil, allErrors.ToAggregate()
 }
@@ -123,7 +126,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 		}
 
 		// 1. Deny nested AppWrappers
-		if *gvk == GVK {
+		if *gvk == wlc.GVK {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
 		}
 
@@ -171,7 +174,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := GetPodTemplateSpec(unstruct, ps.Path); err != nil {
+			if _, err := utils.GetPodTemplateSpec(unstruct, ps.Path); err != nil {
 				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}
@@ -209,7 +212,7 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets"), msg))
 		} else {
 			for psIdx := range newComponent.PodSets {
-				if replicas(oldComponent.PodSets[psIdx]) != replicas(newComponent.PodSets[psIdx]) {
+				if utils.Replicas(oldComponent.PodSets[psIdx]) != utils.Replicas(newComponent.PodSets[psIdx]) {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replicas"), msg))
 				}
 				if oldComponent.PodSets[psIdx].Path != newComponent.PodSets[psIdx].Path {

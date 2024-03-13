@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package webhook
 
 import (
 	"context"
@@ -46,6 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
@@ -54,7 +55,6 @@ import (
 
 var cfg *rest.Config
 var k8sClient client.Client
-var k8sControllerClient client.Client
 var k8sLimitedClient client.Client
 var testEnv *envtest.Environment
 var ctx context.Context
@@ -63,7 +63,7 @@ var cancel context.CancelFunc
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "AppWrapper Unit Tests")
+	RunSpecs(t, "Workload Controller Unit Tests")
 }
 
 var _ = BeforeSuite(func() {
@@ -114,15 +114,6 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
 
-	// configure a client that impersonates as the AppWrapper operator
-	ctrlUserName := "appwrapper-controller"
-	ctrlCfg := *cfg
-	ctrlCfg.Impersonate = rest.ImpersonationConfig{UserName: ctrlUserName, Groups: []string{"system:masters"}}
-	_, err = testEnv.AddUser(envtest.User{Name: ctrlUserName}, &ctrlCfg)
-	Expect(err).NotTo(HaveOccurred())
-	k8sControllerClient, err = client.New(&ctrlCfg, client.Options{Scheme: scheme})
-	Expect(err).NotTo(HaveOccurred())
-
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
 	limitedUserName := "limited-user"
 	limitedCfg := *cfg
@@ -164,7 +155,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	awConfig := AppWrapperConfig{ManageJobsWithoutQueueName: true}
+	awConfig := config.AppWrapperConfig{ManageJobsWithoutQueueName: true}
 	err = (&AppWrapperWebhook{Config: &awConfig}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 

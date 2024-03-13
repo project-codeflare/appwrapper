@@ -8,7 +8,9 @@ be jointly queued and admitted for execution using [Kueue](https://kueue.sigs.k8
 AppWrappers provide a flexible and workload-agnostic mechanism for enabling
 Kueue to manage a group of Kubernetes resources
 as a single logical unit without requiring any Kueue-specific support by
-the controllers of those resources.
+the controllers of those resources. If some of the contained resources
+are Kueue-enabled, the AppWrapper controller ensures that the admission
+by Kueue of the parent AppWrapper will be propagated appropriately.
 
 ## Description
 
@@ -26,7 +28,7 @@ set to true. We also leverage the Admission Controller to ensure that
 the user creating the AppWrapper is also entitled to create the contained resources
 and to validate AppWrapper-specific invariants.
 
-See [appwrapper_webhook.go](./internal/controller/appwrapper_webhook.go)
+See [appwrapper_webhook.go](./internal/webhook/appwrapper_webhook.go)
 for the implementation.
 
 #### Workload Controller
@@ -39,7 +41,15 @@ the two. This controller will make it possible for Kueue to suspend,
 resume, and constrain the placement of the AppWrapper. It will report
 the status of the AppWrapper to Kueue.
 
-See [workload_controller.go](./internal/controller/workload_controller.go)
+See [workload_controller.go](./internal/controller/workload/workload_controller.go)
+for the implementation.
+
+A small additional piece of logic is currently needed to generalize
+Kueue's ability to recognize parent/children relationships and enforce
+that admission by Kueue of the parent AppWrapper will be propagated to
+its immediate children.
+
+See [child_admission_controller.go](./internal/controller/workload/child_admission_controller.go)
 for the implementation.
 
 #### Framework Controller
@@ -52,7 +62,7 @@ status made by the Workload Controller described above.
 
 This [state transition diagram](docs/state-diagram.md) depicts the
 lifecycle of an AppWrapper; the implementation is found in
-[appwrapper_controller.go](./internal/controller/appwrapper_controller.go).
+[appwrapper_controller.go](./internal/controller/appwrapper/appwrapper_controller.go).
 
 ## Getting Started
 

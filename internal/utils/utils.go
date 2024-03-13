@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package utils
 
 import (
 	"fmt"
@@ -23,11 +23,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
 func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
-	candidatePTS, err := getRawTemplate(obj.UnstructuredContent(), path)
+	candidatePTS, err := GetRawTemplate(obj.UnstructuredContent(), path)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +59,7 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 }
 
 // return the subobject found at the given path, or nil if the path is invalid
-func getRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
+func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
 	parts := strings.Split(path, ".")
 	if parts[0] != "template" {
 		return nil, fmt.Errorf("first element of the path must be 'template'")
@@ -70,4 +72,22 @@ func getRawTemplate(obj map[string]interface{}, path string) (map[string]interfa
 		}
 	}
 	return obj, nil
+}
+
+func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
+	if ps.Replicas == nil {
+		return 1
+	} else {
+		return *ps.Replicas
+	}
+}
+
+func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
+	var expected int32
+	for _, c := range aw.Spec.Components {
+		for _, s := range c.PodSets {
+			expected += Replicas(s)
+		}
+	}
+	return expected
 }
