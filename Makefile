@@ -112,11 +112,22 @@ build: manifests generate fmt vet ## Build manager binary.
 			-X 'main.BuildVersion=$(BUILD_VERSION)' \
 			-X 'main.BuildDate=$(BUILD_DATE)' \
 		" \
-		-o bin/manager cmd/main.go
+		-o bin/manager cmd/unified/main.go
+	go build \
+		-ldflags " \
+			-X 'main.BuildVersion=$(BUILD_VERSION)' \
+			-X 'main.BuildDate=$(BUILD_DATE)' \
+		" \
+		-o bin/manager-aw cmd/standalone/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	ENABLE_WEBHOOKS=false go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+	ENABLE_WEBHOOKS=false go run ./cmd/unified/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+
+.PHONY: run-aw
+run-aw: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
+	ENABLE_WEBHOOKS=false go run ./cmd/standalone/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -183,9 +194,19 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
 	@$(call clean-manifests)
 
+.PHONY: deploy-aw
+deploy-aw: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/standalone | $(KUBECTL) apply -f -
+	@$(call clean-manifests)
+
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: undeploy-aw
+undeploy-aw: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/standalone | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Dependencies
 

@@ -5,7 +5,6 @@ metadata:
   annotations:
     kueue.x-k8s.io/queue-name: user-queue
 spec:
-  suspend: true
   components:
   - podSets:
     - replicas: 1

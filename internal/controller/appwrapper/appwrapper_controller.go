@@ -327,11 +327,18 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return nil, err, true
 	}
-	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
+	if r.Config.StandaloneMode {
+		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name}))
+	} else {
+		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
+	}
 
 	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 	for podSetsIdx, podSet := range component.PodSets {
-		toInject := component.PodSetInfos[podSetsIdx]
+		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
+		if !r.Config.StandaloneMode {
+			toInject = &component.PodSetInfos[podSetsIdx]
+		}
 
 		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
 		if err != nil {

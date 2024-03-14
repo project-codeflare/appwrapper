@@ -1,4 +1,4 @@
-name: CI
+name: CI-standalone
 on:
   push:
     branches: [main]
@@ -48,16 +48,13 @@ jobs:
       run: make test
 
     - name: Create and configure cluster
-      run: LABEL_FILTER=Kueue ./hack/create-test-cluster.sh
-
-    - name: Deploy Kueue
-      run: ./hack/deploy-kueue.sh
+      run: ./hack/create-test-cluster.sh
 
     - name: Deploy AppWrapper controller
       run: |
         make install -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
         make kind-push -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
-        make deploy -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        make deploy-standalone -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
     - name: Run E2E tests
-      run: ./hack/run-tests-on-cluster.sh
+      run: LABEL_FILTER="Standalone" ./hack/run-tests-on-cluster.sh

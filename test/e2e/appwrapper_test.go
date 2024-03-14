@@ -37,7 +37,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		cleanupTestObjects(ctx, appwrappers)
 	})
 
-	Describe("Creation of Fundamental GVKs", func() {
+	Describe("Creation of Fundamental GVKs", Label("Kueue", "Standalone"), func() {
 		It("Pods", func() {
 			aw := createAppWrapper(ctx, pod(250), pod(250))
 			appwrappers = append(appwrappers, aw)
@@ -66,7 +66,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		})
 	})
 
-	Describe("Creation of Kubeflow Training Operator GVKs", func() {
+	Describe("Creation of Kubeflow Training Operator GVKs", Label("Kueue", "Standalone"), func() {
 		It("PyTorch Jobs", func() {
 			aw := createAppWrapper(ctx, pytorchjob(2, 250))
 			appwrappers = append(appwrappers, aw)
@@ -82,7 +82,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	})
 
-	Describe("Queueing and Preemption", func() {
+	Describe("Queueing and Preemption", Label("Kueue"), func() {
 		It("Basic Queuing", Label("slow"), func() {
 			By("Jobs should be admitted when there is available quota")
 			aw := createAppWrapper(ctx, deployment(2, 500))
@@ -106,7 +106,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	})
 
-	Describe("Recognition of Child Jobs", func() {
+	Describe("Recognition of Child Jobs", Label("Kueue"), func() {
 		// TODO: Test scenarios where the AW "just fits" in the quota and
 		//       contains components that Kueue might try to queue
 		//       but should not in this case because they are using the parent workload's quota
@@ -115,11 +115,11 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 	})
 
-	Describe("Detection of Completion Status", func() {
+	Describe("Detection of Completion Status", Label("Kueue", "Standalone"), func() {
 
 	})
 
-	Describe("Load Testing", Label("slow"), func() {
+	Describe("Load Testing", Label("slow"), Label("Kueue", "Standalone"), func() {
 
 	})
 
