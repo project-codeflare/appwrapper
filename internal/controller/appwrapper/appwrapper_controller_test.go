@@ -29,6 +29,7 @@ import (
 	utilslices "sigs.k8s.io/kueue/pkg/util/slices"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/utils"
 )
@@ -115,6 +116,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		awReconciler = &AppWrapperReconciler{
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),
+			Config: &config.AppWrapperConfig{ManageJobsWithoutQueueName: true, StandaloneMode: false},
 		}
 		kueuePodSets = (*workload.AppWrapper)(aw).PodSets()
 	})

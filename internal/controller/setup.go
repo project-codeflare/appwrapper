@@ -33,19 +33,21 @@ import (
 
 // SetupWithManager creates and configures all components of the AppWrapper controller
 func SetupWithManager(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	if err := workload.WorkloadReconciler(
-		mgr.GetClient(),
-		mgr.GetEventRecorderFor("kueue"),
-		jobframework.WithManageJobsWithoutQueueName(awConfig.ManageJobsWithoutQueueName),
-	).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("workload controller: %w", err)
-	}
+	if !awConfig.StandaloneMode {
+		if err := workload.WorkloadReconciler(
+			mgr.GetClient(),
+			mgr.GetEventRecorderFor("kueue"),
+			jobframework.WithManageJobsWithoutQueueName(awConfig.ManageJobsWithoutQueueName),
+		).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("workload controller: %w", err)
+		}
 
-	if err := (&workload.ChildWorkloadReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("child admission controller: %w", err)
+		if err := (&workload.ChildWorkloadReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("child admission controller: %w", err)
+		}
 	}
 
 	if err := (&appwrapper.AppWrapperReconciler{
@@ -64,8 +66,10 @@ func SetupWithManager(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 		}
 	}
 
-	if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
-		return fmt.Errorf("appwrapper indexer: %w", err)
+	if !awConfig.StandaloneMode {
+		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
+			return fmt.Errorf("appwrapper indexer: %w", err)
+		}
 	}
 
 	return nil

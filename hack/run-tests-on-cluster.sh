@@ -19,6 +19,7 @@ export GORACE=1
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 export CLUSTER_STARTED="true"
 export KUTTL_TEST_SUITES=("")
+export LABEL_FILTER=${LABEL_FILTER:-"Kueue"}
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
@@ -27,7 +28,7 @@ trap cleanup EXIT
 wait_for_appwrapper_controller
 
 run_kuttl_test_suite
-go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m ./test/e2e
+go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m --label-filter=${LABEL_FILTER} ./test/e2e
 
 RC=$?
 if [ ${RC} -eq 0 ]

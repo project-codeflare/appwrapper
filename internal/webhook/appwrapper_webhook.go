@@ -59,7 +59,9 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
-	jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+	if !w.Config.StandaloneMode {
+		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+	}
 	return nil
 }
 
@@ -71,10 +73,10 @@ var _ webhook.CustomValidator = &AppWrapperWebhook{}
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Validating create", "job", aw)
-
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
-	allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*wlc.AppWrapper)(aw))...)
-
+	if !w.Config.StandaloneMode {
+		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*wlc.AppWrapper)(aw))...)
+	}
 	return nil, allErrors.ToAggregate()
 }
 
@@ -83,11 +85,11 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Validating update", "job", newAW)
-
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
-	allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
-
+	if !w.Config.StandaloneMode {
+		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
+		allErrors = append(allErrors, jobframework.ValidateUpdateForWorkloadPriorityClassName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
+	}
 	return nil, allErrors.ToAggregate()
 }
 

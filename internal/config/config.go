@@ -18,4 +18,5 @@ package config
 
 type AppWrapperConfig struct {
 	ManageJobsWithoutQueueName bool `json:"manageJobsWithoutQueueName,omitempty"`
+	StandaloneMode             bool `json:"standaloneMode,omitempty"`
 }
