@@ -3,14 +3,17 @@
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](http://www.apache.org/licenses/LICENSE-2.0)
 [![Continuous Integration](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml/badge.svg)](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml)
 
-An AppWrapper contains a collection of Kubernetes resources than can
-be jointly queued and admitted for execution using [Kueue](https://kueue.sigs.k8s.io).
-AppWrappers provide a flexible and workload-agnostic mechanism for enabling
-Kueue to manage a group of Kubernetes resources
-as a single logical unit without requiring any Kueue-specific support by
-the controllers of those resources. If some of the contained resources
-are Kueue-enabled, the AppWrapper controller ensures that the admission
-by Kueue of the parent AppWrapper will be propagated appropriately.
+An AppWrapper contains a collection of Kubernetes resources that a
+user desires to manage as a single logical workload. AppWrappers are
+designed to smoothly interoperate with
+[Kueue](https://kueue.sigs.k8s.io).  They provide a flexible and
+workload-agnostic mechanism for enabling Kueue to manage a group of
+Kubernetes resources as a single logical unit without requiring any
+Kueue-specific support by the controllers of those resources. If the
+operators for some of the contained resources are Kueue-aware, the
+AppWrapper operator ensures that when Kueue admits an AppWrapper for
+execution, all of the necessary information will be propagated
+to cause the child's Kueue-enabled operator to admit it as well.
 
 ## Description
 
