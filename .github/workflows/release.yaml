@@ -52,6 +52,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         name: Release ${{ env.RELEASE_VERSION }}
+        generate_release_notes: true
         fail_on_unmatched_files: true
         files: |
           ./dist/install.yaml

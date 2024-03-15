@@ -1,0 +1,14 @@
+changelog:
+  exclude:
+    labels:
+    - housekeeping
+  categories:
+  - title: Features
+    labels:
+    - enhancement
+  - title: Bugs and Regressions
+    labels:
+    - bug
+  - title: Other Changes
+    labels:
+    - "*"
