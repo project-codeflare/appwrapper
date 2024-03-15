@@ -5,9 +5,9 @@ apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
 # the control plane node config
 - role: control-plane
-  # kubernetes version 1.27.1 from kind v0.19.0
-  image: kindest/node:v1.27.1@sha256:b7d12ed662b873bd8510879c1846e87c7e676a79fefc93e17b2a52989d3ff42b
+  # kubernetes version 1.27.10 from kind v0.22.0
+  image: kindest/node:v1.27.10@sha256:e6b2f72f22a4de7b957cd5541e519a8bef3bae7261dd30c6df34cd9bdd3f8476
 # the worker
 - role: worker
-  # kubernetes version 1.27.1 from kind v0.19.0
-  image: kindest/node:v1.27.1@sha256:b7d12ed662b873bd8510879c1846e87c7e676a79fefc93e17b2a52989d3ff42b
+  # kubernetes version 1.27.10 from kind v0.22.0
+  image: kindest/node:v1.27.10@sha256:e6b2f72f22a4de7b957cd5541e519a8bef3bae7261dd30c6df34cd9bdd3f8476
