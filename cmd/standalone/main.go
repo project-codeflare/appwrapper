@@ -35,8 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/config"
-	"github.com/project-codeflare/appwrapper/internal/controller"
+	"github.com/project-codeflare/appwrapper/pkg/config"
+	"github.com/project-codeflare/appwrapper/pkg/controller"
 	//+kubebuilder:scaffold:imports
 )
 

@@ -36,8 +36,8 @@ import (
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/config"
-	"github.com/project-codeflare/appwrapper/internal/controller"
+	"github.com/project-codeflare/appwrapper/pkg/config"
+	"github.com/project-codeflare/appwrapper/pkg/controller"
 	//+kubebuilder:scaffold:imports
 )
 
