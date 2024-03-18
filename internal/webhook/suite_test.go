@@ -46,7 +46,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/config"
+	"github.com/project-codeflare/appwrapper/pkg/config"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 

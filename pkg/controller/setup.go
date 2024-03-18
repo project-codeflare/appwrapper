@@ -23,10 +23,10 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/webhook"
+	"github.com/project-codeflare/appwrapper/pkg/config"
 
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )

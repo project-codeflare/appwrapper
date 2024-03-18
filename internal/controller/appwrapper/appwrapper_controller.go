@@ -41,8 +41,8 @@ import (
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/config"
 	"github.com/project-codeflare/appwrapper/internal/utils"
+	"github.com/project-codeflare/appwrapper/pkg/config"
 )
 
 const (
