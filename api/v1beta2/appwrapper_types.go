@@ -34,7 +34,7 @@ type AppWrapperSpec struct {
 // AppWrapperComponent describes a wrapped resource
 type AppWrapperComponent struct {
 	// PodSets contained in the component
-	PodSets []AppWrapperPodSet `json:"podSets"`
+	PodSets []AppWrapperPodSet `json:"podSets,omitempty"`
 
 	// PodSetInfos assigned to the Component by Kueue
 	PodSetInfos []AppWrapperPodSetInfo `json:"podSetInfos,omitempty"`

@@ -127,7 +127,6 @@ spec:
                       x-kubernetes-embedded-resource: true
                       x-kubernetes-preserve-unknown-fields: true
                   required:
-                  - podSets
                   - template
                   type: object
                 type: array
