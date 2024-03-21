@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -60,18 +61,66 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 
 // return the subobject found at the given path, or nil if the path is invalid
 func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
-	parts := strings.Split(path, ".")
-	if parts[0] != "template" {
+	if !strings.HasPrefix(path, "template") {
 		return nil, fmt.Errorf("first element of the path must be 'template'")
 	}
-	var ok bool
-	for i := 1; i < len(parts); i++ {
-		obj, ok = obj[parts[i]].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("path element '%v' not found", parts[i])
+	remaining := strings.TrimPrefix(path, "template")
+	processed := "template"
+	var cursor interface{} = obj
+
+	for remaining != "" {
+		if strings.HasPrefix(remaining, "[") {
+			// Array index expression
+			end := strings.Index(remaining, "]")
+			if end < 0 {
+				return nil, fmt.Errorf("at path position '%v' invalid array index '%v'", processed, remaining)
+			}
+			index, err := strconv.Atoi(remaining[1:end])
+			if err != nil {
+				return nil, fmt.Errorf("at path position '%v' invalid index expression '%v'", processed, remaining[1:end])
+			}
+			asArray, ok := cursor.([]interface{})
+			if !ok {
+				return nil, fmt.Errorf("at path position '%v' found non-array value", processed)
+			}
+			if index < 0 || index >= len(asArray) {
+				return nil, fmt.Errorf("at path position '%v' out of bounds index '%v'", processed, index)
+			}
+			cursor = asArray[index]
+			remaining = remaining[end+1:]
+			processed += remaining[0:end]
+		} else if strings.HasPrefix(remaining, ".") {
+			// Field reference expression
+			remaining = remaining[1:]
+			processed += "."
+			end := len(remaining)
+			if dotIdx := strings.Index(remaining, "."); dotIdx > 0 {
+				end = dotIdx
+			}
+			if bracketIdx := strings.Index(remaining, "["); bracketIdx > 0 && bracketIdx < end {
+				end = bracketIdx
+			}
+			key := remaining[:end]
+			asMap, ok := cursor.(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("at path position '%v' non-map value", processed)
+			}
+			cursor, ok = asMap[key]
+			if !ok {
+				return nil, fmt.Errorf("at path position '%v' missing field '%v'", processed, key)
+			}
+			remaining = strings.TrimPrefix(remaining, key)
+			processed += key
+		} else {
+			return nil, fmt.Errorf("at path position '%v' invalid path element '%v'", processed, remaining)
 		}
 	}
-	return obj, nil
+
+	if asMap, ok := cursor.(map[string]interface{}); ok {
+		return asMap, nil
+	} else {
+		return nil, fmt.Errorf("at path position '%v' non-map value", processed)
+	}
 }
 
 func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {

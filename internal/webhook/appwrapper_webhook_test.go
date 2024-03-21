@@ -137,7 +137,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 		})
 
 		It("Well-formed AppWrappers are accepted", func() {
-			aw := toAppWrapper(pod(100), deployment(4, 100), namespacedPod("default", 100))
+			aw := toAppWrapper(pod(100), deployment(1, 100), namespacedPod("default", 100), rayCluster(1, 100))
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "Legal AppWrappers should be accepted")
 			Expect(aw.Spec.Suspend).Should(BeTrue())

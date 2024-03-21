@@ -177,6 +177,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		err, fatal := r.createComponents(ctx, aw)
 		if err != nil {
 			if fatal {
+				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+					Type:    string(workloadv1beta2.PodsReady),
+					Status:  metav1.ConditionFalse,
+					Reason:  "CreatedFailed",
+					Message: fmt.Sprintf("fatal error creating components: %v", err),
+				})
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // abort on fatal error
 			}
 			return ctrl.Result{}, err // retry creation on transient error
