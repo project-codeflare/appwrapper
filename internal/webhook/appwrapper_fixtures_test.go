@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 )
 
@@ -176,6 +177,199 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 	replicas := int32(replicaCount)
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const rayClusterYAML = `
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  labels:
+    controller-tools.k8s.io: '1.0'
+  name: %v
+spec:
+  autoscalerOptions:
+    idleTimeoutSeconds: 60
+    imagePullPolicy: Always
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 500m
+        memory: 512Mi
+    upscalingMode: Default
+  enableInTreeAutoscaling: false
+  headGroupSpec:
+    rayStartParams:
+      block: 'true'
+      dashboard-host: 0.0.0.0
+      num-gpus: '0'
+    serviceType: ClusterIP
+    template:
+      spec:
+        containers:
+        - env:
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: RAY_USE_TLS
+            value: '0'
+          - name: RAY_TLS_SERVER_CERT
+            value: /home/ray/workspace/tls/server.crt
+          - name: RAY_TLS_SERVER_KEY
+            value: /home/ray/workspace/tls/server.key
+          - name: RAY_TLS_CA_CERT
+            value: /home/ray/workspace/tls/ca.crt
+          image: quay.io/project-codeflare/ray:latest-py39-cu118
+          imagePullPolicy: Always
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - ray stop
+          name: ray-head
+          ports:
+          - containerPort: 6379
+            name: gcs
+          - containerPort: 8265
+            name: dashboard
+          - containerPort: 10001
+            name: client
+          resources:
+            limits:
+              cpu: 2
+              memory: 8G
+              nvidia.com/gpu: 0
+            requests:
+              cpu: 2
+              memory: 8G
+              nvidia.com/gpu: 0
+          volumeMounts:
+          - mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-cert
+            subPath: odh-trusted-ca-bundle.crt
+          - mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-cert
+            subPath: odh-trusted-ca-bundle.crt
+          - mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+            name: odh-ca-cert
+            subPath: odh-ca-bundle.crt
+          - mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+            name: odh-ca-cert
+            subPath: odh-ca-bundle.crt
+        imagePullSecrets:
+        - name: unit-test-pull-secret
+        volumes:
+        - configMap:
+            items:
+            - key: ca-bundle.crt
+              path: odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-bundle
+            optional: true
+          name: odh-trusted-ca-cert
+        - configMap:
+            items:
+            - key: odh-ca-bundle.crt
+              path: odh-ca-bundle.crt
+            name: odh-trusted-ca-bundle
+            optional: true
+          name: odh-ca-cert
+  rayVersion: 2.7.0
+  workerGroupSpecs:
+  - groupName: small-group-unit-test-cluster-ray
+    maxReplicas: %v
+    minReplicas: %v
+    rayStartParams:
+      block: 'true'
+      num-gpus: '7'
+    replicas: %v
+    template:
+      metadata:
+        annotations:
+          key: value
+        labels:
+          key: value
+      spec:
+        containers:
+        - env:
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          - name: RAY_USE_TLS
+            value: '0'
+          - name: RAY_TLS_SERVER_CERT
+            value: /home/ray/workspace/tls/server.crt
+          - name: RAY_TLS_SERVER_KEY
+            value: /home/ray/workspace/tls/server.key
+          - name: RAY_TLS_CA_CERT
+            value: /home/ray/workspace/tls/ca.crt
+          image: quay.io/project-codeflare/ray:latest-py39-cu118
+          lifecycle:
+            preStop:
+              exec:
+                command:
+                - /bin/sh
+                - -c
+                - ray stop
+          name: machine-learning
+          resources:
+            requests:
+              cpu: %v
+              memory: 5G
+              nvidia.com/gpu: 7
+          volumeMounts:
+          - mountPath: /etc/pki/tls/certs/odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-cert
+            subPath: odh-trusted-ca-bundle.crt
+          - mountPath: /etc/ssl/certs/odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-cert
+            subPath: odh-trusted-ca-bundle.crt
+          - mountPath: /etc/pki/tls/certs/odh-ca-bundle.crt
+            name: odh-ca-cert
+            subPath: odh-ca-bundle.crt
+          - mountPath: /etc/ssl/certs/odh-ca-bundle.crt
+            name: odh-ca-cert
+            subPath: odh-ca-bundle.crt
+        imagePullSecrets:
+        - name: unit-test-pull-secret
+        volumes:
+        - configMap:
+            items:
+            - key: ca-bundle.crt
+              path: odh-trusted-ca-bundle.crt
+            name: odh-trusted-ca-bundle
+            optional: true
+          name: odh-trusted-ca-cert
+        - configMap:
+            items:
+            - key: odh-ca-bundle.crt
+              path: odh-ca-bundle.crt
+            name: odh-trusted-ca-bundle
+            optional: true
+          name: odh-ca-cert
+`
+
+func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	workerCPU := resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
+	yamlString := fmt.Sprintf(rayClusterYAML,
+		randName("raycluster"),
+		workerCount, workerCount, workerCount,
+		workerCPU)
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	replicas := int32(workerCount)
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"},
+			{Replicas: &replicas, Path: "template.spec.workerGroupSpecs[0].template"},
+		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
