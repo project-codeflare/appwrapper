@@ -136,6 +136,7 @@ func createAppWrapper(ctx context.Context, components ...workloadv1beta2.AppWrap
 
 func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
+		TypeMeta: metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        randName("aw"),
 			Namespace:   testNamespace,

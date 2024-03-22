@@ -47,6 +47,7 @@ func randName(baseName string) string {
 
 func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
+		TypeMeta:   metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
 		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
 	}
