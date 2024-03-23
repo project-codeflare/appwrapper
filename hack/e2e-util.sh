@@ -26,8 +26,6 @@ DUMP_LOGS="true"
 export KUBEFLOW_VERSION=v1.7.0
 export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-855e096"
 
-export JOBSET_VERSION=v0.4.0
-
 # These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
@@ -160,10 +158,6 @@ function configure_cluster {
   echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
   kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
 
-  echo "Installing JobSets operator version $JOBSETS_VERSION"
-  kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/$JOBSET_VERSION/manifests.yaml"
-
-
   # sleep to ensure cert-manager is fully functional
   echo "Waiting for pod in the cert-manager namespace to become ready"
   while [[ $(kubectl get pods -n cert-manager -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
@@ -175,14 +169,6 @@ function configure_cluster {
   # Sleep until the kubeflow operator is running
   echo "Waiting for pods in the kueueflow namespace to become ready"
   while [[ $(kubectl get pods -n kubeflow -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
-  do
-      echo -n "." && sleep 1;
-  done
-  echo ""
-
-  # Sleep until the jobset operator is running
-  echo "Waiting for pods in the jobset-system namespace to become ready"
-  while [[ $(kubectl get pods -n jobset-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
       echo -n "." && sleep 1;
   done

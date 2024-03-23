@@ -78,10 +78,7 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 				continue // Should be unreachable; Template.Raw validated by our AdmissionController
 			}
 			for psIdx, podSet := range component.PodSets {
-				replicas := int32(1)
-				if podSet.Replicas != nil {
-					replicas = *podSet.Replicas
-				}
+				replicas := utils.Replicas(podSet)
 				if template, err := utils.GetPodTemplateSpec(obj, podSet.Path); err == nil {
 					podSets = append(podSets, kueue.PodSet{
 						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, psIdx),
