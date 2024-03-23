@@ -47,6 +47,7 @@ func randName(baseName string) string {
 
 func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
+		TypeMeta:   metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
 		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
 	}
@@ -111,26 +112,23 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
-const namespacedPodYAML = `
+const malformedPodYAML = `
 apiVersion: v1
 kind: Pod
 metadata:
   name: %v
-  namespace: %v
 spec:
   restartPolicy: Never
   containers:
   - name: busybox
-    image: quay.io/project-codeflare/busybox:1.36
     command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
         cpu: %v`
 
-func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperComponent {
-	yamlString := fmt.Sprintf(namespacedPodYAML,
+func malformedPod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(malformedPodYAML,
 		randName("pod"),
-		namespace,
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
@@ -138,70 +136,6 @@ func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperC
 	replicas := int32(1)
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template"}},
-		Template: runtime.RawExtension{Raw: jsonBytes},
-	}
-}
-
-const serviceYAML = `
-apiVersion: v1
-kind: Service
-metadata:
-  name: %v
-spec:
-  selector:
-    app: test
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 8080`
-
-func service() workloadv1beta2.AppWrapperComponent {
-	yamlString := fmt.Sprintf(serviceYAML, randName("service"))
-	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
-	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{},
-		Template: runtime.RawExtension{Raw: jsonBytes},
-	}
-}
-
-const deploymentYAML = `
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: %v
-  labels:
-    app: test
-spec:
-  replicas: %v
-  selector:
-    matchLabels:
-      app: test
-  template:
-    metadata:
-      labels:
-        app: test
-    spec:
-      terminationGracePeriodSeconds: 0
-      containers:
-      - name: busybox
-        image: quay.io/project-codeflare/busybox:1.36
-        command: ["sh", "-c", "sleep 10000"]
-        resources:
-          requests:
-            cpu: %v`
-
-func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
-	yamlString := fmt.Sprintf(deploymentYAML,
-		randName("deployment"),
-		replicaCount,
-		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
-
-	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
-	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(replicaCount)
-	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }

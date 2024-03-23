@@ -117,7 +117,7 @@ var _ = BeforeSuite(func() {
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
 	limitedUserName := "limited-user"
 	limitedCfg := *cfg
-	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName}
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName, Extra: map[string][]string{"xyzzy": {"plugh"}}}
 	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName, Groups: []string{}}, &limitedCfg)
 	Expect(err).NotTo(HaveOccurred())
 	clusterRole := &rbacv1.ClusterRole{

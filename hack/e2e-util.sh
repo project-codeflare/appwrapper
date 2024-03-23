@@ -155,6 +155,9 @@ function configure_cluster {
   echo "Installing cert-manager"
   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$CERTMANAGER_VERSION/cert-manager.yaml
 
+  echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
+  kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
+
   # sleep to ensure cert-manager is fully functional
   echo "Waiting for pod in the cert-manager namespace to become ready"
   while [[ $(kubectl get pods -n cert-manager -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
@@ -162,9 +165,6 @@ function configure_cluster {
     echo -n "." && sleep 1;
   done
   echo ""
-
-  echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
-  kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
 
   # Sleep until the kubeflow operator is running
   echo "Waiting for pods in the kueueflow namespace to become ready"

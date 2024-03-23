@@ -45,6 +45,7 @@ func randName(baseName string) string {
 
 func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
 	return &workloadv1beta2.AppWrapper{
+		TypeMeta:   metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
 		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
 	}
@@ -79,9 +80,8 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(1)
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -110,9 +110,8 @@ func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperC
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(1)
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -174,9 +173,8 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(replicaCount)
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template.spec.template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), Path: "template.spec.template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -369,6 +367,62 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
 			{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"},
 			{Replicas: &replicas, Path: "template.spec.workerGroupSpecs[0].template"},
+		},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const jobSetYAML = `
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: %v
+spec:
+  replicatedJobs:
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 10"]
+              resources:
+                requests:
+                  cpu: 100m
+  - name: workers
+    template:
+      spec:
+        parallelism: %v
+        completions: %v
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 10"]
+              resources:
+                requests:
+                  cpu: %v
+`
+
+func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(jobSetYAML,
+		randName("jobset"),
+		replicasWorker, replicasWorker,
+		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
+	)
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Path: "template.spec.replicatedJobs[0].template.spec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}

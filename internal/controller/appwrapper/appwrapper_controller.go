@@ -160,13 +160,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Type:    string(workloadv1beta2.QuotaReserved),
 			Status:  metav1.ConditionTrue,
 			Reason:  string(workloadv1beta2.AppWrapperResuming),
-			Message: "AppWrapper was unsuspended by Kueue",
+			Message: "Suspend is false",
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(workloadv1beta2.ResourcesDeployed),
 			Status:  metav1.ConditionTrue,
 			Reason:  string(workloadv1beta2.AppWrapperResuming),
-			Message: "AppWrapper was unsuspended by Kueue",
+			Message: "Suspend is false",
 		})
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResuming)
 
@@ -180,7 +180,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 					Type:    string(workloadv1beta2.PodsReady),
 					Status:  metav1.ConditionFalse,
-					Reason:  "CreatedFailed",
+					Reason:  "CreateFailed",
 					Message: fmt.Sprintf("fatal error creating components: %v", err),
 				})
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // abort on fatal error
@@ -244,14 +244,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Type:    string(workloadv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
 				Reason:  string(workloadv1beta2.AppWrapperSuspended),
-				Message: "AppWrapper was suspended by Kueue",
+				Message: "Suspend is true",
 			})
 		}
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(workloadv1beta2.QuotaReserved),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(workloadv1beta2.AppWrapperSuspended),
-			Message: "AppWrapper was suspended by Kueue",
+			Message: "Suspend is true",
 		})
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
@@ -299,6 +299,7 @@ func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.U
 	if namespace == "" {
 		obj.SetNamespace(aw.Namespace)
 	} else if namespace != aw.Namespace {
+		// Should not happen, namespace equality checked by validateAppWrapperInvariants
 		return nil, fmt.Errorf("component namespace \"%s\" is different from appwrapper namespace \"%s\"", namespace, aw.Namespace)
 	}
 	return obj, nil

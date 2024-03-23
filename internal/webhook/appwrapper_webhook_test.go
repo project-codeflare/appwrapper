@@ -62,12 +62,51 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				comp.PodSets[0].Path = "template.spec.missing"
 				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = ""
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("PodSpec paths must refer to a PodSpecTemplate", func() {
 				comp := deployment(4, 100)
 				comp.PodSets[0].Path = "template.spec.template.metadata"
 				aw := toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("Validation of Array and Map path elements", func() {
+				comp := jobSet(2, 100)
+				comp.PodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
+				aw := toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[1"
+				aw = toAppWrapper(comp)
+				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
+				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 		})
@@ -113,6 +152,14 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 
 				aw = getAppWrapper(awName)
+				aw.Spec.Components = append(aw.Spec.Components, aw.Spec.Components[0])
+				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+				aw = getAppWrapper(awName)
+				aw.Spec.Components[0].PodSets = append(aw.Spec.Components[0].PodSets, aw.Spec.Components[0].PodSets...)
+				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+				aw = getAppWrapper(awName)
 				aw.Spec.Components[0].PodSets[0].Path = "bad"
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 
@@ -137,7 +184,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 		})
 
 		It("Well-formed AppWrappers are accepted", func() {
-			aw := toAppWrapper(pod(100), deployment(1, 100), namespacedPod("default", 100), rayCluster(1, 100))
+			aw := toAppWrapper(pod(100), deployment(1, 100), namespacedPod("default", 100), rayCluster(1, 100), jobSet(1, 100))
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "Legal AppWrappers should be accepted")
 			Expect(aw.Spec.Suspend).Should(BeTrue())
