@@ -206,6 +206,70 @@ func batchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
+const failingBatchJobYAML = `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: %v
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 10; exit 1"]
+        resources:
+          requests:
+            cpu: %v
+`
+
+func failingBatchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(failingBatchJobYAML,
+		randName("batchjob"),
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const succeedingBatchJobYAML = `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: %v
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 10; exit 0"]
+        resources:
+          requests:
+            cpu: %v
+`
+
+func succeedingBatchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(succeedingBatchJobYAML,
+		randName("batchjob"),
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 // This is not a useful PyTorchJob:
 // 1. Using a dummy busybox image to avoid pulling a large & rate-limited image from dockerhub
 // 2. We avoid needing the injected sidecar (alpine:3.10 from dockerhub) by not specifying a Master
