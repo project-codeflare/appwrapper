@@ -167,7 +167,7 @@ function configure_cluster {
   echo ""
 
   # Sleep until the kubeflow operator is running
-  echo "Waiting for pods in the kueueflow namespace to become ready"
+  echo "Waiting for pods in the kubeflow namespace to become ready"
   while [[ $(kubectl get pods -n kubeflow -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
       echo -n "." && sleep 1;
