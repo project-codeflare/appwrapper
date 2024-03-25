@@ -71,6 +71,36 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
+const namespacedPodYAML = `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: %v
+  namespace: %v
+spec:
+  restartPolicy: Never
+  containers:
+  - name: busybox
+    image: quay.io/project-codeflare/busybox:1.36
+    command: ["sh", "-c", "sleep 10"]
+    resources:
+      requests:
+        cpu: %v`
+
+func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(namespacedPodYAML,
+		randName("pod"),
+		namespace,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 const serviceYAML = `
 apiVersion: v1
 kind: Service
@@ -306,6 +336,62 @@ func pytorchjob(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWra
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
 			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.pytorchReplicaSpecs.Worker.template"},
+		},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const jobSetYAML = `
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: %v
+spec:
+  replicatedJobs:
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 10"]
+              resources:
+                requests:
+                  cpu: 100m
+  - name: workers
+    template:
+      spec:
+        parallelism: %v
+        completions: %v
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: sleep
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 10"]
+              resources:
+                requests:
+                  cpu: %v
+`
+
+func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(jobSetYAML,
+		randName("jobset"),
+		replicasWorker, replicasWorker,
+		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
+	)
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		PodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Path: "template.spec.replicatedJobs[0].template.spec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}

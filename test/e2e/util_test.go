@@ -23,6 +23,7 @@ import (
 	// . "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -146,9 +147,23 @@ func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1
 	}
 }
 
-func getAppWrapper(ctx context.Context, typeNamespacedName types.NamespacedName) *workloadv1beta2.AppWrapper {
+func updateAppWrapper(ctx context.Context, awName types.NamespacedName, update func(*workloadv1beta2.AppWrapper)) error {
+	for {
+		aw := getAppWrapper(ctx, awName)
+		update(aw)
+		err := getClient(ctx).Update(ctx, aw)
+		if err == nil {
+			return nil
+		}
+		if !apierrors.IsConflict(err) {
+			return err
+		}
+	}
+}
+
+func getAppWrapper(ctx context.Context, awName types.NamespacedName) *workloadv1beta2.AppWrapper {
 	aw := &workloadv1beta2.AppWrapper{}
-	err := getClient(ctx).Get(ctx, typeNamespacedName, aw)
+	err := getClient(ctx).Get(ctx, awName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
 }

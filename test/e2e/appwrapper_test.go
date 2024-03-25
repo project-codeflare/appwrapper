@@ -18,12 +18,16 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/utils/ptr"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
@@ -75,14 +79,127 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
-
-		// TODO: Additional Kubeflow Training Operator GVKs of interest
 	})
 
-	// TODO: Ray Clusters
+	// TODO: KubeRay GVKs (would have to deploy KubeRay operator on e2e test cluster)
 
-	Describe("Error Handling for Invalid Resources", func() {
-		// TODO: Replicate scenarios from the webhook unit tests
+	// TODO: JobSets (would have to deploy JobSet controller on e2e test cluster)
+
+	Describe("Webhook Enforces AppWrapper Invariants", Label("Webhook"), func() {
+		Context("Structural Invariants", func() {
+			It("There must be at least one podspec (a)", func() {
+				aw := toAppWrapper()
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("There must be at least one podspec (b)", func() {
+				aw := toAppWrapper(service())
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("There must be no more than 8 podspecs", func() {
+				aw := toAppWrapper(pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100), pod(100))
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("Non-existent PodSpec paths are rejected", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.missing"
+				aw := toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = ""
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("PodSpec paths must refer to a PodSpecTemplate", func() {
+				comp := deployment(4, 100)
+				comp.PodSets[0].Path = "template.spec.template.metadata"
+				aw := toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+
+			It("Validation of Array and Map path elements", func() {
+				comp := jobSet(2, 100)
+				comp.PodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
+				aw := toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[1"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+
+				comp.PodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
+				aw = toAppWrapper(comp)
+				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+			})
+		})
+
+		It("Components in other namespaces are rejected", func() {
+			aw := toAppWrapper(namespacedPod("test", 100))
+			Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
+		It("Nested AppWrappers are rejected", func() {
+			child := toAppWrapper(pod(100))
+			childBytes, err := json.Marshal(child)
+			Expect(err).ShouldNot(HaveOccurred())
+			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
+				PodSets:  []workloadv1beta2.AppWrapperPodSet{},
+				Template: runtime.RawExtension{Raw: childBytes},
+			})
+			Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
+		It("Sensitive fields of aw.Spec.Components are immutable", func() {
+			aw := createAppWrapper(ctx, pod(1000), deployment(4, 1000))
+			appwrappers = append(appwrappers, aw)
+			awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+
+			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+				aw.Spec.Components[0].Template = aw.Spec.Components[1].Template
+			})).ShouldNot(Succeed())
+
+			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+				aw.Spec.Components = append(aw.Spec.Components, aw.Spec.Components[0])
+			})).ShouldNot(Succeed())
+
+			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+				aw.Spec.Components[0].PodSets = append(aw.Spec.Components[0].PodSets, aw.Spec.Components[0].PodSets...)
+			})).ShouldNot(Succeed())
+
+			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+				aw.Spec.Components[0].PodSets[0].Path = "bad"
+			})).ShouldNot(Succeed())
+
+			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+				aw.Spec.Components[0].PodSets[0].Replicas = ptr.To(int32(12))
+			})).ShouldNot(Succeed())
+		})
+	})
+
+	Describe("Webhook Enforces RBAC", Label("Webhook"), func() {
 
 	})
 
