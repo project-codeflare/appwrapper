@@ -23,12 +23,14 @@ import (
 	// . "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
@@ -57,14 +59,22 @@ func getClient(ctx context.Context) client.Client {
 	return kubeClient.(client.Client)
 }
 
+func getLimitedClient(ctx context.Context) client.Client {
+	kubeClient := ctx.Value(myKey{key: "kubelimitedclient"})
+	return kubeClient.(client.Client)
+}
+
 func extendContextWithClient(ctx context.Context) context.Context {
+	baseConfig := ctrl.GetConfigOrDie()
 	scheme := runtime.NewScheme()
 	Expect(clientgoscheme.AddToScheme(scheme)).To(Succeed())
 	Expect(workloadv1beta2.AddToScheme(scheme)).To(Succeed())
 	Expect(kueue.AddToScheme(scheme)).To(Succeed())
-	kubeclient, err := client.New(ctrl.GetConfigOrDie(), client.Options{Scheme: scheme})
+
+	// Create a client with full permissions
+	k8sClient, err := client.New(baseConfig, client.Options{Scheme: scheme})
 	Expect(err).To(Succeed())
-	return context.WithValue(ctx, myKey{key: "kubeclient"}, kubeclient)
+	return context.WithValue(ctx, myKey{key: "kubeclient"}, k8sClient)
 }
 
 func ensureNamespaceExists(ctx context.Context) {
@@ -74,6 +84,35 @@ func ensureNamespaceExists(ctx context.Context) {
 		},
 	})
 	Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
+}
+
+func extendContextWithLimitedClient(ctx context.Context) context.Context {
+	limitedUser := "e2e-limited-user"
+
+	// Ensure limited RBACs exist
+	clusterRole := &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: "e2e-test:limited"},
+		Rules: []rbacv1.PolicyRule{
+			{Verbs: []string{"*"}, APIGroups: []string{"workload.codeflare.dev"}, Resources: []string{"appwrappers"}},
+			{Verbs: []string{"*"}, APIGroups: []string{""}, Resources: []string{"pods"}},
+			{Verbs: []string{"get"}, APIGroups: []string{"apps"}, Resources: []string{"deployments"}},
+		},
+	}
+	Expect(client.IgnoreAlreadyExists(getClient(ctx).Create(ctx, clusterRole))).To(Succeed())
+	roleBinding := &rbacv1.ClusterRoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: "e2e-test:limited"},
+		Subjects:   []rbacv1.Subject{{Kind: rbacv1.UserKind, APIGroup: v1.SchemeGroupVersion.Group, Name: limitedUser}},
+		RoleRef:    rbacv1.RoleRef{APIGroup: rbacv1.SchemeGroupVersion.Group, Kind: "ClusterRole", Name: clusterRole.Name},
+	}
+	Expect(client.IgnoreAlreadyExists(getClient(ctx).Create(ctx, roleBinding))).To(Succeed())
+
+	// Create a client that impersonates as limitedUser
+	baseConfig := ctrl.GetConfigOrDie()
+	limitedCfg := *baseConfig
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUser}
+	limitedClient, err := client.New(&limitedCfg, client.Options{Scheme: getClient(ctx).Scheme()})
+	Expect(err).NotTo(HaveOccurred())
+	return context.WithValue(ctx, myKey{key: "kubelimitedclient"}, limitedClient)
 }
 
 func ensureTestQueuesExist(ctx context.Context) {

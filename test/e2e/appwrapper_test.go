@@ -200,7 +200,16 @@ var _ = Describe("AppWrapper E2E Test", func() {
 	})
 
 	Describe("Webhook Enforces RBAC", Label("Webhook"), func() {
+		It("AppWrapper containing permitted resources can be created", func() {
+			aw := toAppWrapper(pod(100))
+			Expect(getLimitedClient(ctx).Create(ctx, aw)).To(Succeed(), "Limited user should be allowed to create AppWrapper containing Pods")
+			Expect(getClient(ctx).Delete(ctx, aw)).To(Succeed())
+		})
 
+		It("AppWrapper containing unpermitted resources cannot be created", func() {
+			aw := toAppWrapper(deployment(4, 100))
+			Expect(getLimitedClient(ctx).Create(ctx, aw)).NotTo(Succeed(), "Limited user should not be allowed to create AppWrapper containing Deployments")
+		})
 	})
 
 	Describe("Queueing and Preemption", Label("Kueue"), func() {
