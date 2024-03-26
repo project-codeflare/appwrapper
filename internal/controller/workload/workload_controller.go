@@ -31,7 +31,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/podset"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/utils"
+	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
 // +kubebuilder:rbac:groups=scheduling.k8s.io,resources=priorityclasses,verbs=list;get;watch
