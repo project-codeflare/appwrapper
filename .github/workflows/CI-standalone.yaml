@@ -57,4 +57,4 @@ jobs:
         make deploy-aw -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
 
     - name: Run E2E tests
-      run: LABEL_FILTER="Standalone" ./hack/run-tests-on-cluster.sh
+      run: LABEL_FILTER="Standalone,Webhook" ./hack/run-tests-on-cluster.sh

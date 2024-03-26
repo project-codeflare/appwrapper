@@ -33,6 +33,7 @@ var _ = BeforeSuite(func() {
 	log.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 	ctx = extendContextWithClient(context.Background())
 	ensureNamespaceExists(ctx)
+	ctx = extendContextWithLimitedClient(ctx)
 	if Label("Kueue").MatchesLabelFilter(GinkgoLabelFilter()) {
 		ensureTestQueuesExist(ctx)
 	}
