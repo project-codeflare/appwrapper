@@ -41,7 +41,7 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
-	"github.com/project-codeflare/appwrapper/internal/utils"
+	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
 const (

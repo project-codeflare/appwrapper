@@ -36,9 +36,7 @@ import (
 )
 
 const (
-	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
-	AppWrapperFinalizer = "workload.codeflare.dev/finalizer"
-	childJobQueueName   = "workload.codeflare.dev.admitted"
+	childJobQueueName = "workload.codeflare.dev.admitted"
 )
 
 // ChildWorkloadReconciler reconciles the admission status of an AppWrapper's child workloads
@@ -66,7 +64,7 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return ctrl.Result{}, nil
 	}
 
-	// One reason for not being Running but not PodsReady is that a child was suspended on creation by Kueue. Rectify that.
+	// One reason for being Running but not PodsReady is that a child was suspended on creation by Kueue. Rectify that.
 	if aw.Status.Phase == workloadv1beta2.AppWrapperRunning && !meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady)) {
 		admittedChildren := 0
 		childrenWithPods := 0

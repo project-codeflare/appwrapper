@@ -30,8 +30,8 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
-	"github.com/project-codeflare/appwrapper/internal/utils"
 	"github.com/project-codeflare/appwrapper/pkg/config"
+	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
 var _ = Describe("AppWrapper Controller", func() {
