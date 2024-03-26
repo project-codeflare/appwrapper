@@ -65,7 +65,9 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	// One reason for being Running but not PodsReady is that a child was suspended on creation by Kueue. Rectify that.
-	if aw.Status.Phase == workloadv1beta2.AppWrapperRunning && !meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady)) {
+	if aw.Status.Phase == workloadv1beta2.AppWrapperRunning &&
+		!meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady)) &&
+		!meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)) {
 		admittedChildren := 0
 		childrenWithPods := 0
 		for componentIdx, component := range aw.Spec.Components {

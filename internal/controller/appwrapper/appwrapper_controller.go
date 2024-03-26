@@ -19,6 +19,7 @@ package appwrapper
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -197,6 +198,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+
+		// Handle Success
 		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
@@ -206,7 +209,25 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSucceeded)
 		}
+
+		// Handle Failed Pods
 		if podStatus.failed > 0 {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:   string(workloadv1beta2.Unhealthy),
+				Status: metav1.ConditionTrue,
+				Reason: "FoundFailedPods",
+			})
+
+			// Allow a grace period to allow the underlying controller to correct the pod failures
+			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
+			gracePeriod := failureGraceDuration(ctx, aw)
+			now := time.Now()
+			deadline := whenDetected.Add(gracePeriod)
+			if now.Before(deadline) {
+				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+			}
+
+			// Grace period expired; transition to either Resetting or Failed
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:   string(workloadv1beta2.PodsReady),
 				Status: metav1.ConditionFalse,
@@ -214,8 +235,21 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
 					podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
 			})
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+			maxRetries := retryLimit(ctx, aw)
+			if aw.Status.ResettingCount < maxRetries {
+				aw.Status.ResettingCount += 1
+				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
+			} else {
+				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+			}
 		}
+
+		// Workload looks healthy (no failed pods)
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:   string(workloadv1beta2.Unhealthy),
+			Status: metav1.ConditionFalse,
+			Reason: "FoundNoFailedPods",
+		})
 		if podStatus.running+podStatus.succeeded >= podStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.PodsReady),
@@ -225,6 +259,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			})
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
+
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:   string(workloadv1beta2.PodsReady),
 			Status: metav1.ConditionFalse,
@@ -253,7 +288,53 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Reason:  string(workloadv1beta2.AppWrapperSuspended),
 			Message: "Suspend is true",
 		})
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.Unhealthy),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperSuspended),
+			Message: "Suspend is true",
+		})
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
+
+	case workloadv1beta2.AppWrapperResetting:
+		if aw.Spec.Suspend {
+			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
+		}
+
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			if !r.deleteComponents(ctx, aw) {
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(workloadv1beta2.AppWrapperResetting),
+				Message: "Resources deleted for resetting AppWrapper",
+			})
+		}
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.Unhealthy),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperResetting),
+			Message: "Resources deleted for resetting AppWrapper",
+		})
+
+		// Pause before transitioning to Resuming to heuristically allow transient system problems to subside
+		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
+		pauseDuration := resettingPauseDuration(ctx, aw)
+		now := time.Now()
+		deadline := whenReset.Add(pauseDuration)
+		if now.Before(deadline) {
+			return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+		}
+
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.ResourcesDeployed),
+			Status:  metav1.ConditionTrue,
+			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Message: "Reset complete; resuming",
+		})
+		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResuming)
 
 	case workloadv1beta2.AppWrapperFailed:
 		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
@@ -472,6 +553,39 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	}
 
 	return summary, nil
+}
+
+func failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return duration
+		} else {
+			log.FromContext(ctx).Info("Malformed grace period annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return 0 * time.Second
+}
+
+func retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
+	if userLimit, ok := aw.Annotations[workloadv1beta2.RetryLimitAnnotation]; ok {
+		if limit, err := strconv.Atoi(userLimit); err == nil {
+			return int32(limit)
+		} else {
+			log.FromContext(ctx).Info("Malformed retry limit annotation", "annotation", userLimit, "error", err)
+		}
+	}
+	return 0
+}
+
+func resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return duration
+		} else {
+			log.FromContext(ctx).Info("Malformed resetting pause annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return 0 * time.Second
 }
 
 // SetupWithManager sets up the controller with the Manager.
