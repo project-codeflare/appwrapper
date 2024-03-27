@@ -220,7 +220,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 			// Allow a grace period to allow the underlying controller to correct the pod failures
 			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
-			gracePeriod := failureGraceDuration(ctx, aw)
+			gracePeriod := r.failureGraceDuration(ctx, aw)
 			now := time.Now()
 			deadline := whenDetected.Add(gracePeriod)
 			if now.Before(deadline) {
@@ -235,7 +235,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
 					podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
 			})
-			maxRetries := retryLimit(ctx, aw)
+			maxRetries := r.retryLimit(ctx, aw)
 			if aw.Status.ResettingCount < maxRetries {
 				aw.Status.ResettingCount += 1
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
@@ -321,7 +321,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		// Pause before transitioning to Resuming to heuristically allow transient system problems to subside
 		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
-		pauseDuration := resettingPauseDuration(ctx, aw)
+		pauseDuration := r.resettingPauseDuration(ctx, aw)
 		now := time.Now()
 		deadline := whenReset.Add(pauseDuration)
 		if now.Before(deadline) {
@@ -555,7 +555,7 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	return summary, nil
 }
 
-func failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
 	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return duration
@@ -563,10 +563,10 @@ func failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) t
 			log.FromContext(ctx).Info("Malformed grace period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return 0 * time.Second
+	return r.Config.FailureGracePeriod
 }
 
-func retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
+func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
 	if userLimit, ok := aw.Annotations[workloadv1beta2.RetryLimitAnnotation]; ok {
 		if limit, err := strconv.Atoi(userLimit); err == nil {
 			return int32(limit)
@@ -574,18 +574,18 @@ func retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
 			log.FromContext(ctx).Info("Malformed retry limit annotation", "annotation", userLimit, "error", err)
 		}
 	}
-	return 0
+	return r.Config.RetryLimit
 }
 
-func resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.ResetPauseDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return duration
 		} else {
-			log.FromContext(ctx).Info("Malformed resetting pause annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed reset pause annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return 0 * time.Second
+	return r.Config.ResetPause
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -16,7 +16,22 @@ limitations under the License.
 
 package config
 
+import "time"
+
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool `json:"manageJobsWithoutQueueName,omitempty"`
-	StandaloneMode             bool `json:"standaloneMode,omitempty"`
+	ManageJobsWithoutQueueName bool          `json:"manageJobsWithoutQueueName,omitempty"`
+	StandaloneMode             bool          `json:"standaloneMode,omitempty"`
+	FailureGracePeriod         time.Duration `json:"failureGracePeriod,omitempty"`
+	ResetPause                 time.Duration `json:"resetPause,omitempty"`
+	RetryLimit                 int32         `json:"retryLimit,omitempty"`
+}
+
+func NewConfig() *AppWrapperConfig {
+	return &AppWrapperConfig{
+		ManageJobsWithoutQueueName: true,
+		StandaloneMode:             false,
+		FailureGracePeriod:         1 * time.Minute,
+		ResetPause:                 90 * time.Second,
+		RetryLimit:                 3,
+	}
 }

@@ -99,8 +99,8 @@ const (
 
 const (
 	FailureGracePeriodDurationAnnotation = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
-	RetryLimitAnnotation                 = "workload.codeflare.dev.appwrapper/retryLimit"
 	ResetPauseDurationAnnotation         = "workload.codeflare.dev.appwrapper/resetPauseDuration"
+	RetryLimitAnnotation                 = "workload.codeflare.dev.appwrapper/retryLimit"
 )
 
 //+kubebuilder:object:root=true

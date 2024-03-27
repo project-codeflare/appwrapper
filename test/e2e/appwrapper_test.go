@@ -265,7 +265,10 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		})
 
 		It("A failed Batch Job yields a failed AppWrapper", func() {
-			aw := createAppWrapper(ctx, failingBatchjob(500))
+			aw := toAppWrapper(failingBatchjob(500))
+			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "0s"
+			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "0"
+			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
