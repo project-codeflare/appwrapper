@@ -218,38 +218,35 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason: "FoundFailedPods",
 			})
 
-			// Allow a grace period to allow the underlying controller to correct the pod failures
 			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
 			gracePeriod := r.failureGraceDuration(ctx, aw)
 			now := time.Now()
 			deadline := whenDetected.Add(gracePeriod)
 			if now.Before(deadline) {
+				// Allow a grace period to allow the underlying controller to correct the pod failures
 				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
-			}
-
-			// Grace period expired; transition to either Resetting or Failed
-			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:   string(workloadv1beta2.PodsReady),
-				Status: metav1.ConditionFalse,
-				Reason: "PodsFailed",
-				Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
-					podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
-			})
-			maxRetries := r.retryLimit(ctx, aw)
-			if aw.Status.ResettingCount < maxRetries {
-				aw.Status.ResettingCount += 1
-				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
 			} else {
-				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+				// Too long;
+				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+					Type:   string(workloadv1beta2.PodsReady),
+					Status: metav1.ConditionFalse,
+					Reason: "PodsFailed",
+					Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
+						podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
+				})
+				return r.resetOrFail(ctx, aw)
 			}
 		}
 
-		// Workload looks healthy (no failed pods)
-		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:   string(workloadv1beta2.Unhealthy),
-			Status: metav1.ConditionFalse,
-			Reason: "FoundNoFailedPods",
-		})
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)) {
+			// Failed pods have been handled; clear condition
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:   string(workloadv1beta2.Unhealthy),
+				Status: metav1.ConditionFalse,
+				Reason: "FoundNoFailedPods",
+			})
+		}
+
 		if podStatus.running+podStatus.succeeded >= podStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.PodsReady),
@@ -260,14 +257,29 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
 
+		podDetailsMessage := fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded", podStatus.pending, podStatus.running, podStatus.succeeded)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:   string(workloadv1beta2.PodsReady),
-			Status: metav1.ConditionFalse,
-			Reason: "InsufficientPodsReady",
-			Message: fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded",
-				podStatus.pending, podStatus.running, podStatus.succeeded),
+			Type:    string(workloadv1beta2.PodsReady),
+			Status:  metav1.ConditionFalse,
+			Reason:  "InsufficientPodsReady",
+			Message: podDetailsMessage,
 		})
-		return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
+
+		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+		warmupDuration := r.warmupGraceDuration(ctx, aw)
+		if time.Now().Before(whenDeployed.Add(warmupDuration)) {
+			// Keep monitoring patiently...
+			return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
+		} else {
+			// Too long. Time to reset or give up
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "InsufficientPodsReady",
+				Message: podDetailsMessage,
+			})
+			return r.resetOrFail(ctx, aw)
+		}
 
 	case workloadv1beta2.AppWrapperSuspending: // undeploying components
 		// finish undeploying components irrespective of desired state (suspend bit)
@@ -530,6 +542,16 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *workloadv1b
 	return ctrl.Result{}, nil
 }
 
+func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper) (ctrl.Result, error) {
+	maxRetries := r.retryLimit(ctx, aw)
+	if aw.Status.ResettingCount < maxRetries {
+		aw.Status.ResettingCount += 1
+		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
+	} else {
+		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+	}
+}
+
 func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
@@ -553,6 +575,17 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	}
 
 	return summary, nil
+}
+
+func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return duration
+		} else {
+			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return r.Config.WarmupGracePeriod
 }
 
 func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
