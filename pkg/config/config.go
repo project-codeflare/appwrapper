@@ -19,12 +19,13 @@ package config
 import "time"
 
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool          `json:"manageJobsWithoutQueueName,omitempty"`
-	StandaloneMode             bool          `json:"standaloneMode,omitempty"`
-	WarmupGracePeriod          time.Duration `json:"warmupGracePeriod,omitempty"`
-	FailureGracePeriod         time.Duration `json:"failureGracePeriod,omitempty"`
-	ResetPause                 time.Duration `json:"resetPause,omitempty"`
-	RetryLimit                 int32         `json:"retryLimit,omitempty"`
+	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
+	StandaloneMode             bool                  `json:"standaloneMode,omitempty"`
+	WarmupGracePeriod          time.Duration         `json:"warmupGracePeriod,omitempty"`
+	FailureGracePeriod         time.Duration         `json:"failureGracePeriod,omitempty"`
+	ResetPause                 time.Duration         `json:"resetPause,omitempty"`
+	RetryLimit                 int32                 `json:"retryLimit,omitempty"`
+	CertManagement             *CertManagementConfig `json:"certManagement,omitempty"`
 }
 
 func NewConfig() *AppWrapperConfig {
@@ -35,5 +36,12 @@ func NewConfig() *AppWrapperConfig {
 		FailureGracePeriod:         1 * time.Minute,
 		ResetPause:                 90 * time.Second,
 		RetryLimit:                 3,
+		CertManagement:             &CertManagementConfig{},
 	}
+}
+
+type CertManagementConfig struct {
+	WebhookServiceName string `json:"webhookServiceName,omitempty"`
+	WebhookSecretName  string `json:"webhookSecretName,omitempty"`
+	Namespace          string `json:"namespace,omitempty"`
 }

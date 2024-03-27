@@ -29,7 +29,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
-	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -132,19 +131,13 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	err = controller.SetupWithManager(ctx, mgr, awConfig)
-	if err != nil {
-		setupLog.Error(err, "unable to start appwrapper controllers")
-		os.Exit(1)
-	}
+	certsReady := make(chan struct{})
 
-	//+kubebuilder:scaffold:builder
-	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up health check")
-		os.Exit(1)
-	}
-	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
-		setupLog.Error(err, "unable to set up ready check")
+	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
+	go controller.SetupControllers(ctx, mgr, awConfig, certsReady, setupLog)
+
+	if err := controller.SetupProbeEndpoints(mgr, certsReady); err != nil {
+		setupLog.Error(err, "unable to setup probe endpoints")
 		os.Exit(1)
 	}
 
