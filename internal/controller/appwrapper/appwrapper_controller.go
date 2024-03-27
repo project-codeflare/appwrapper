@@ -169,6 +169,18 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Reason:  string(workloadv1beta2.AppWrapperResuming),
 			Message: "Suspend is false",
 		})
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.PodsReady),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Message: "Suspend is false",
+		})
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(workloadv1beta2.Unhealthy),
+			Status:  metav1.ConditionFalse,
+			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Message: "Suspend is false",
+		})
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResuming)
 
 	case workloadv1beta2.AppWrapperResuming: // deploying components
@@ -177,16 +189,17 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		err, fatal := r.createComponents(ctx, aw)
 		if err != nil {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "CreateFailed",
+				Message: fmt.Sprintf("error creating components: %v", err),
+			})
 			if fatal {
-				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-					Type:    string(workloadv1beta2.PodsReady),
-					Status:  metav1.ConditionFalse,
-					Reason:  "CreateFailed",
-					Message: fmt.Sprintf("fatal error creating components: %v", err),
-				})
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // abort on fatal error
+			} else {
+				return r.resetOrFail(ctx, aw)
 			}
-			return ctrl.Result{}, err // retry creation on transient error
 		}
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperRunning)
 
@@ -216,36 +229,22 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Type:   string(workloadv1beta2.Unhealthy),
 				Status: metav1.ConditionTrue,
 				Reason: "FoundFailedPods",
+				// Intentionally no detailed message with failed pod count, since changing the message resets the transition time
 			})
 
+			// Allow a grace period to allow the underlying controller to correct the pod failures
 			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
 			gracePeriod := r.failureGraceDuration(ctx, aw)
 			now := time.Now()
 			deadline := whenDetected.Add(gracePeriod)
 			if now.Before(deadline) {
-				// Allow a grace period to allow the underlying controller to correct the pod failures
 				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
 			} else {
-				// Too long;
-				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-					Type:   string(workloadv1beta2.PodsReady),
-					Status: metav1.ConditionFalse,
-					Reason: "PodsFailed",
-					Message: fmt.Sprintf("%v pods failed (%v pods pending; %v pods running; %v pods succeeded)",
-						podStatus.failed, podStatus.pending, podStatus.running, podStatus.succeeded),
-				})
 				return r.resetOrFail(ctx, aw)
 			}
 		}
 
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)) {
-			// Failed pods have been handled; clear condition
-			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:   string(workloadv1beta2.Unhealthy),
-				Status: metav1.ConditionFalse,
-				Reason: "FoundNoFailedPods",
-			})
-		}
+		clearCondition(aw, workloadv1beta2.Unhealthy, "FoundNoFailedPods", "")
 
 		if podStatus.running+podStatus.succeeded >= podStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -258,13 +257,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		podDetailsMessage := fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded", podStatus.pending, podStatus.running, podStatus.succeeded)
-		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.PodsReady),
-			Status:  metav1.ConditionFalse,
-			Reason:  "InsufficientPodsReady",
-			Message: podDetailsMessage,
-		})
-
+		clearCondition(aw, workloadv1beta2.PodsReady, "InsufficientPodsReady", podDetailsMessage)
 		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
 		warmupDuration := r.warmupGraceDuration(ctx, aw)
 		if time.Now().Before(whenDeployed.Add(warmupDuration)) {
@@ -300,12 +293,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Reason:  string(workloadv1beta2.AppWrapperSuspended),
 			Message: "Suspend is true",
 		})
-		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.Unhealthy),
-			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperSuspended),
-			Message: "Suspend is true",
-		})
+		clearCondition(aw, workloadv1beta2.PodsReady, string(workloadv1beta2.AppWrapperSuspended), "")
+		clearCondition(aw, workloadv1beta2.Unhealthy, string(workloadv1beta2.AppWrapperSuspended), "")
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
 	case workloadv1beta2.AppWrapperResetting:
@@ -313,6 +302,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
 		}
 
+		clearCondition(aw, workloadv1beta2.PodsReady, string(workloadv1beta2.AppWrapperResetting), "")
 		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 			if !r.deleteComponents(ctx, aw) {
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -324,12 +314,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: "Resources deleted for resetting AppWrapper",
 			})
 		}
-		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.Unhealthy),
-			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperResetting),
-			Message: "Resources deleted for resetting AppWrapper",
-		})
 
 		// Pause before transitioning to Resuming to heuristically allow transient system problems to subside
 		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
@@ -619,6 +603,17 @@ func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *w
 		}
 	}
 	return r.Config.ResetPause
+}
+
+func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
+	if meta.IsStatusConditionTrue(aw.Status.Conditions, string(condition)) {
+		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+			Type:    string(condition),
+			Status:  metav1.ConditionFalse,
+			Reason:  reason,
+			Message: message,
+		})
+	}
 }
 
 // SetupWithManager sets up the controller with the Manager.
