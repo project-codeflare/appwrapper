@@ -23,6 +23,7 @@ stateDiagram-v2
     sd : Suspended
     rs : Resuming
     rn : Running
+    rt : Resetting
     sg : Suspending
     s  : Succeeded
     f  : Failed
@@ -36,15 +37,19 @@ stateDiagram-v2
     %% Requeuing
     rs --> sg : Suspend == true
     rn --> sg : Suspend == true
+    rt --> sg : Suspend == true
     sg --> sd
 
     %% Failures
     rs --> f
     rn --> f
+    rn --> rt : Pod Failures
+    rt --> rs
 
     classDef quota fill:lightblue
     class rs quota
     class rn quota
+    class rt quota
     class sg quota
 
     classDef failed fill:pink

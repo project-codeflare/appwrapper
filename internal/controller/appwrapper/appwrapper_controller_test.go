@@ -17,6 +17,8 @@ limitations under the License.
 package appwrapper
 
 import (
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
@@ -54,10 +56,14 @@ var _ = Describe("AppWrapper Controller", func() {
 			Name:      aw.Name,
 			Namespace: aw.Namespace,
 		}
+		awConfig := config.NewConfig()
+		awConfig.FailureGracePeriod = 0 * time.Second
+		awConfig.ResetPause = 0 * time.Second
+		awConfig.RetryLimit = 0
 		awReconciler = &AppWrapperReconciler{
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),
-			Config: &config.AppWrapperConfig{ManageJobsWithoutQueueName: true, StandaloneMode: false},
+			Config: awConfig,
 		}
 		kueuePodSets = (*workload.AppWrapper)(aw).PodSets()
 

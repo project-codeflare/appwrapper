@@ -62,7 +62,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 
-	awConfig := config.AppWrapperConfig{StandaloneMode: false}
+	awConfig := config.NewConfig()
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -133,7 +133,7 @@ func main() {
 	}
 
 	ctx := ctrl.SetupSignalHandler()
-	err = controller.SetupWithManager(ctx, mgr, &awConfig)
+	err = controller.SetupWithManager(ctx, mgr, awConfig)
 	if err != nil {
 		setupLog.Error(err, "unable to start appwrapper controllers")
 		os.Exit(1)

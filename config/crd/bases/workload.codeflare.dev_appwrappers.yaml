@@ -212,6 +212,11 @@ spec:
               phase:
                 description: Phase of the AppWrapper object
                 type: string
+              resettingCount:
+                description: Retries counts the number of times the AppWrapper has
+                  entered the Resetting Phase
+                format: int32
+                type: integer
             type: object
         type: object
     served: true

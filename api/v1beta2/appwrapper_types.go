@@ -66,6 +66,9 @@ type AppWrapperStatus struct {
 	// Phase of the AppWrapper object
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
+	// Retries counts the number of times the AppWrapper has entered the Resetting Phase
+	Retries int32 `json:"resettingCount,omitempty"`
+
 	// Conditions
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
@@ -78,6 +81,7 @@ const (
 	AppWrapperSuspended   AppWrapperPhase = "Suspended"
 	AppWrapperResuming    AppWrapperPhase = "Resuming"
 	AppWrapperRunning     AppWrapperPhase = "Running"
+	AppWrapperResetting   AppWrapperPhase = "Resetting"
 	AppWrapperSuspending  AppWrapperPhase = "Suspending"
 	AppWrapperSucceeded   AppWrapperPhase = "Succeeded"
 	AppWrapperFailed      AppWrapperPhase = "Failed"
@@ -90,6 +94,14 @@ const (
 	QuotaReserved     AppWrapperCondition = "QuotaReserved"
 	ResourcesDeployed AppWrapperCondition = "ResourcesDeployed"
 	PodsReady         AppWrapperCondition = "PodsReady"
+	Unhealthy         AppWrapperCondition = "Unhealthy"
+)
+
+const (
+	WarmupGracePeriodDurationAnnotation  = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
+	FailureGracePeriodDurationAnnotation = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
+	ResetPauseDurationAnnotation         = "workload.codeflare.dev.appwrapper/resetPauseDuration"
+	RetryLimitAnnotation                 = "workload.codeflare.dev.appwrapper/retryLimit"
 )
 
 //+kubebuilder:object:root=true
