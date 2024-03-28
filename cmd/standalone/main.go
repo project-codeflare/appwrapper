@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -59,7 +60,7 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 
-	awConfig := config.NewConfig()
+	awConfig := config.NewConfig(namespaceOrDie())
 	awConfig.StandaloneMode = true
 	awConfig.ManageJobsWithoutQueueName = false
 
@@ -133,6 +134,11 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	certsReady := make(chan struct{})
 
+	if err := controller.SetupCertManagement(mgr, &awConfig.CertManagement, certsReady); err != nil {
+		setupLog.Error(err, "Unable to set up cert rotation")
+		os.Exit(1)
+	}
+
 	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
 	go controller.SetupControllers(ctx, mgr, awConfig, certsReady, setupLog)
 
@@ -146,4 +152,21 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func namespaceOrDie() string {
+	// This way assumes you've set the NAMESPACE environment variable either manually, when running
+	// the operator standalone, or using the downward API, when running the operator in-cluster.
+	if ns := os.Getenv("NAMESPACE"); ns != "" {
+		return ns
+	}
+
+	// Fall back to the namespace associated with the service account token, if available
+	if data, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(data)); len(ns) > 0 {
+			return ns
+		}
+	}
+
+	panic("unable to determine current namespace")
 }

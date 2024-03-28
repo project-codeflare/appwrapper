@@ -56,10 +56,10 @@ var _ = Describe("AppWrapper Controller", func() {
 			Name:      aw.Name,
 			Namespace: aw.Namespace,
 		}
-		awConfig := config.NewConfig()
-		awConfig.FailureGracePeriod = 0 * time.Second
-		awConfig.ResetPause = 0 * time.Second
-		awConfig.RetryLimit = 0
+		awConfig := config.NewConfig("")
+		awConfig.FaultTolerance.FailureGracePeriod = 0 * time.Second
+		awConfig.FaultTolerance.ResetPause = 0 * time.Second
+		awConfig.FaultTolerance.RetryLimit = 0
 		awReconciler = &AppWrapperReconciler{
 			Client: k8sClient,
 			Scheme: k8sClient.Scheme(),

@@ -19,29 +19,40 @@ package config
 import "time"
 
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
-	StandaloneMode             bool                  `json:"standaloneMode,omitempty"`
-	WarmupGracePeriod          time.Duration         `json:"warmupGracePeriod,omitempty"`
-	FailureGracePeriod         time.Duration         `json:"failureGracePeriod,omitempty"`
-	ResetPause                 time.Duration         `json:"resetPause,omitempty"`
-	RetryLimit                 int32                 `json:"retryLimit,omitempty"`
-	CertManagement             *CertManagementConfig `json:"certManagement,omitempty"`
+	ManageJobsWithoutQueueName bool                 `json:"manageJobsWithoutQueueName,omitempty"`
+	StandaloneMode             bool                 `json:"standaloneMode,omitempty"`
+	FaultTolerance             FaultToleranceConfig `json:"faultTolerance,omitempty"`
+	CertManagement             CertManagementConfig `json:"certManagement,omitempty"`
 }
 
-func NewConfig() *AppWrapperConfig {
-	return &AppWrapperConfig{
-		ManageJobsWithoutQueueName: true,
-		StandaloneMode:             false,
-		WarmupGracePeriod:          5 * time.Minute,
-		FailureGracePeriod:         1 * time.Minute,
-		ResetPause:                 90 * time.Second,
-		RetryLimit:                 3,
-		CertManagement:             &CertManagementConfig{},
-	}
+type FaultToleranceConfig struct {
+	WarmupGracePeriod  time.Duration `json:"warmupGracePeriod,omitempty"`
+	FailureGracePeriod time.Duration `json:"failureGracePeriod,omitempty"`
+	ResetPause         time.Duration `json:"resetPause,omitempty"`
+	RetryLimit         int32         `json:"retryLimit,omitempty"`
 }
 
 type CertManagementConfig struct {
 	WebhookServiceName string `json:"webhookServiceName,omitempty"`
 	WebhookSecretName  string `json:"webhookSecretName,omitempty"`
 	Namespace          string `json:"namespace,omitempty"`
+}
+
+// NewConfig constructs an AppWrapperConfig and fills in default values
+func NewConfig(namespace string) *AppWrapperConfig {
+	return &AppWrapperConfig{
+		ManageJobsWithoutQueueName: true,
+		StandaloneMode:             false,
+		FaultTolerance: FaultToleranceConfig{
+			WarmupGracePeriod:  5 * time.Minute,
+			FailureGracePeriod: 1 * time.Minute,
+			ResetPause:         90 * time.Second,
+			RetryLimit:         3,
+		},
+		CertManagement: CertManagementConfig{
+			WebhookServiceName: "webhook-service",
+			WebhookSecretName:  "webhook-server-cert",
+			Namespace:          namespace,
+		},
+	}
 }
