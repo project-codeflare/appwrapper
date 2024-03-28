@@ -42,8 +42,8 @@ const (
 	certDir        = "/tmp/k8s-webhook-server/serving-certs"
 	vwcName        = "appwrapper-validating-webhook-configuration"
 	mwcName        = "appwrapper-mutating-webhook-configuration"
-	caName         = "codeflare-ca"
-	caOrganization = "codeflare"
+	caName         = "appwrapper-ca"
+	caOrganization = "appwrapper"
 )
 
 // SetupControllers creates and configures all components of the AppWrapper controller
@@ -90,13 +90,15 @@ func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 			os.Exit(1)
 		}
 	}
+}
 
+func SetupIndexers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
 	if !awConfig.StandaloneMode {
 		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
-			log.Error(err, "Failed to create appwrapper indexer")
-			os.Exit(1)
+			return fmt.Errorf("workload indexer: %w", err)
 		}
 	}
+	return nil
 }
 
 func SetupProbeEndpoints(mgr ctrl.Manager, certsReady chan struct{}) error {

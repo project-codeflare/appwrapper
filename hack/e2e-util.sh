@@ -19,7 +19,6 @@ export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
-export CERTMANAGER_VERSION=v1.13.3
 DUMP_LOGS="true"
 
 # These must be kept in synch -- we pull and load the image to mitigate dockerhub rate limits
@@ -152,19 +151,8 @@ function kind_up_cluster {
 }
 
 function configure_cluster {
-  echo "Installing cert-manager"
-  kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/$CERTMANAGER_VERSION/cert-manager.yaml
-
   echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
   kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
-
-  # sleep to ensure cert-manager is fully functional
-  echo "Waiting for pod in the cert-manager namespace to become ready"
-  while [[ $(kubectl get pods -n cert-manager -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
-  do
-    echo -n "." && sleep 1;
-  done
-  echo ""
 
   # Sleep until the kubeflow operator is running
   echo "Waiting for pods in the kubeflow namespace to become ready"
@@ -212,15 +200,15 @@ function cleanup {
 
       echo "---"
       echo "'test' Pod list..."
-      kubectl get pods -n test
+      kubectl get pods -n e2e-test
 
       echo "---"
       echo "'test' Pod yaml..."
-      kubectl get pods -n test -o yaml
+      kubectl get pods -n e2e-test -o yaml
 
       echo "---"
       echo "'test' Pod descriptions..."
-      kubectl describe pods -n test
+      kubectl describe pods -n e2e-test
 
       echo "---"
       echo "'all' Namespaces  list..."

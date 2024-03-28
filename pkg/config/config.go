@@ -50,8 +50,8 @@ func NewConfig(namespace string) *AppWrapperConfig {
 			RetryLimit:         3,
 		},
 		CertManagement: CertManagementConfig{
-			WebhookServiceName: "webhook-service",
-			WebhookSecretName:  "webhook-server-cert",
+			WebhookServiceName: "appwrapper-webhook-service",
+			WebhookSecretName:  "appwrapper-webhook-server-cert",
 			Namespace:          namespace,
 		},
 	}

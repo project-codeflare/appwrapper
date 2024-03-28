@@ -143,6 +143,11 @@ func main() {
 	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
 	go controller.SetupControllers(ctx, mgr, awConfig, certsReady, setupLog)
 
+	if err := controller.SetupIndexers(ctx, mgr, awConfig); err != nil {
+		setupLog.Error(err, "unable to setup indexers")
+		os.Exit(1)
+	}
+
 	if err := controller.SetupProbeEndpoints(mgr, certsReady); err != nil {
 		setupLog.Error(err, "unable to setup probe endpoints")
 		os.Exit(1)
