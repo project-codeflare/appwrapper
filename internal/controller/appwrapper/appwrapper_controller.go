@@ -568,7 +568,7 @@ func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *work
 			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.WarmupGracePeriod
+	return r.Config.FaultTolerance.WarmupGracePeriod
 }
 
 func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
@@ -579,7 +579,7 @@ func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *wor
 			log.FromContext(ctx).Info("Malformed grace period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FailureGracePeriod
+	return r.Config.FaultTolerance.FailureGracePeriod
 }
 
 func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
@@ -590,7 +590,7 @@ func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1bet
 			log.FromContext(ctx).Info("Malformed retry limit annotation", "annotation", userLimit, "error", err)
 		}
 	}
-	return r.Config.RetryLimit
+	return r.Config.FaultTolerance.RetryLimit
 }
 
 func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
@@ -601,7 +601,7 @@ func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *w
 			log.FromContext(ctx).Info("Malformed reset pause annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.ResetPause
+	return r.Config.FaultTolerance.ResetPause
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
