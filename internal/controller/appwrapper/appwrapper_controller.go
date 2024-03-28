@@ -528,8 +528,8 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *workloadv1b
 
 func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper) (ctrl.Result, error) {
 	maxRetries := r.retryLimit(ctx, aw)
-	if aw.Status.ResettingCount < maxRetries {
-		aw.Status.ResettingCount += 1
+	if aw.Status.Retries < maxRetries {
+		aw.Status.Retries += 1
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
 	} else {
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)

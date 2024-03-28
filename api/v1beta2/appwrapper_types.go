@@ -66,8 +66,8 @@ type AppWrapperStatus struct {
 	// Phase of the AppWrapper object
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
-	// ResettingCount tracks the number of times the AppWrapper has entered the Resetting Phase
-	ResettingCount int32 `json:"resettingCount,omitempty"`
+	// Retries counts the number of times the AppWrapper has entered the Resetting Phase
+	Retries int32 `json:"resettingCount,omitempty"`
 
 	// Conditions
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
