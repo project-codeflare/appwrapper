@@ -232,7 +232,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				// Intentionally no detailed message with failed pod count, since changing the message resets the transition time
 			})
 
-			// Allow a grace period to allow the underlying controller to correct the pod failures
+			// Grace period to give the resource controller a chance to correct the failure
 			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
 			gracePeriod := r.failureGraceDuration(ctx, aw)
 			now := time.Now()
@@ -256,15 +256,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
 		}
 
+		// Not ready yet; either continue to wait or giveup if the warmup period has expired
 		podDetailsMessage := fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded", podStatus.pending, podStatus.running, podStatus.succeeded)
 		clearCondition(aw, workloadv1beta2.PodsReady, "InsufficientPodsReady", podDetailsMessage)
 		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
 		warmupDuration := r.warmupGraceDuration(ctx, aw)
 		if time.Now().Before(whenDeployed.Add(warmupDuration)) {
-			// Keep monitoring patiently...
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
 		} else {
-			// Too long. Time to reset or give up
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,

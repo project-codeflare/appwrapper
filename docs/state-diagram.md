@@ -37,6 +37,7 @@ stateDiagram-v2
     %% Requeuing
     rs --> sg : Suspend == true
     rn --> sg : Suspend == true
+    rt --> sg : Suspend == true
     sg --> sd
 
     %% Failures
