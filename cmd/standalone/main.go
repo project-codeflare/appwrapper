@@ -134,9 +134,13 @@ func main() {
 	ctx := ctrl.SetupSignalHandler()
 	certsReady := make(chan struct{})
 
-	if err := controller.SetupCertManagement(mgr, &awConfig.CertManagement, certsReady); err != nil {
-		setupLog.Error(err, "Unable to set up cert rotation")
-		os.Exit(1)
+	if os.Getenv("ENABLE_WEBHOOKS") == "false" {
+		close(certsReady)
+	} else {
+		if err := controller.SetupCertManagement(mgr, &awConfig.CertManagement, certsReady); err != nil {
+			setupLog.Error(err, "Unable to set up cert rotation")
+			os.Exit(1)
+		}
 	}
 
 	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work

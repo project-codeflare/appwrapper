@@ -122,11 +122,11 @@ build: manifests generate fmt vet ## Build manager binary.
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	ENABLE_WEBHOOKS=false go run ./cmd/unified/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/unified/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 .PHONY: run-aw
 run-aw: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	ENABLE_WEBHOOKS=false go run ./cmd/standalone/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
+	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/standalone/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
