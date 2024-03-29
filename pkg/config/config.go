@@ -33,9 +33,14 @@ type FaultToleranceConfig struct {
 }
 
 type CertManagementConfig struct {
-	WebhookServiceName string `json:"webhookServiceName,omitempty"`
-	WebhookSecretName  string `json:"webhookSecretName,omitempty"`
-	Namespace          string `json:"namespace,omitempty"`
+	Namespace                   string `json:"namespace,omitempty"`
+	CertificateDir              string `json:"certificateDir,omitempty"`
+	CertificateName             string `json:"certificateName,omitempty"`
+	CertificateOrg              string `json:"certificateOrg,omitempty"`
+	MutatingWebhookConfigName   string `json:"mutatingWebhookConfigName,omitempty"`
+	ValidatingWebhookConfigName string `json:"validatingWebhookConfigName,omitempty"`
+	WebhookServiceName          string `json:"webhookServiceName,omitempty"`
+	WebhookSecretName           string `json:"webhookSecretName,omitempty"`
 }
 
 // NewConfig constructs an AppWrapperConfig and fills in default values
@@ -50,9 +55,14 @@ func NewConfig(namespace string) *AppWrapperConfig {
 			RetryLimit:         3,
 		},
 		CertManagement: CertManagementConfig{
-			WebhookServiceName: "appwrapper-webhook-service",
-			WebhookSecretName:  "appwrapper-webhook-server-cert",
-			Namespace:          namespace,
+			Namespace:                   namespace,
+			CertificateDir:              "/tmp/k8s-webhook-server/serving-certs",
+			CertificateName:             "appwrapper-ca",
+			CertificateOrg:              "appwrapper",
+			MutatingWebhookConfigName:   "appwrapper-mutating-webhook-configuration",
+			ValidatingWebhookConfigName: "appwrapper-validating-webhook-configuration",
+			WebhookServiceName:          "appwrapper-webhook-service",
+			WebhookSecretName:           "appwrapper-webhook-server-cert",
 		},
 	}
 }

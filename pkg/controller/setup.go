@@ -38,14 +38,6 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )
 
-const (
-	certDir        = "/tmp/k8s-webhook-server/serving-certs"
-	vwcName        = "appwrapper-validating-webhook-configuration"
-	mwcName        = "appwrapper-mutating-webhook-configuration"
-	caName         = "appwrapper-ca"
-	caOrganization = "appwrapper"
-)
-
 // SetupControllers creates and configures all components of the AppWrapper controller
 func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig,
 	certsReady chan struct{}, log logr.Logger) {
@@ -129,14 +121,14 @@ func SetupCertManagement(mgr ctrl.Manager, config *config.CertManagementConfig, 
 
 	return cert.AddRotator(mgr, &cert.CertRotator{
 		SecretKey:      types.NamespacedName{Namespace: config.Namespace, Name: config.WebhookSecretName},
-		CertDir:        certDir,
-		CAName:         caName,
-		CAOrganization: caOrganization,
+		CertDir:        config.CertificateDir,
+		CAName:         config.CertificateName,
+		CAOrganization: config.CertificateOrg,
 		DNSName:        dnsName,
 		IsReady:        certsReady,
 		Webhooks: []cert.WebhookInfo{
-			{Type: cert.Validating, Name: vwcName},
-			{Type: cert.Mutating, Name: mwcName},
+			{Type: cert.Validating, Name: config.ValidatingWebhookConfigName},
+			{Type: cert.Mutating, Name: config.MutatingWebhookConfigName},
 		},
 		// When the controller is running in the leader election mode,
 		// we expect webhook server will run in primary and secondary instance
