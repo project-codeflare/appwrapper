@@ -26,10 +26,11 @@ type AppWrapperConfig struct {
 }
 
 type FaultToleranceConfig struct {
-	WarmupGracePeriod  time.Duration `json:"warmupGracePeriod,omitempty"`
-	FailureGracePeriod time.Duration `json:"failureGracePeriod,omitempty"`
-	ResetPause         time.Duration `json:"resetPause,omitempty"`
-	RetryLimit         int32         `json:"retryLimit,omitempty"`
+	WarmupGracePeriod   time.Duration `json:"warmupGracePeriod,omitempty"`
+	FailureGracePeriod  time.Duration `json:"failureGracePeriod,omitempty"`
+	ResetPause          time.Duration `json:"resetPause,omitempty"`
+	RetryLimit          int32         `json:"retryLimit,omitempty"`
+	DeletionGracePeriod time.Duration `json:"deletionGracePeriod,omitempty"`
 }
 
 type CertManagementConfig struct {
@@ -49,10 +50,11 @@ func NewConfig(namespace string) *AppWrapperConfig {
 		ManageJobsWithoutQueueName: true,
 		StandaloneMode:             false,
 		FaultTolerance: FaultToleranceConfig{
-			WarmupGracePeriod:  5 * time.Minute,
-			FailureGracePeriod: 1 * time.Minute,
-			ResetPause:         90 * time.Second,
-			RetryLimit:         3,
+			WarmupGracePeriod:   5 * time.Minute,
+			FailureGracePeriod:  1 * time.Minute,
+			ResetPause:          90 * time.Second,
+			RetryLimit:          3,
+			DeletionGracePeriod: 10 * time.Minute,
 		},
 		CertManagement: CertManagementConfig{
 			Namespace:                   namespace,

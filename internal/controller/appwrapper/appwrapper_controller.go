@@ -437,6 +437,17 @@ func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *w
 	return r.Config.FaultTolerance.ResetPause
 }
 
+func (r *AppWrapperReconciler) deletionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.DeletionGracePeriodAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return duration
+		} else {
+			log.FromContext(ctx).Info("Malformed deletion period annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return r.Config.FaultTolerance.DeletionGracePeriod
+}
+
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
 	if meta.IsStatusConditionTrue(aw.Status.Conditions, string(condition)) {
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
