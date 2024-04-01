@@ -95,13 +95,16 @@ const (
 	ResourcesDeployed AppWrapperCondition = "ResourcesDeployed"
 	PodsReady         AppWrapperCondition = "PodsReady"
 	Unhealthy         AppWrapperCondition = "Unhealthy"
+	DeletingResources AppWrapperCondition = "DeletingResources"
 )
 
 const (
-	WarmupGracePeriodDurationAnnotation  = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
-	FailureGracePeriodDurationAnnotation = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
-	ResetPauseDurationAnnotation         = "workload.codeflare.dev.appwrapper/resetPauseDuration"
-	RetryLimitAnnotation                 = "workload.codeflare.dev.appwrapper/retryLimit"
+	WarmupGracePeriodDurationAnnotation             = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
+	FailureGracePeriodDurationAnnotation            = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
+	ResetPauseDurationAnnotation                    = "workload.codeflare.dev.appwrapper/resetPauseDuration"
+	RetryLimitAnnotation                            = "workload.codeflare.dev.appwrapper/retryLimit"
+	DeletionGracePeriodAnnotation                   = "workload.codeflare.dev.appwrapper/deletionGracePeriodDuration"
+	DebuggingFailureDeletionDelayDurationAnnotation = "workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration"
 )
 
 //+kubebuilder:object:root=true

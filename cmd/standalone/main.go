@@ -83,6 +83,11 @@ func main() {
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
 	setupLog.Info("Configuration", "config", awConfig)
 
+	if err := config.ValidateConfig(awConfig); err != nil {
+		setupLog.Error(err, "invalid appwrapper config")
+		os.Exit(1)
+	}
+
 	// if the enable-http2 flag is false (the default), http/2 should be disabled
 	// due to its vulnerabilities. More specifically, disabling http/2 will
 	// prevent from being vulnerable to the HTTP/2 Stream Cancelation and

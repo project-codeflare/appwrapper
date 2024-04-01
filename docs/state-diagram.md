@@ -43,7 +43,7 @@ stateDiagram-v2
     %% Failures
     rs --> f
     rn --> f
-    rn --> rt : Pod Failures
+    rn --> rt : Workload Unhealthy
     rt --> rs
 
     classDef quota fill:lightblue
