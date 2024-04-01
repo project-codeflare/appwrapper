@@ -326,15 +326,32 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResuming)
 
 	case workloadv1beta2.AppWrapperFailed:
+		// Support for debugging failed jobs.
+		// When the annotation is true, we hold quota and do not delete the resources of
+		// a failed appwrapper unless Kueue preempts it by setting Suspend to true.
+		if r.deletionOnFailureDisabled(ctx, aw) && !aw.Spec.Suspend {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionTrue,
+				Reason:  string(workloadv1beta2.AppWrapperFailed),
+				Message: "Resources not deleted; " + workloadv1beta2.DisableDeletionOnFailureAnnotation + " is true",
+			})
+			return ctrl.Result{}, r.Status().Update(ctx, aw)
+		}
+
 		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
 			if !r.deleteComponents(ctx, aw) {
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			msg := "Resources deleted for failed AppWrapper"
+			if r.deletionOnFailureDisabled(ctx, aw) && aw.Spec.Suspend {
+				msg = "Kueue forced resource deletion by suspending AppWrapper"
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
 				Reason:  string(workloadv1beta2.AppWrapperFailed),
-				Message: "Resources deleted for failed AppWrapper",
+				Message: msg,
 			})
 		}
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -446,6 +463,17 @@ func (r *AppWrapperReconciler) deletionGraceDuration(ctx context.Context, aw *wo
 		}
 	}
 	return r.Config.FaultTolerance.DeletionGracePeriod
+}
+
+func (r *AppWrapperReconciler) deletionOnFailureDisabled(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
+	if disabled, ok := aw.Annotations[workloadv1beta2.DisableDeletionOnFailureAnnotation]; ok {
+		if boolVal, err := strconv.ParseBool(disabled); err == nil {
+			return boolVal
+		} else {
+			log.FromContext(ctx).Info("Malformed disable deletion annotation", "annotation", disabled, "error", err)
+		}
+	}
+	return false
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {

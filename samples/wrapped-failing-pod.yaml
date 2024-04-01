@@ -6,7 +6,8 @@ metadata:
     kueue.x-k8s.io/queue-name: user-queue
     workload.codeflare.dev.appwrapper/failureGracePeriodDuration: 10s
     workload.codeflare.dev.appwrapper/resetPauseDuration: 10s
-    workload.codeflare.dev.appwrapper/retryLimit: "3"
+    workload.codeflare.dev.appwrapper/retryLimit: "1"
+    workload.codeflare.dev.appwrapper/disableDeletionOnFailure: "true"
 spec:
   components:
   - podSets:

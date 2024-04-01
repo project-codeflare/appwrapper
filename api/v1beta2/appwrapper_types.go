@@ -104,6 +104,7 @@ const (
 	ResetPauseDurationAnnotation         = "workload.codeflare.dev.appwrapper/resetPauseDuration"
 	RetryLimitAnnotation                 = "workload.codeflare.dev.appwrapper/retryLimit"
 	DeletionGracePeriodAnnotation        = "workload.codeflare.dev.appwrapper/deletionGracePeriodDuration"
+	DisableDeletionOnFailureAnnotation   = "workload.codeflare.dev.appwrapper/disableDeletionOnFailure"
 )
 
 //+kubebuilder:object:root=true
