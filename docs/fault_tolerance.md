@@ -39,9 +39,9 @@ deletion of all remaining Pods and resources by deleting them with a `GracePerio
 An AppWrapper will continue to have its `ResourcesDeployed` condition to be
 `True` until all resources and Pods are successfully deleted.
 
-This process ensures that when `ResourcesDeployed` finally becomes `False`, which
-indicates the Kueue that the quota has been released, the resources of a failed
-workload will be totally removed from the cluster.
+This process ensures that when `ResourcesDeployed` becomes `False`, which
+indicates to Kueue that the quota has been released, all resources created by
+a failed workload will have been totally removed from the cluster.
 
 ### Configuration Details
 
