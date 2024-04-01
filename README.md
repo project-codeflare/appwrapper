@@ -15,6 +15,17 @@ AppWrapper operator ensures that when Kueue admits an AppWrapper for
 execution, all of the necessary information will be propagated
 to cause the child's Kueue-enabled operator to admit it as well.
 
+AppWrappers are also designed to harden workloads by providing an
+additional level of automatic fault detection and recovery. The AppWrapper
+controller monitors the health of the workload and if corrective actions
+are not taken by the primary resource controllers within specified deadlines,
+the AppWrapper controller will orchestrate workload-level retries and
+resource deletion to ensure that either the workload returns to a
+healthy state or is cleanly removed from the cluster and its quota
+freed for use by other workloads.  For details on customizing and
+configuring these fault tolerance capabilities, please see
+[fault_tolerance.md](docs/fault_tolerance.md).
+
 ## Description
 
 Kueue has a well-developed pattern for Kueue-enabling a Custom
