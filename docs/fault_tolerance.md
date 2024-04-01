@@ -16,9 +16,9 @@ If a workload is determined to be unhealthy, the AppWrapper controller
 first waits for a `FailureGracePeriod` to allow the primary resource
 controller an opportunity to react and return the workload to a
 healthy state.  If the `FailureGracePeriod` expires, the AppWrapper
-controller will *reset* the workload by deleting its resources, pausing
+controller will *reset* the workload by deleting its resources, waiting
 for a `ResetPause`, and then creating new instances of the resources.
-During this reset period, the AppWrapper *does not* release the workload's
+During this reset period, the AppWrapper **does not** release the workload's
 quota; this ensures that when the resources are recreated they will still
 have sufficient quota to execute.  The number of times an AppWrapper is reset
 is tracked as part of its status; if the number of resets exceeds the `RetryLimit`,
