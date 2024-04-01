@@ -7,10 +7,10 @@ controller to inject labels into every `Pod` that is created by
 the workload during its execution. Throughout the execution of the
 workload, the AppWrapper controller monitors the number and health of
 all labeled `Pods` and uses this information to determine if a
-workload is unhealthy.  A workload can be deemed unhealthy either
+workload is unhealthy.  A workload can be deemed *unhealthy* either
 because it contains a non-zero number of `Failed` pods or because
-after the `WarmupGracePeriod` has passed it has fewer `Running` and `Completed`
-pods than expected.
+after the `WarmupGracePeriod` has passed and it has fewer
+`Running` and `Completed` pods than expected.
 
 If a workload is determined to be unhealthy, the AppWrapper controller
 first waits for a `FailureGracePeriod` to allow the primary resource
@@ -46,7 +46,7 @@ workload will be totally removed from the cluster.
 ### Configuration Details
 
 The parameters of the retry loop described about are configured at the operator level
-and can be customized on a workload-specific basis by adding annotations.
+and can be customized on a per-AppWrapper basis by adding annotations.
 The table below lists the parameters, gives their default, and the annotation that
 can be used to customize them.
 
@@ -58,7 +58,6 @@ can be used to customize them.
 | RetryLimit          |             3 | workload.codeflare.dev.appwrapper/retryLimit                  |
 | DeletionGracePeriod |    10 Minutes | workload.codeflare.dev.appwrapper/deletionGracePeriodDuration |
 | GracePeriodCeiling  |      24 Hours | Not Applicable                                                |
-|---------------------|---------------|---------------------------------------------------------------|
 
 The `GracePeriodCeiling` imposes an upper limit on the other grace periods to
 reduce the impact of user-added annotations on overall system utilization.
