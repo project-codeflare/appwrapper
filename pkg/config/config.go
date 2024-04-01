@@ -16,7 +16,10 @@ limitations under the License.
 
 package config
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type AppWrapperConfig struct {
 	ManageJobsWithoutQueueName bool                 `json:"manageJobsWithoutQueueName,omitempty"`
@@ -31,6 +34,7 @@ type FaultToleranceConfig struct {
 	ResetPause          time.Duration `json:"resetPause,omitempty"`
 	RetryLimit          int32         `json:"retryLimit,omitempty"`
 	DeletionGracePeriod time.Duration `json:"deletionGracePeriod,omitempty"`
+	GracePeriodCeiling  time.Duration `json:"gracePeriodCeiling,omitempty"`
 }
 
 type CertManagementConfig struct {
@@ -55,6 +59,7 @@ func NewConfig(namespace string) *AppWrapperConfig {
 			ResetPause:          90 * time.Second,
 			RetryLimit:          3,
 			DeletionGracePeriod: 10 * time.Minute,
+			GracePeriodCeiling:  24 * time.Hour,
 		},
 		CertManagement: CertManagementConfig{
 			Namespace:                   namespace,
@@ -67,4 +72,25 @@ func NewConfig(namespace string) *AppWrapperConfig {
 			WebhookSecretName:           "appwrapper-webhook-server-cert",
 		},
 	}
+}
+
+func ValidateConfig(config *AppWrapperConfig) error {
+	if config.FaultTolerance.DeletionGracePeriod > config.FaultTolerance.GracePeriodCeiling {
+		return fmt.Errorf("DelectionGracePeriod %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.DeletionGracePeriod, config.FaultTolerance.GracePeriodCeiling)
+	}
+	if config.FaultTolerance.ResetPause > config.FaultTolerance.GracePeriodCeiling {
+		return fmt.Errorf("ResetPause %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.ResetPause, config.FaultTolerance.GracePeriodCeiling)
+	}
+	if config.FaultTolerance.FailureGracePeriod > config.FaultTolerance.GracePeriodCeiling {
+		return fmt.Errorf("FailureGracePeriod %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.FailureGracePeriod, config.FaultTolerance.GracePeriodCeiling)
+	}
+	if config.FaultTolerance.WarmupGracePeriod > config.FaultTolerance.GracePeriodCeiling {
+		return fmt.Errorf("WarmupGracePeriod %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.WarmupGracePeriod, config.FaultTolerance.GracePeriodCeiling)
+	}
+
+	return nil
 }

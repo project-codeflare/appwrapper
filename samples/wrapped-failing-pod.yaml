@@ -7,7 +7,7 @@ metadata:
     workload.codeflare.dev.appwrapper/failureGracePeriodDuration: 10s
     workload.codeflare.dev.appwrapper/resetPauseDuration: 10s
     workload.codeflare.dev.appwrapper/retryLimit: "1"
-    workload.codeflare.dev.appwrapper/disableDeletionOnFailure: "true"
+    workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration: "5m"
 spec:
   components:
   - podSets:

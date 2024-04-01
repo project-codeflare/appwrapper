@@ -189,14 +189,12 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	}
 
 	deletionGracePeriod := r.deletionGraceDuration(ctx, aw)
-	if deletionGracePeriod <= 0 {
-		// forced deletion is disabled; once remaining is 0 we are done
-		if remaining == 0 {
-			clearCondition(aw, workloadv1beta2.DeletingResources, "DeletionComplete", "")
-			return true
-		} else {
-			return false
-		}
+	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
+	gracePeriodExpired := time.Now().After(whenInitiated.Time.Add(deletionGracePeriod))
+
+	if remaining > 0 && !gracePeriodExpired {
+		// Resources left and deadline hasn't expired, just requeue the deletion
+		return false
 	}
 
 	pods := &v1.PodList{Items: []v1.Pod{}}
@@ -208,34 +206,30 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	}
 
 	if remaining == 0 && len(pods.Items) == 0 {
-		// no resources, no pods, deletion is complete
+		// no resources or pods left; deletion is complete
 		clearCondition(aw, workloadv1beta2.DeletingResources, "DeletionComplete", "")
 		return true
 	}
 
-	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
-	if time.Now().Before(whenInitiated.Time.Add(deletionGracePeriod)) {
-		// Deadline hasn't expired yet, just requeue the deletion
-		return false
-	}
-
-	if len(pods.Items) > 0 {
-		// force deletion of pods first
-		for _, pod := range pods.Items {
-			if err := r.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
-				log.Error(err, "Forceful pod deletion error")
+	if gracePeriodExpired {
+		if len(pods.Items) > 0 {
+			// force deletion of pods first
+			for _, pod := range pods.Items {
+				if err := r.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
+					log.Error(err, "Forceful pod deletion error")
+				}
 			}
-		}
-	} else {
-		// force deletion of wrapped resources once pods are gone
-		for _, component := range aw.Spec.Components {
-			obj, err := parseComponent(aw, component.Template.Raw)
-			if err != nil {
-				log.Error(err, "Parsing error")
-				continue
-			}
-			if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
-				log.Error(err, "Forceful deletion error")
+		} else {
+			// force deletion of wrapped resources once pods are gone
+			for _, component := range aw.Spec.Components {
+				obj, err := parseComponent(aw, component.Template.Raw)
+				if err != nil {
+					log.Error(err, "Parsing error")
+					continue
+				}
+				if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
+					log.Error(err, "Forceful deletion error")
+				}
 			}
 		}
 	}

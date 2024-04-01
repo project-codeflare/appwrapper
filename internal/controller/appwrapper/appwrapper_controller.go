@@ -327,16 +327,25 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case workloadv1beta2.AppWrapperFailed:
 		// Support for debugging failed jobs.
-		// When the annotation is true, we hold quota and do not delete the resources of
+		// When an appwrapper is annotated with a non-zero debugging delay,
+		// we hold quota for the delay period and do not delete the resources of
 		// a failed appwrapper unless Kueue preempts it by setting Suspend to true.
-		if r.deletionOnFailureDisabled(ctx, aw) && !aw.Spec.Suspend {
+		deletionDelay := r.debuggingFailureDeletionDelay(ctx, aw)
+
+		if deletionDelay > 0 && !aw.Spec.Suspend {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
-				Status:  metav1.ConditionTrue,
-				Reason:  string(workloadv1beta2.AppWrapperFailed),
-				Message: "Resources not deleted; " + workloadv1beta2.DisableDeletionOnFailureAnnotation + " is true",
+				Type:    string(workloadv1beta2.DeletingResources),
+				Status:  metav1.ConditionFalse,
+				Reason:  "DeletionPaused",
+				Message: fmt.Sprintf("%v has value %v", workloadv1beta2.DebuggingFailureDeletionDelayDurationAnnotation, deletionDelay),
 			})
-			return ctrl.Result{}, r.Status().Update(ctx, aw)
+			whenDelayed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
+
+			now := time.Now()
+			deadline := whenDelayed.Add(deletionDelay)
+			if now.Before(deadline) {
+				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+			}
 		}
 
 		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
@@ -344,7 +353,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 			}
 			msg := "Resources deleted for failed AppWrapper"
-			if r.deletionOnFailureDisabled(ctx, aw) && aw.Spec.Suspend {
+			if deletionDelay > 0 && aw.Spec.Suspend {
 				msg = "Kueue forced resource deletion by suspending AppWrapper"
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -410,26 +419,36 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 	return summary, nil
 }
 
+func (r *AppWrapperReconciler) limitDuration(desired time.Duration) time.Duration {
+	if desired < 0 {
+		return 0 * time.Second
+	} else if desired > r.Config.FaultTolerance.GracePeriodCeiling {
+		return r.Config.FaultTolerance.GracePeriodCeiling
+	} else {
+		return desired
+	}
+}
+
 func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
 	if userPeriod, ok := aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
-			return duration
+			return r.limitDuration(duration)
 		} else {
 			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FaultTolerance.WarmupGracePeriod
+	return r.limitDuration(r.Config.FaultTolerance.WarmupGracePeriod)
 }
 
 func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
 	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
-			return duration
+			return r.limitDuration(duration)
 		} else {
 			log.FromContext(ctx).Info("Malformed grace period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FaultTolerance.FailureGracePeriod
+	return r.limitDuration(r.Config.FaultTolerance.FailureGracePeriod)
 }
 
 func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
@@ -446,34 +465,34 @@ func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1bet
 func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
 	if userPeriod, ok := aw.Annotations[workloadv1beta2.ResetPauseDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
-			return duration
+			return r.limitDuration(duration)
 		} else {
 			log.FromContext(ctx).Info("Malformed reset pause annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FaultTolerance.ResetPause
+	return r.limitDuration(r.Config.FaultTolerance.ResetPause)
 }
 
 func (r *AppWrapperReconciler) deletionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
 	if userPeriod, ok := aw.Annotations[workloadv1beta2.DeletionGracePeriodAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
-			return duration
+			return r.limitDuration(duration)
 		} else {
 			log.FromContext(ctx).Info("Malformed deletion period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FaultTolerance.DeletionGracePeriod
+	return r.limitDuration(r.Config.FaultTolerance.DeletionGracePeriod)
 }
 
-func (r *AppWrapperReconciler) deletionOnFailureDisabled(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
-	if disabled, ok := aw.Annotations[workloadv1beta2.DisableDeletionOnFailureAnnotation]; ok {
-		if boolVal, err := strconv.ParseBool(disabled); err == nil {
-			return boolVal
+func (r *AppWrapperReconciler) debuggingFailureDeletionDelay(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.DebuggingFailureDeletionDelayDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed disable deletion annotation", "annotation", disabled, "error", err)
+			log.FromContext(ctx).Info("Malformed delay deletion annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return false
+	return 0 * time.Second
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
