@@ -24,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
@@ -46,7 +47,12 @@ type AppWrapper workloadv1beta2.AppWrapper
 
 var (
 	GVK                = workloadv1beta2.GroupVersion.WithKind("AppWrapper")
-	WorkloadReconciler = jobframework.NewGenericReconcilerFactory(func() jobframework.GenericJob { return &AppWrapper{} })
+	WorkloadReconciler = jobframework.NewGenericReconcilerFactory(
+		func() jobframework.GenericJob { return &AppWrapper{} },
+		func(b *builder.Builder, c client.Client) *builder.Builder {
+			return b.Named("AppWrapperWorkload")
+		},
+	)
 )
 
 func (aw *AppWrapper) Object() client.Object {

@@ -113,5 +113,6 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *ChildWorkloadReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&workloadv1beta2.AppWrapper{}).
+		Named("AppWrapperChildWorkload").
 		Complete(r)
 }
