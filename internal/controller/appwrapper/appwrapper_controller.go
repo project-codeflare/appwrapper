@@ -522,5 +522,6 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&workloadv1beta2.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
+		Named("AppWrapper").
 		Complete(r)
 }
