@@ -155,7 +155,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&AppWrapperWebhook{Config: config.NewConfig("")}).SetupWebhookWithManager(mgr)
+	err = (&AppWrapperWebhook{Config: config.NewAppWrapperConfig()}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

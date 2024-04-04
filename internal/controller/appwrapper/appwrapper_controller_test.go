@@ -56,7 +56,7 @@ var _ = Describe("AppWrapper Controller", func() {
 			Name:      aw.Name,
 			Namespace: aw.Namespace,
 		}
-		awConfig := config.NewConfig("")
+		awConfig := config.NewAppWrapperConfig()
 		awConfig.FaultTolerance.FailureGracePeriod = 0 * time.Second
 		awConfig.FaultTolerance.ResetPause = 0 * time.Second
 		awConfig.FaultTolerance.RetryLimit = 0
