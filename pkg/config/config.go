@@ -21,11 +21,15 @@ import (
 	"time"
 )
 
+type OperatorConfig struct {
+	AppWrapper     *AppWrapperConfig     `json:"appWrapper,omitempty"`
+	CertManagement *CertManagementConfig `json:"certManagement,omitempty"`
+}
+
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool                 `json:"manageJobsWithoutQueueName,omitempty"`
-	StandaloneMode             bool                 `json:"standaloneMode,omitempty"`
-	FaultTolerance             FaultToleranceConfig `json:"faultTolerance,omitempty"`
-	CertManagement             CertManagementConfig `json:"certManagement,omitempty"`
+	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
+	StandaloneMode             bool                  `json:"standaloneMode,omitempty"`
+	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -48,12 +52,12 @@ type CertManagementConfig struct {
 	WebhookSecretName           string `json:"webhookSecretName,omitempty"`
 }
 
-// NewConfig constructs an AppWrapperConfig and fills in default values
-func NewConfig(namespace string) *AppWrapperConfig {
+// NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
+func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
 		ManageJobsWithoutQueueName: true,
 		StandaloneMode:             false,
-		FaultTolerance: FaultToleranceConfig{
+		FaultTolerance: &FaultToleranceConfig{
 			WarmupGracePeriod:   5 * time.Minute,
 			FailureGracePeriod:  1 * time.Minute,
 			ResetPause:          90 * time.Second,
@@ -61,20 +65,10 @@ func NewConfig(namespace string) *AppWrapperConfig {
 			DeletionGracePeriod: 10 * time.Minute,
 			GracePeriodCeiling:  24 * time.Hour,
 		},
-		CertManagement: CertManagementConfig{
-			Namespace:                   namespace,
-			CertificateDir:              "/tmp/k8s-webhook-server/serving-certs",
-			CertificateName:             "appwrapper-ca",
-			CertificateOrg:              "appwrapper",
-			MutatingWebhookConfigName:   "appwrapper-mutating-webhook-configuration",
-			ValidatingWebhookConfigName: "appwrapper-validating-webhook-configuration",
-			WebhookServiceName:          "appwrapper-webhook-service",
-			WebhookSecretName:           "appwrapper-webhook-server-cert",
-		},
 	}
 }
 
-func ValidateConfig(config *AppWrapperConfig) error {
+func ValidateAppWrapperConfig(config *AppWrapperConfig) error {
 	if config.FaultTolerance.DeletionGracePeriod > config.FaultTolerance.GracePeriodCeiling {
 		return fmt.Errorf("DelectionGracePeriod %v exceeds GracePeriodCeiling %v",
 			config.FaultTolerance.DeletionGracePeriod, config.FaultTolerance.GracePeriodCeiling)
@@ -93,4 +87,18 @@ func ValidateConfig(config *AppWrapperConfig) error {
 	}
 
 	return nil
+}
+
+// NewCertManagermentConfig constructs a CertManagementConfig and fills in default values
+func NewCertManagementConfig(namespace string) *CertManagementConfig {
+	return &CertManagementConfig{
+		Namespace:                   namespace,
+		CertificateDir:              "/tmp/k8s-webhook-server/serving-certs",
+		CertificateName:             "appwrapper-ca",
+		CertificateOrg:              "appwrapper",
+		MutatingWebhookConfigName:   "appwrapper-mutating-webhook-configuration",
+		ValidatingWebhookConfigName: "appwrapper-validating-webhook-configuration",
+		WebhookServiceName:          "appwrapper-webhook-service",
+		WebhookSecretName:           "appwrapper-webhook-server-cert",
+	}
 }

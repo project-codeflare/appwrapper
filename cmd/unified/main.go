@@ -62,7 +62,10 @@ func main() {
 	var secureMetrics bool
 	var enableHTTP2 bool
 
-	awConfig := config.NewConfig(namespaceOrDie())
+	cfg := &config.OperatorConfig{
+		AppWrapper:     config.NewAppWrapperConfig(),
+		CertManagement: config.NewCertManagementConfig(namespaceOrDie()),
+	}
 
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
@@ -73,7 +76,8 @@ func main() {
 		"If set the metrics endpoint is served securely")
 	flag.BoolVar(&enableHTTP2, "enable-http2", false,
 		"If set, HTTP/2 will be enabled for the metrics and webhook servers")
-	flag.BoolVar(&awConfig.ManageJobsWithoutQueueName, "manage-no-queue", true, "Manage AppWrappers without queue names")
+	flag.BoolVar(&cfg.AppWrapper.ManageJobsWithoutQueueName,
+		"manage-no-queue", true, "Manage AppWrappers without queue names")
 	opts := zap.Options{
 		Development: true,
 	}
@@ -82,9 +86,9 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
-	setupLog.Info("Configuration", "config", awConfig)
+	setupLog.Info("Configuration", "config", cfg)
 
-	if err := config.ValidateConfig(awConfig); err != nil {
+	if err := config.ValidateAppWrapperConfig(cfg.AppWrapper); err != nil {
 		setupLog.Error(err, "invalid appwrapper config")
 		os.Exit(1)
 	}
@@ -143,16 +147,16 @@ func main() {
 	if os.Getenv("ENABLE_WEBHOOKS") == "false" {
 		close(certsReady)
 	} else {
-		if err := controller.SetupCertManagement(mgr, &awConfig.CertManagement, certsReady); err != nil {
+		if err := controller.SetupCertManagement(mgr, cfg.CertManagement, certsReady); err != nil {
 			setupLog.Error(err, "Unable to set up cert rotation")
 			os.Exit(1)
 		}
 	}
 
 	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
-	go controller.SetupControllers(ctx, mgr, awConfig, certsReady, setupLog)
+	go controller.SetupControllers(ctx, mgr, cfg.AppWrapper, certsReady, setupLog)
 
-	if err := controller.SetupIndexers(ctx, mgr, awConfig); err != nil {
+	if err := controller.SetupIndexers(ctx, mgr, cfg.AppWrapper); err != nil {
 		setupLog.Error(err, "unable to setup indexers")
 		os.Exit(1)
 	}
