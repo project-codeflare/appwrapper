@@ -1,0 +1,27 @@
+main:
+- title: "Overview"
+  url: /
+- title: "Quick Start Guide"
+  url: /quick-start-guide/
+- title: "Architecture"
+  url: /architecture/
+
+side:
+- title: "Installation"
+  children:
+  - title: "Quick-Start Guide"
+    url: /quick-start-guide/
+  - title: "Development Setup"
+    url: /dev-setup/
+
+- title: "Examples"
+  children:
+  - title: "PyTorch Job"
+    url: "/sample-pytorch/"
+  - title: "Batch Job"
+    url: "/sample-batch-job/"
+
+- title: "Architecture"
+  children:
+  - title: Overview
+    url: /arch-overview/
