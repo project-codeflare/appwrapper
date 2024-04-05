@@ -15,7 +15,7 @@ AppWrapper operator ensures that when Kueue admits an AppWrapper for
 execution, all of the necessary information will be propagated
 to cause the child's Kueue-enabled operator to admit it as well.
 
-AppWrappers are also designed to harden workloads by providing an
+AppWrappers are designed to harden workloads by providing an
 additional level of automatic fault detection and recovery. The AppWrapper
 controller monitors the health of the workload and if corrective actions
 are not taken by the primary resource controllers within specified deadlines,
