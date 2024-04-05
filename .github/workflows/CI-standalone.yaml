@@ -2,10 +2,11 @@ name: CI-standalone
 on:
   push:
     branches: [main]
+    paths-ignore:
+    - 'site/**'
   pull_request:
     branches:
     - 'main'
-    - 'release-*'
 
 jobs:
   CI:
