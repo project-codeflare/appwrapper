@@ -34,10 +34,12 @@ jobs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.1'
+        working-directory: site
         bundler-cache: true
         cache-version: 0
 
     - name: Setup Pages
+      id: pages
       uses: actions/configure-pages@v5
 
     - name: Build with Jekyll
