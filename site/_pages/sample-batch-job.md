@@ -1,6 +1,6 @@
 ---
-permalink: /sample-batch-job/
-title: "AppWrapper Batch Job"
+permalink: /samples/batch-job/
+title: "AppWrapper Containing a Batch Job"
 classes: wide
 ---
 

@@ -13,14 +13,21 @@ You'll need a container runtime and cli (eg `docker` or `rancher-desktop`).
 You’ll need a Kubernetes cluster to run against.
 
 You can use [kind](https://sigs.k8s.io/kind) to get a local cluster
-for testing, or run against a remote cluster. All commands shown in
-this readme will automatically use the current context in your
-kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
+for testing, or run against a remote cluster.  For the purposes of
+simplifying the rest of these instructions, we proceed assuming you
+will create a local `kind` cluster.
 
-For the purposes of simplifying the getting started documentation, we
-proceed assuming you will create a local `kind` cluster.
+### Pre-commit hooks
+
+This repository includes pre-configured pre-commit hooks. Make sure to install
+the hooks immediately after cloning the repository:
+```sh
+pre-commit install
+```
+See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
 
 ### Create your cluster and deploy Kueue
+
 
 Create the cluster with:
 ```sh
@@ -126,27 +133,6 @@ with:
 ```sh
 make uninstall
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Pre-commit hooks
-
-This repository includes pre-configured pre-commit hooks. Make sure to install
-the hooks immediately after cloning the repository:
-```sh
-pre-commit install
-```
-See [https://pre-commit.com](https://pre-commit.com) for prerequisites.
 
 ### Running unit tests
 

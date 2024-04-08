@@ -32,6 +32,9 @@ kueue_version: v0.6.1
 permalink: /:categories/:title/
 timezone: America/New_York
 
+exclude:
+- README.md
+
 include:
 - _pages
 

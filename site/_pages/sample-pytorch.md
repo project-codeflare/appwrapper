@@ -1,5 +1,5 @@
 ---
-permalink: /sample-pytorch/
+permalink: /samples/pytorch/
 title: "AppWrapper Containing PyTorch Job"
 classes: wide
 ---
