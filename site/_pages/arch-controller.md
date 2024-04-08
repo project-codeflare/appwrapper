@@ -1,14 +1,8 @@
 ---
-permalink: /arch-overview/
-title: "AppWrapper Design"
+permalink: /arch-controller/
+title: "AppWrapper Controllers"
 classes: wide
 ---
-## Custom Resource Definition
-
-TODO: text + code snippets
-
-
-## Controller Architecture
 
 Kueue has a well-developed pattern for Kueue-enabling a Custom
 Resource Definition and its associated operator. Following this pattern
@@ -24,7 +18,7 @@ set to true. We also leverage the Admission Controller to ensure that
 the user creating the AppWrapper is also entitled to create the contained resources
 and to validate AppWrapper-specific invariants.
 
-See [appwrapper_webhook.go](./internal/webhook/appwrapper_webhook.go)
+See [appwrapper_webhook.go]({{ site.gh_main_url }}/internal/webhook/appwrapper_webhook.go)
 for the implementation.
 
 #### Workload Controller
@@ -37,7 +31,7 @@ the two. This controller will make it possible for Kueue to suspend,
 resume, and constrain the placement of the AppWrapper. It will report
 the status of the AppWrapper to Kueue.
 
-See [workload_controller.go](./internal/controller/workload/workload_controller.go)
+See [workload_controller.go]({{ site.gh_main_url }}/internal/controller/workload/workload_controller.go)
 for the implementation.
 
 A small additional piece of logic is currently needed to generalize
@@ -45,7 +39,7 @@ Kueue's ability to recognize parent/children relationships and enforce
 that admission by Kueue of the parent AppWrapper will be propagated to
 its immediate children.
 
-See [child_admission_controller.go](./internal/controller/workload/child_admission_controller.go)
+See [child_admission_controller.go]({{ site.gh_main_url }}/internal/controller/workload/child_admission_controller.go)
 for the implementation.
 
 #### Framework Controller
@@ -56,10 +50,10 @@ creating, monitoring, and deleting the wrapped resources in response
 to the modifications of the AppWrapper instance’s specification and
 status made by the Workload Controller described above.
 
-The diagram above depicts the lifecycle of an AppWrapper; the implementation is found in
-[appwrapper_controller.go](./internal/controller/appwrapper/appwrapper_controller.go).
-
 ```mermaid!
+---
+title: AppWrapper Phase Transitions
+---
 stateDiagram-v2
     e : Empty
 
@@ -101,3 +95,22 @@ stateDiagram-v2
     classDef succeeded fill:lightgreen
     class s succeeded
 ```
+
+The state diagram above depicts the transitions between the Phases of an AppWrapper. These states are augmented by two orthogonal conditions:
+   + **QuotaReserved** indicates whether the AppWrapper is considered Active by Kueue.
+   + **ResourcesDeployed** indicates whether wrapped resources may exist on the cluster.
+
+QuotaReserved and ResourcesDeployed are both true in states colored blue below.
+
+QuotaReserved and ResourcesDeployed will initially be true in the Failed state (pink),
+but will become false when the Framework Controller succeeds at deleting all resources created
+in the Resuming phase.
+
+ResourcesDeployed will be true in the Succeeded state (green), but QuotaReserved will be false.
+
+Any phase may transition to the Terminating phase (not shown) when the AppWrapper is deleted.
+During the Terminating phase, QuotaReserved and ResourcesDeployed may initially be true
+but will become false once the Framework Controller succeeds at deleting all associated resources.
+
+See [appwrapper_controller.go]({{ site.gh_main_url }}/internal/controller/appwrapper/appwrapper_controller.go)
+for the implementation.

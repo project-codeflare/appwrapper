@@ -16,13 +16,15 @@
 title: "Project CodeFlare: AppWrappers"
 description: >- #
   Project Codeflare: AppWrappers
-minimal_mistakes_skin: air
-search: true
+minimal_mistakes_skin: contrast
 
 # Build settings
 markdown: kramdown
 remote_theme: mmistakes/minimal-mistakes@4.24.0
 repository: project-codeflare/appwrapper
+
+# Variables for use in pages
+gh_main_url: https://github.com/project-codeflare/appwrapper/blob/main
 
 # Outputting
 permalink: /:categories/:title/
