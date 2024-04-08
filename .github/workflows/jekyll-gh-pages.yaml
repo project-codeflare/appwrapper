@@ -35,8 +35,11 @@ jobs:
       with:
         ruby-version: '3.1'
         working-directory: site
-        bundler-cache: true
-        cache-version: 1
+        bundler-cache: false
+
+    - name: Install Gems
+      working-directory: site
+      run: bundle install
 
     - name: Setup Pages
       id: pages
