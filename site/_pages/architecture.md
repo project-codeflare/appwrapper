@@ -56,8 +56,48 @@ creating, monitoring, and deleting the wrapped resources in response
 to the modifications of the AppWrapper instance’s specification and
 status made by the Workload Controller described above.
 
-This [state transition diagram](docs/state-diagram.md) depicts the
-lifecycle of an AppWrapper; the implementation is found in
+The diagram above depicts the lifecycle of an AppWrapper; the implementation is found in
 [appwrapper_controller.go](./internal/controller/appwrapper/appwrapper_controller.go).
 
-TODO: inline the diagram here.
+```mermaid!
+stateDiagram-v2
+    e : Empty
+
+    sd : Suspended
+    rs : Resuming
+    rn : Running
+    rt : Resetting
+    sg : Suspending
+    s  : Succeeded
+    f  : Failed
+
+    %% Happy Path
+    e --> sd
+    sd --> rs : Suspend == false
+    rs --> rn
+    rn --> s
+
+    %% Requeuing
+    rs --> sg : Suspend == true
+    rn --> sg : Suspend == true
+    rt --> sg : Suspend == true
+    sg --> sd
+
+    %% Failures
+    rs --> f
+    rn --> f
+    rn --> rt : Workload Unhealthy
+    rt --> rs
+
+    classDef quota fill:lightblue
+    class rs quota
+    class rn quota
+    class rt quota
+    class sg quota
+
+    classDef failed fill:pink
+    class f failed
+
+    classDef succeeded fill:lightgreen
+    class s succeeded
+```
