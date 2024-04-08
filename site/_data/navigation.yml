@@ -3,6 +3,8 @@ main:
   url: /
 - title: "Quick Start Guide"
   url: /quick-start/
+- title: "Samples"
+  url: /samples/
 
 side:
 - title: "Installation"
@@ -12,12 +14,12 @@ side:
   - title: "Development Setup"
     url: /dev-setup/
 
-- title: "Examples"
+- title: "Samples"
   children:
   - title: "PyTorch Job"
-    url: "/sample-pytorch/"
+    url: "/samples/pytorch/"
   - title: "Batch Job"
-    url: "/sample-batch-job/"
+    url: "/samples/batch-job/"
 
 - title: "Architecture"
   children:

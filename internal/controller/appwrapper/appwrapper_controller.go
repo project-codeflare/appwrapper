@@ -79,7 +79,7 @@ type podStatusSummary struct {
 // Reconcile reconciles an appwrapper
 // Please see [aw-states] for documentation of this method.
 //
-// [aw-states]: https://github.com/project-codeflare/appwrapper/blob/main/docs/state-diagram.md
+// [aw-states]: https://project-codeflare.github.io/appwrapper/arch-controller/#framework-controller
 //
 //gocyclo:ignore
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
