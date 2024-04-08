@@ -2,15 +2,13 @@ main:
 - title: "Overview"
   url: /
 - title: "Quick Start Guide"
-  url: /quick-start-guide/
-- title: "Architecture"
-  url: /architecture/
+  url: /quick-start/
 
 side:
 - title: "Installation"
   children:
   - title: "Quick-Start Guide"
-    url: /quick-start-guide/
+    url: /quick-start/
   - title: "Development Setup"
     url: /dev-setup/
 
@@ -23,5 +21,9 @@ side:
 
 - title: "Architecture"
   children:
-  - title: Overview
-    url: /arch-overview/
+  - title: AppWrapper CRD
+    url: /arch-crd/
+  - title: Controllers
+    url: /arch-controller/
+  - title: Fault Tolerance
+    url: /arch-fault-tolerance/
