@@ -22,6 +22,8 @@ search: true
 # Build settings
 markdown: kramdown
 remote_theme: mmistakes/minimal-mistakes@4.24.0
+repository: project-codeflare/appwrapper
+
 # Outputting
 permalink: /:categories/:title/
 # paginate: 5 # amount of posts to show
