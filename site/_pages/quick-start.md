@@ -54,9 +54,9 @@ spec:
 ```
 
 You can either copy this yaml to your local file system and do a `kubectl apply -f <name-of-local-file>`
-or apply it remotely by doing
+or apply it remotely by doing:
 ```sh
-kubectl apply -f kubectl apply -f https://raw.githubusercontent.com/project-codeflare/appwrapper/main/hack/default-queues.yaml
+kubectl apply -f https://raw.githubusercontent.com/project-codeflare/appwrapper/main/hack/default-queues.yaml
 ```
 
 ### Install AppWrapper
@@ -76,7 +76,7 @@ kubectl -n appwrapper-system wait --timeout=300s --for=condition=Available deplo
 Finally, validate the installation by creating a simple AppWrapper and verifying that it runs
 as expected.
 
-Create an AppWrapper by executing
+Create an AppWrapper by executing:
 ```sh
 kubectl apply -f https://raw.githubusercontent.com/project-codeflare/appwrapper/{{ site.appwrapper_version }}/samples/wrapped-pod.yaml
 ```
