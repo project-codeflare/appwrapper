@@ -1,0 +1,19 @@
+hiddenMemberFields:
+- "TypeMeta"
+- "ObjectMeta"
+
+apis:
+- name: appwrapper
+  title: AppWrapper API
+  package: github.com/project-codeflare/appwrapper
+  path: api/v1beta2
+
+externalPackages:
+- match: ^k8s\.io/(api|apimachinery/pkg/apis)/
+  target: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#{{-
+    lower .TypeIdentifier -}}-{{- arrIndex .PackageSegments -1 -}}-{{- arrIndex .PackageSegments
+    -2 -}}
+- match: ^k8s\.io/apimachinery/pkg/runtime\.RawExtension$
+  target: https://pkg.go.dev/k8s.io/apimachinery/pkg/runtime#RawExtension
+- match: ^time\.Duration$
+  target: https://pkg.go.dev/time#Duration

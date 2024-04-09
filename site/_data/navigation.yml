@@ -5,6 +5,9 @@ main:
   url: /quick-start/
 - title: "Samples"
   url: /samples/
+- title: "API Reference"
+  url: /api/v1beta2/
+
 
 side:
 - title: "Installation"
@@ -23,8 +26,8 @@ side:
 
 - title: "Architecture"
   children:
-  - title: AppWrapper CRD
-    url: /arch-crd/
+  - title: API Reference
+    url: /api/v1beta2/
   - title: Controllers
     url: /arch-controller/
   - title: Fault Tolerance
