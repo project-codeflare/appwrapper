@@ -73,22 +73,31 @@ You can now try deploying a sample `AppWrapper`:
 kubectl apply -f samples/wrapped-pod.yaml
 ```
 
-You should shortly see a Pod called `sample` running.
-After running for 5 seconds, the Pod will complete and the
-AppWrapper's status will be Succeeded.
+You should quickly see an AppWrapper with the `Running` Status.
+The sample contains a single Pod with an `init` container that runs for 10 seconds,
+followed by a main container that runs for 5 seconds. After the main container completes,
+the Status of the AppWrapper will be `Succeeded`. We show some kubectl commands and
+their expected outputs below:
 ```sh
 % kubectl get appwrappers
-NAME     STATUS
-sample   Running
+NAME         STATUS
+sample-pod   Running
+
 % kubectl get pods
-NAME     READY   STATUS    RESTARTS   AGE
-sample   1/1     Running   0          2s
+NAME         READY   STATUS     RESTARTS   AGE
+sample-pod   0/1     Init:0/1   0          14s
+
 % kubectl get pods
-NAME     READY   STATUS      RESTARTS   AGE
-sample   0/1     Completed   0          9s
+NAME         READY   STATUS    RESTARTS   AGE
+sample-pod   1/1     Running   0          18s
+
+% kubectl get pods
+NAME         READY   STATUS      RESTARTS   AGE
+sample-pod   0/1     Completed   0          30s
+
 % kubectl get appwrappers
-NAME     STATUS
-sample   Succeeded
+NAME         STATUS
+sample-pod   Succeeded
 ```
 
 You can now delete the sample AppWrapper.
@@ -152,13 +161,13 @@ To create and initialize your cluster, perform the following steps:
 ./hack/deploy-kueue.sh
 ```
 
-Next build and deploy the AppWrapper operator
+Next build and deploy the AppWrapper operator:
 ```shell
 make docker-build kind-push
 make deploy
 ```
 
-Finally, run the test suite
+Finally, run the test suite:
 ```shell
 ./hack/run-tests-on-cluster.sh
 ```
