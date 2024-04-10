@@ -15,7 +15,7 @@ Controller, a Workload Controller, and a Framework Controller.
 Kueue requires the definition of an Admission Controller that ensures
 that the `.spec.suspend` field of newly created AppWrapper instances is
 set to true. We also leverage the Admission Controller to ensure that
-the user creating the AppWrapper is also entitled to create the contained resources
+the user creating the AppWrapper is entitled to create all wrapped resources
 and to validate AppWrapper-specific invariants.
 
 See [appwrapper_webhook.go]({{ site.gh_main_url }}/internal/webhook/appwrapper_webhook.go)
@@ -23,19 +23,20 @@ for the implementation.
 
 #### Workload Controller
 
-An instantiation of Kueue’s GenericReconciller along with an
-implementation of Kueue’s GenericJob interface for the AppWrapper
-CRD. As is standard practice in Kueue, this controller will watch
-AppWrapper instances and their owned Workload instances to reconcile
-the two. This controller will make it possible for Kueue to suspend,
-resume, and constrain the placement of the AppWrapper. It will report
-the status of the AppWrapper to Kueue.
+The Workload Controller is an instantiation of Kueue’s JobReconciller
+along with an implementation of Kueue’s GenericJob interface for
+AppWrappers.  As is standard practice in Kueue, this controller will
+watch AppWrapper instances and their owned Workload instances to
+reconcile the two. This controller makes it possible for Kueue to
+suspend and resume the AppWrapper and constrain the placement of pods
+created by the wrapped resources of the AppWrapper. It also translates
+the status of the AppWrapper to the format expected by Kueue.
 
 See [workload_controller.go]({{ site.gh_main_url }}/internal/controller/workload/workload_controller.go)
 for the implementation.
 
 A small additional piece of logic is currently needed to generalize
-Kueue's ability to recognize parent/children relationships and enforce
+Kueue's ability to recognize parent/children relationships and ensure
 that admission by Kueue of the parent AppWrapper will be propagated to
 its immediate children.
 
@@ -44,7 +45,7 @@ for the implementation.
 
 #### Framework Controller
 
-A standard reconciliation loop that watches AppWrapper instances and
+The Framework Controller is a standard reconciliation loop that watches AppWrapper instances and
 is responsible for all AppWrapper-specific operations including
 creating, monitoring, and deleting the wrapped resources in response
 to the modifications of the AppWrapper instance’s specification and
@@ -96,7 +97,13 @@ stateDiagram-v2
     class s succeeded
 ```
 
-The state diagram above depicts the transitions between the Phases of an AppWrapper. These states are augmented by two orthogonal conditions:
+The state diagram above depicts the transitions between the Phases of
+an AppWrapper.  A label on an edge indicates the state change that will
+trigger that transition.  For example, if an AppWrapper is in the
+Suspended Phase and `spec.suspend` becomes False then the Framework Controller
+will transition the AppWrapper to the Resuming Phase.
+
+These states are augmented by two orthogonal Conditions:
    + **QuotaReserved** indicates whether the AppWrapper is considered Active by Kueue.
    + **ResourcesDeployed** indicates whether wrapped resources may exist on the cluster.
 
