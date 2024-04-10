@@ -6,7 +6,7 @@ main:
 - title: "Samples"
   url: /samples/
 - title: "API Reference"
-  url: /api/v1beta2/
+  url: /api/workload.codeflare.dev/v1beta2/
 
 
 side:
@@ -27,7 +27,7 @@ side:
 - title: "Architecture"
   children:
   - title: API Reference
-    url: /api/v1beta2/
+    url: /api/workload.codeflare.dev/v1beta2/
   - title: Controllers
     url: /arch-controller/
   - title: Fault Tolerance

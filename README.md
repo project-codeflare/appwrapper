@@ -46,7 +46,7 @@ Read the [Quick Start Guide](https://project-codeflare.github.io/appwrapper/quic
 ## Usage
 
 For example of AppWrapper usage, browse our [Samples](./samples) directory or
-see the [Examples](https://project-codeflare.github.io/appwrapper/examples/) section
+see the [Samples](https://project-codeflare.github.io/appwrapper/samples/) section
 of the project website.
 
 ## Development

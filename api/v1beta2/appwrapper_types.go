@@ -110,6 +110,7 @@ const (
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
+//+kubebuilder:resource:shortName={appwrapper,appwrappers}
 
 // AppWrapper is the Schema for the appwrappers API
 type AppWrapper struct {

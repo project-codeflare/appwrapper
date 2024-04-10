@@ -1,5 +1,5 @@
 ---
-permalink: /api/v1beta2/
+permalink: /api/workload.codeflare.dev/v1beta2/
 title: AppWrapper API
 classes: wide
 ---
@@ -9,21 +9,9 @@ Generated API reference documentation for <no value>.
 
 ## Resource Types
 
-- [AppWrapper](#AppWrapper)
-  - [AppWrapperComponent](#AppWrapperComponent)
-  - [AppWrapperCondition](#AppWrapperCondition)
-  - [AppWrapperList](#AppWrapperList)
-  - [AppWrapperPhase](#AppWrapperPhase)
-  - [AppWrapperPodSet](#AppWrapperPodSet)
-  - [AppWrapperPodSetInfo](#AppWrapperPodSetInfo)
-  - [AppWrapperSpec](#AppWrapperSpec)
-  - [AppWrapperStatus](#AppWrapperStatus)
 
 
-
-
-
-## `AppWrapper`     {#AppWrapper}
+## `AppWrapper`     {#workload-codeflare-dev-v1beta2-AppWrapper}
 
 
 **Appears in:**
@@ -39,13 +27,13 @@ Generated API reference documentation for <no value>.
 
 
 <tr><td><code>spec</code> <B>[Required]</B><br/>
-<a href="#AppWrapperSpec"><code>AppWrapperSpec</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperSpec"><code>AppWrapperSpec</code></a>
 </td>
 <td>
    <span class="text-muted">No description provided.</span></td>
 </tr>
 <tr><td><code>status</code> <B>[Required]</B><br/>
-<a href="#AppWrapperStatus"><code>AppWrapperStatus</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperStatus"><code>AppWrapperStatus</code></a>
 </td>
 <td>
    <span class="text-muted">No description provided.</span></td>
@@ -53,12 +41,12 @@ Generated API reference documentation for <no value>.
 </tbody>
 </table>
 
-## `AppWrapperComponent`     {#AppWrapperComponent}
+## `AppWrapperComponent`     {#workload-codeflare-dev-v1beta2-AppWrapperComponent}
 
 
 **Appears in:**
 
-- [AppWrapperSpec](#AppWrapperSpec)
+- [AppWrapperSpec](#workload-codeflare-dev-v1beta2-AppWrapperSpec)
 
 
 <p>AppWrapperComponent describes a wrapped resource</p>
@@ -70,14 +58,14 @@ Generated API reference documentation for <no value>.
 
 
 <tr><td><code>podSets</code> <B>[Required]</B><br/>
-<a href="#AppWrapperPodSet"><code>[]AppWrapperPodSet</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperPodSet"><code>[]AppWrapperPodSet</code></a>
 </td>
 <td>
    <p>PodSets contained in the component</p>
 </td>
 </tr>
 <tr><td><code>podSetInfos</code> <B>[Required]</B><br/>
-<a href="#AppWrapperPodSetInfo"><code>[]AppWrapperPodSetInfo</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperPodSetInfo"><code>[]AppWrapperPodSetInfo</code></a>
 </td>
 <td>
    <p>PodSetInfos assigned to the Component by Kueue</p>
@@ -93,48 +81,13 @@ Generated API reference documentation for <no value>.
 </tbody>
 </table>
 
-## `AppWrapperCondition`     {#AppWrapperCondition}
-
-(Alias of `string`)
-
-
-
-
-
-## `AppWrapperList`     {#AppWrapperList}
-
-
-
-<p>AppWrapperList contains a list of appwrappers</p>
-
-
-<table class="table">
-<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
-<tbody>
-
-
-<tr><td><code>metadata</code> <B>[Required]</B><br/>
-<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#listmeta-v1-meta"><code>k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta</code></a>
-</td>
-<td>
-   <span class="text-muted">No description provided.</span></td>
-</tr>
-<tr><td><code>items</code> <B>[Required]</B><br/>
-<a href="#AppWrapper"><code>[]AppWrapper</code></a>
-</td>
-<td>
-   <span class="text-muted">No description provided.</span></td>
-</tr>
-</tbody>
-</table>
-
-## `AppWrapperPhase`     {#AppWrapperPhase}
+## `AppWrapperPhase`     {#workload-codeflare-dev-v1beta2-AppWrapperPhase}
 
 (Alias of `string`)
 
 **Appears in:**
 
-- [AppWrapperStatus](#AppWrapperStatus)
+- [AppWrapperStatus](#workload-codeflare-dev-v1beta2-AppWrapperStatus)
 
 
 <p>AppWrapperPhase is the phase of the appwrapper</p>
@@ -142,12 +95,12 @@ Generated API reference documentation for <no value>.
 
 
 
-## `AppWrapperPodSet`     {#AppWrapperPodSet}
+## `AppWrapperPodSet`     {#workload-codeflare-dev-v1beta2-AppWrapperPodSet}
 
 
 **Appears in:**
 
-- [AppWrapperComponent](#AppWrapperComponent)
+- [AppWrapperComponent](#workload-codeflare-dev-v1beta2-AppWrapperComponent)
 
 
 <p>AppWrapperPodSet describes an homogeneous set of pods</p>
@@ -175,12 +128,12 @@ Generated API reference documentation for <no value>.
 </tbody>
 </table>
 
-## `AppWrapperPodSetInfo`     {#AppWrapperPodSetInfo}
+## `AppWrapperPodSetInfo`     {#workload-codeflare-dev-v1beta2-AppWrapperPodSetInfo}
 
 
 **Appears in:**
 
-- [AppWrapperComponent](#AppWrapperComponent)
+- [AppWrapperComponent](#workload-codeflare-dev-v1beta2-AppWrapperComponent)
 
 
 
@@ -216,12 +169,12 @@ Generated API reference documentation for <no value>.
 </tbody>
 </table>
 
-## `AppWrapperSpec`     {#AppWrapperSpec}
+## `AppWrapperSpec`     {#workload-codeflare-dev-v1beta2-AppWrapperSpec}
 
 
 **Appears in:**
 
-- [AppWrapper](#AppWrapper)
+- [AppWrapper](#workload-codeflare-dev-v1beta2-AppWrapper)
 
 
 <p>AppWrapperSpec defines the desired state of the appwrapper</p>
@@ -233,7 +186,7 @@ Generated API reference documentation for <no value>.
 
 
 <tr><td><code>components</code> <B>[Required]</B><br/>
-<a href="#AppWrapperComponent"><code>[]AppWrapperComponent</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperComponent"><code>[]AppWrapperComponent</code></a>
 </td>
 <td>
    <p>Components lists the components in the job</p>
@@ -249,12 +202,12 @@ Generated API reference documentation for <no value>.
 </tbody>
 </table>
 
-## `AppWrapperStatus`     {#AppWrapperStatus}
+## `AppWrapperStatus`     {#workload-codeflare-dev-v1beta2-AppWrapperStatus}
 
 
 **Appears in:**
 
-- [AppWrapper](#AppWrapper)
+- [AppWrapper](#workload-codeflare-dev-v1beta2-AppWrapper)
 
 
 <p>AppWrapperStatus defines the observed state of the appwrapper</p>
@@ -266,7 +219,7 @@ Generated API reference documentation for <no value>.
 
 
 <tr><td><code>phase</code> <B>[Required]</B><br/>
-<a href="#AppWrapperPhase"><code>AppWrapperPhase</code></a>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperPhase"><code>AppWrapperPhase</code></a>
 </td>
 <td>
    <p>Phase of the AppWrapper object</p>
