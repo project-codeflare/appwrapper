@@ -110,7 +110,9 @@ const (
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
-//+kubebuilder:resource:shortName={appwrapper,appwrappers}
+//+kubebuilder:printcolumn:name="Quota Reserved",type="string",JSONPath=".status.conditions[?(@.type==\"QuotaReserved\")].status"
+//+kubebuilder:printcolumn:name="Resources Deployed",type="string",JSONPath=".status.conditions[?(@.type==\"ResourcesDeployed\")].status"
+//+kubebuilder:printcolumn:name="Unhealthy",type="string",JSONPath=".status.conditions[?(@.type==\"Unhealthy\")].status"
 
 // AppWrapper is the Schema for the appwrappers API
 type AppWrapper struct {
