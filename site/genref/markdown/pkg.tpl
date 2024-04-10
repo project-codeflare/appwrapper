@@ -3,7 +3,7 @@
 {{- range $idx, $val := .packages -}}
   {{- if .IsMain -}}
 ---
-permalink: /api{{ .DisplayName }}/
+permalink: /api/{{ .DisplayName }}/
 title: {{ .Title }}
 classes: wide
 ---
@@ -11,17 +11,19 @@ classes: wide
   {{- end -}}
 {{- end }}
 
-Generated API reference documentation for {{ .DisplayName }}.
+Generated API reference documentation for {{ .GroupName }}.
 
 ## Resource Types
 
 {{ range .packages -}}
   {{- range .VisibleTypes -}}
+    {{- if .IsExported }}
 - [{{ .DisplayName }}]({{ .Link }})
-  {{ end }}
+    {{- end -}}
+  {{- end -}}
 {{- end -}}
 
-{{ range .packages }}
+{{ range .packages -}}
   {{ if ne .GroupName "" -}}
     {{/* For package with a group name, list all type definitions in it. */}}
     {{- range .VisibleTypes }}
