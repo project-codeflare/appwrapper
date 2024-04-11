@@ -18,6 +18,15 @@ spec:
     - jsonPath: .status.phase
       name: Status
       type: string
+    - jsonPath: .status.conditions[?(@.type=="QuotaReserved")].status
+      name: Quota Reserved
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="ResourcesDeployed")].status
+      name: Resources Deployed
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Unhealthy")].status
+      name: Unhealthy
+      type: string
     name: v1beta2
     schema:
       openAPIV3Schema:
