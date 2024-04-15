@@ -55,7 +55,7 @@ jobs:
       run: |
         make install -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
         make kind-push -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
-        make deploy-aw -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+        make deploy -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }} ENV=standalone
 
     - name: Run E2E tests
       run: LABEL_FILTER="Standalone,Webhook" ./hack/run-tests-on-cluster.sh

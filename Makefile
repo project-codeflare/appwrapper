@@ -30,6 +30,10 @@ endif
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.29.0
 
+# The target deployment environment, that corresponds to the Kustomize directory
+# used to build the manifests.
+ENV ?= default
+
 # Get the currently used golang install path (in GOPATH/bin, unless GOBIN is set)
 ifeq (,$(shell go env GOBIN))
 GOBIN=$(shell go env GOPATH)/bin
@@ -116,22 +120,11 @@ build: manifests generate fmt vet ## Build manager binary.
 			-X 'main.BuildVersion=$(BUILD_VERSION)' \
 			-X 'main.BuildDate=$(BUILD_DATE)' \
 		" \
-		-o bin/manager cmd/unified/main.go
-	go build \
-		-ldflags " \
-			-X 'main.BuildVersion=$(BUILD_VERSION)' \
-			-X 'main.BuildDate=$(BUILD_DATE)' \
-		" \
-		-o bin/manager-aw cmd/standalone/main.go
+		-o bin/manager cmd/main.go
 
 .PHONY: run
 run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/unified/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
-
-.PHONY: run-aw
-run-aw: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/standalone/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
-
+	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -173,7 +166,7 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	fi
 	echo "---" >> dist/install.yaml  # Add a document separator before appending
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default >> dist/install.yaml
+	$(KUSTOMIZE) build config/$(ENV) >> dist/install.yaml
 	@$(call clean-manifests)
 
 ##@ Deployment
@@ -195,22 +188,12 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/default | $(KUBECTL) apply -f -
-	@$(call clean-manifests)
-
-.PHONY: deploy-aw
-deploy-aw: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
-	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
-	$(KUSTOMIZE) build config/standalone | $(KUBECTL) apply -f -
+	$(KUSTOMIZE) build config/$(ENV) | $(KUBECTL) apply -f -
 	@$(call clean-manifests)
 
 .PHONY: undeploy
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
-
-.PHONY: undeploy-aw
-undeploy-aw: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/standalone | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+	$(KUSTOMIZE) build config/$(ENV) | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 ##@ Dependencies
 

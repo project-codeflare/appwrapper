@@ -22,8 +22,9 @@ import (
 )
 
 type OperatorConfig struct {
-	AppWrapper     *AppWrapperConfig     `json:"appWrapper,omitempty"`
-	CertManagement *CertManagementConfig `json:"certManagement,omitempty"`
+	AppWrapper        *AppWrapperConfig        `json:"appwrapper,omitempty"`
+	CertManagement    *CertManagementConfig    `json:"certManagement,omitempty"`
+	ControllerManager *ControllerManagerConfig `json:"controllerManager,omitempty"`
 }
 
 type AppWrapperConfig struct {
@@ -50,6 +51,22 @@ type CertManagementConfig struct {
 	ValidatingWebhookConfigName string `json:"validatingWebhookConfigName,omitempty"`
 	WebhookServiceName          string `json:"webhookServiceName,omitempty"`
 	WebhookSecretName           string `json:"webhookSecretName,omitempty"`
+}
+
+type ControllerManagerConfig struct {
+	Metrics        MetricsConfiguration `json:"metrics,omitempty"`
+	Health         HealthConfiguration  `json:"health,omitempty"`
+	LeaderElection bool                 `json:"leaderElection,omitempty"`
+	EnableHTTP2    bool                 `json:"enableHTTP2,omitempty"`
+}
+
+type MetricsConfiguration struct {
+	BindAddress   string `json:"bindAddress,omitempty"`
+	SecureServing bool   `json:"secureServing,omitempty"`
+}
+
+type HealthConfiguration struct {
+	BindAddress string `json:"bindAddress,omitempty"`
 }
 
 // NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
@@ -100,5 +117,20 @@ func NewCertManagementConfig(namespace string) *CertManagementConfig {
 		ValidatingWebhookConfigName: "appwrapper-validating-webhook-configuration",
 		WebhookServiceName:          "appwrapper-webhook-service",
 		WebhookSecretName:           "appwrapper-webhook-server-cert",
+	}
+}
+
+// NewControllerRuntimeConfig constructs a ControllerRuntimeConfig and filles in default values
+func NewControllerManagerConfig() *ControllerManagerConfig {
+	return &ControllerManagerConfig{
+		Metrics: MetricsConfiguration{
+			BindAddress:   ":8080",
+			SecureServing: false,
+		},
+		Health: HealthConfiguration{
+			BindAddress: ":8081",
+		},
+		LeaderElection: false,
+		EnableHTTP2:    false,
 	}
 }
