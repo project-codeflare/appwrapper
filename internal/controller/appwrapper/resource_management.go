@@ -90,7 +90,11 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
 		if !r.Config.StandaloneMode {
-			toInject = &component.PodSetInfos[podSetsIdx]
+			if podSetsIdx < len(component.PodSetInfos) {
+				toInject = &component.PodSetInfos[podSetsIdx]
+			} else {
+				return nil, fmt.Errorf("missing podSetInfo %v for component %v", podSetsIdx, componentIdx), true
+			}
 		}
 
 		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
