@@ -98,6 +98,18 @@ vet: ## Run go vet against code.
 test: manifests generate fmt vet envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./api/... ./internal/... ./pkg/...) -v -ginkgo.v -coverprofile cover.out
 
+.PHONY: install
+install: manifests kustomize ## Install dev configuration into the K8s cluster specified in ~/.kube/config.
+	$(KUSTOMIZE) build config/dev | $(KUBECTL) apply -f -
+
+.PHONY: uninstall
+uninstall: manifests kustomize ## Uninstall dev configuration from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
+	$(KUSTOMIZE) build config/dev | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
+
+.PHONY: run
+run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
+	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/main.go
+
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.
 test-e2e:
@@ -121,10 +133,6 @@ build: manifests generate fmt vet ## Build manager binary.
 			-X 'main.BuildDate=$(BUILD_DATE)' \
 		" \
 		-o bin/manager cmd/main.go
-
-.PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/main.go --metrics-bind-address=localhost:0 --health-probe-bind-address=localhost:0
 
 # If you wish to build the manager image targeting other platforms you can use the --platform flag.
 # (i.e. docker build --platform linux/arm64). However, you must enable docker buildKit for it.
@@ -176,14 +184,6 @@ ifndef ignore-not-found
 endif
 
 clean-manifests = (cd config/manager && $(KUSTOMIZE) edit set image controller=quay.io/ibm/appwrapper)
-
-.PHONY: install
-install: manifests kustomize ## Install CRDs into the K8s cluster specified in ~/.kube/config.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) apply -f -
-
-.PHONY: uninstall
-uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
-	$(KUSTOMIZE) build config/crd | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: deploy
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
