@@ -118,11 +118,18 @@ Generated API reference documentation for <no value>.
    <p>Replicas is the number of pods in the set</p>
 </td>
 </tr>
-<tr><td><code>path</code> <B>[Required]</B><br/>
+<tr><td><code>replicaPath</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
 <td>
-   <p>Path to the PodTemplateSpec</p>
+   <p>ReplicaPath is the path to the replica count for the set</p>
+</td>
+</tr>
+<tr><td><code>podPath</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>PodPath is the path to the PodTemplateSpec</p>
 </td>
 </tr>
 </tbody>

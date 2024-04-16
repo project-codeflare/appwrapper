@@ -50,8 +50,11 @@ type AppWrapperPodSet struct {
 	// Replicas is the number of pods in the set
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// Path to the PodTemplateSpec
-	Path string `json:"path"`
+	// ReplicaPath is the path to the replica count for the set
+	ReplicaPath string `json:"replicaPath,omitempty"`
+
+	// PodPath is the path to the PodTemplateSpec
+	PodPath string `json:"podPath"`
 }
 
 type AppWrapperPodSetInfo struct {

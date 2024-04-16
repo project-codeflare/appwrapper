@@ -119,15 +119,19 @@ spec:
                         description: AppWrapperPodSet describes an homogeneous set
                           of pods
                         properties:
-                          path:
-                            description: Path to the PodTemplateSpec
+                          podPath:
+                            description: PodPath is the path to the PodTemplateSpec
+                            type: string
+                          replicaPath:
+                            description: ReplicaPath is the path to the replica count
+                              for the set
                             type: string
                           replicas:
                             description: Replicas is the number of pods in the set
                             format: int32
                             type: integer
                         required:
-                        - path
+                        - podPath
                         type: object
                       type: array
                     template:

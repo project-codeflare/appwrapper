@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/yaml"
 
@@ -105,9 +106,8 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(1)
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), PodPath: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -133,9 +133,8 @@ func malformedPod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	replicas := int32(1)
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: &replicas, Path: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), PodPath: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }

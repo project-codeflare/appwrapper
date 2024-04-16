@@ -97,7 +97,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 		}
 
-		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
+		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.PodPath)
 		if err != nil {
 			return nil, err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
 		}

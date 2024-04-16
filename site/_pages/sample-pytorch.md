@@ -15,10 +15,10 @@ metadata:
 spec:
   components:
   - podSets:
-    - replicas: 1
-      path: template.spec.pytorchReplicaSpecs.Master.template
-    - replicas: 1
-      path: template.spec.pytorchReplicaSpecs.Worker.template
+    - podPath: template.spec.pytorchReplicaSpecs.Master.template
+      replicaPath: template.spec.pytorchReplicaSpecs.Master.replicas
+    - podPath: template.spec.pytorchReplicaSpecs.Worker.template
+      replicaPath: template.spec.pytorchReplicaSpecs.Worker.replicas
     template:
       apiVersion: "kubeflow.org/v1"
       kind: PyTorchJob
