@@ -25,6 +25,7 @@ type OperatorConfig struct {
 	AppWrapper        *AppWrapperConfig        `json:"appwrapper,omitempty"`
 	CertManagement    *CertManagementConfig    `json:"certManagement,omitempty"`
 	ControllerManager *ControllerManagerConfig `json:"controllerManager,omitempty"`
+	WebhooksEnabled   *bool                    `json:"webhooksEnabled,omitempty"`
 }
 
 type AppWrapperConfig struct {

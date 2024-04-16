@@ -107,8 +107,8 @@ uninstall: manifests kustomize ## Uninstall dev configuration from the K8s clust
 	$(KUSTOMIZE) build config/dev | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
 .PHONY: run
-run: manifests generate fmt vet ## Run a controller from your host (webhooks are disabled).
-	NAMESPACE=dev ENABLE_WEBHOOKS=false go run ./cmd/main.go
+run: manifests generate fmt vet ## Run a controller from your host using the dev configurtation (webhooks are disabled).
+	NAMESPACE=dev go run ./cmd/main.go
 
 # Utilize Kind or modify the e2e tests to load the image locally, enabling compatibility with other vendors.
 .PHONY: test-e2e  # Run the e2e tests against a Kind k8s instance that is spun up.

@@ -10,3 +10,4 @@ data:
       metrics:
         bindAddress: "localhost:0"
       leaderElection: false
+    webhooksEnabled: false

@@ -27,6 +27,7 @@ import (
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -86,6 +87,7 @@ func main() {
 		AppWrapper:        config.NewAppWrapperConfig(),
 		CertManagement:    config.NewCertManagementConfig(namespace),
 		ControllerManager: config.NewControllerManagerConfig(),
+		WebhooksEnabled:   ptr.To(true),
 	}
 
 	k8sConfig, err := ctrl.GetConfig()
@@ -133,14 +135,14 @@ func main() {
 
 	certsReady := make(chan struct{})
 
-	if os.Getenv("ENABLE_WEBHOOKS") == "false" {
-		close(certsReady)
-	} else {
+	if *cfg.WebhooksEnabled {
 		exitOnError(controller.SetupCertManagement(mgr, cfg.CertManagement, certsReady), "Unable to set up cert rotation")
+	} else {
+		close(certsReady)
 	}
 
 	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
-	go controller.SetupControllers(ctx, mgr, cfg.AppWrapper, certsReady, setupLog)
+	go controller.SetupControllers(ctx, mgr, cfg.AppWrapper, *cfg.WebhooksEnabled, certsReady, setupLog)
 
 	exitOnError(controller.SetupIndexers(ctx, mgr, cfg.AppWrapper), "unable to setup indexers")
 	exitOnError(controller.SetupProbeEndpoints(mgr, certsReady), "unable to setup probe endpoints")
