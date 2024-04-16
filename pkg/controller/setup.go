@@ -40,7 +40,7 @@ import (
 
 // SetupControllers creates and configures all components of the AppWrapper controller
 func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig,
-	certsReady chan struct{}, log logr.Logger) {
+	webhooksEnabled bool, certsReady chan struct{}, log logr.Logger) {
 
 	log.Info("Waiting for certificates to be generated")
 	<-certsReady
@@ -74,7 +74,7 @@ func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 		os.Exit(1)
 	}
 
-	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+	if webhooksEnabled {
 		if err := (&webhook.AppWrapperWebhook{
 			Config: awConfig,
 		}).SetupWebhookWithManager(mgr); err != nil {

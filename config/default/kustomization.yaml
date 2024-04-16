@@ -15,6 +15,7 @@ namePrefix: appwrapper-
 #    someName: someValue
 
 resources:
+- config.yaml
 - ../crd
 - ../rbac
 - ../manager

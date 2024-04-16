@@ -15,6 +15,7 @@ namePrefix: appwrapper-
 #    someName: someValue
 
 resources:
+- config.yaml
 - ../crd
 - ../rbac
 - ../manager
@@ -40,7 +41,7 @@ patches:
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER'.
 # Uncomment 'CERTMANAGER' sections in crd/kustomization.yaml to enable the CA injection in the admission webhooks.
 # 'CERTMANAGER' needs to be enabled to use ca injection
-# - path: webhookcainjection_patch.yaml
+#- path: webhookcainjection_patch.yaml
 
 # [CERTMANAGER] To enable cert-manager, uncomment all sections with 'CERTMANAGER' prefix.
 # Uncomment the following replacements to add the cert-manager CA injection annotations
