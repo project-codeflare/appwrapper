@@ -7,8 +7,8 @@ metadata:
 spec:
   components:
   - podSets:
-    - replicas: 2
-      path: template.spec.template
+    - podPath: template.spec.template
+      replicaPath: template.spec.replicas
     template:
       apiVersion: apps/v1
       kind: Deployment

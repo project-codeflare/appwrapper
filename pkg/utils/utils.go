@@ -59,8 +59,39 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 	return template, nil
 }
 
+// GetReplicas parses the value at the given path within obj as an int
+func GetReplicas(obj *unstructured.Unstructured, path string) (int32, error) {
+	value, err := getValueAtPath(obj.UnstructuredContent(), path)
+	if err != nil {
+		return 0, err
+	}
+	switch v := value.(type) {
+	case int:
+		return int32(v), nil
+	case int32:
+		return v, nil
+	case int64:
+		return int32(v), nil
+	default:
+		return 0, fmt.Errorf("at path position '%v' non-int value %v", path, value)
+	}
+}
+
 // return the subobject found at the given path, or nil if the path is invalid
 func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interface{}, error) {
+	value, err := getValueAtPath(obj, path)
+	if err != nil {
+		return nil, err
+	}
+	if asMap, ok := value.(map[string]interface{}); ok {
+		return asMap, nil
+	} else {
+		return nil, fmt.Errorf("at path position '%v' non-map value", path)
+	}
+}
+
+// get the value found at the given path or an error if the path is invalid
+func getValueAtPath(obj map[string]interface{}, path string) (interface{}, error) {
 	if !strings.HasPrefix(path, "template") {
 		return nil, fmt.Errorf("first element of the path must be 'template'")
 	}
@@ -116,11 +147,7 @@ func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interfa
 		}
 	}
 
-	if asMap, ok := cursor.(map[string]interface{}); ok {
-		return asMap, nil
-	} else {
-		return nil, fmt.Errorf("at path position '%v' non-map value", processed)
-	}
+	return cursor, nil
 }
 
 func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
