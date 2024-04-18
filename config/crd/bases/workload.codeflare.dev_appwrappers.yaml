@@ -50,30 +50,45 @@ spec:
           metadata:
             type: object
           spec:
-            description: AppWrapperSpec defines the desired state of the appwrapper
+            description: AppWrapperSpec defines the desired state of the AppWrapper
             properties:
               components:
-                description: Components lists the components in the job
+                description: Components lists the components contained in the AppWrapper
                 items:
-                  description: AppWrapperComponent describes a wrapped resource
+                  description: AppWrapperComponent describes a single wrapped Kubernetes
+                    resource
                   properties:
+                    annotations:
+                      additionalProperties:
+                        type: string
+                      description: |-
+                        Annotations is an unstructured key value map that may be used to store and retrieve
+                        arbitrary metadata about the Component to customize its treatment by the AppWrapper controller.
+                      type: object
                     podSetInfos:
-                      description: PodSetInfos assigned to the Component by Kueue
+                      description: PodSetInfos assigned to the Component's PodSets
+                        by Kueue
                       items:
+                        description: AppWrapperPodSetInfo contains the data that Kueue
+                          wants to inject into an admitted PodSpecTemplate
                         properties:
                           annotations:
                             additionalProperties:
                               type: string
+                            description: Annotations to be added to the PodSpecTemplate
                             type: object
                           labels:
                             additionalProperties:
                               type: string
+                            description: Labels to be added to the PodSepcTemplate
                             type: object
                           nodeSelector:
                             additionalProperties:
                               type: string
+                            description: NodeSelectors to be added to the PodSpecTemplate
                             type: object
                           tolerations:
+                            description: Tolerations to be added to the PodSpecTemplate
                             items:
                               description: |-
                                 The pod this Toleration is attached to tolerates any taint that matches
@@ -114,20 +129,21 @@ spec:
                         type: object
                       type: array
                     podSets:
-                      description: PodSets contained in the component
+                      description: PodSets contained in the Component
                       items:
                         description: AppWrapperPodSet describes an homogeneous set
                           of pods
                         properties:
                           podPath:
-                            description: PodPath is the path to the PodTemplateSpec
+                            description: PodPath is the path Component.Template to
+                              the PodTemplateSpec for this PodSet
                             type: string
                           replicaPath:
-                            description: ReplicaPath is the path to the replica count
-                              for the set
+                            description: ReplicaPath is the path within Component.Template
+                              to the replica count for this PodSet
                             type: string
                           replicas:
-                            description: Replicas is the number of pods in the set
+                            description: Replicas is the number of pods in this PodSet
                             format: int32
                             type: integer
                         required:
@@ -135,7 +151,8 @@ spec:
                         type: object
                       type: array
                     template:
-                      description: Template for the component
+                      description: Template defines the Kubernetes resource for the
+                        Component
                       type: object
                       x-kubernetes-embedded-resource: true
                       x-kubernetes-preserve-unknown-fields: true
@@ -144,7 +161,7 @@ spec:
                   type: object
                 type: array
               suspend:
-                description: Suspend suspends the job when set to true
+                description: Suspend suspends the AppWrapper when set to true
                 type: boolean
             required:
             - components
@@ -153,7 +170,18 @@ spec:
             description: AppWrapperStatus defines the observed state of the appwrapper
             properties:
               conditions:
-                description: Conditions
+                description: |-
+                  Conditions hold the latest available observations of the AppWrapper current state.
+
+
+                  The type of the condition could be:
+
+
+                  - QuotaReserved: The AppWrapper was admitted by Kueue and has quota allocated to it
+                  - ResourcesDeployed: The contained resources are deployed (or being deployed) on the cluster
+                  - PodsReady: All pods of the contained resources are in the Ready or Succeeded state
+                  - Unhealthy: One or more of the contained resources is unhealthy
+                  - DeletingResources: The contained resources are in the process of being deleted from the cluster
                 items:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource.\n---\nThis struct is intended for
