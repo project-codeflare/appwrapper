@@ -4,6 +4,9 @@ metadata:
   name: operator-config
 data:
   config.yaml: |
+    appwrapper:
+      enableKueueIntegrations: true
+      manageJobsWithoutQueueName: true
     controllerManager:
       health:
         bindAddress: "localhost:0"

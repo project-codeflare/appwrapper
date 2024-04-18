@@ -30,7 +30,7 @@ type OperatorConfig struct {
 
 type AppWrapperConfig struct {
 	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
-	StandaloneMode             bool                  `json:"standaloneMode,omitempty"`
+	EnableKueueIntegrations    bool                  `json:"enableKueueIntegrations,omitempty"`
 	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
 }
 
@@ -74,7 +74,7 @@ type HealthConfiguration struct {
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
 		ManageJobsWithoutQueueName: true,
-		StandaloneMode:             false,
+		EnableKueueIntegrations:    true,
 		FaultTolerance: &FaultToleranceConfig{
 			WarmupGracePeriod:   5 * time.Minute,
 			FailureGracePeriod:  1 * time.Minute,
