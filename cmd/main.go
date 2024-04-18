@@ -135,20 +135,27 @@ func main() {
 
 	certsReady := make(chan struct{})
 
-	if *cfg.WebhooksEnabled {
+	if ptr.Deref(cfg.WebhooksEnabled, false) {
 		exitOnError(controller.SetupCertManagement(mgr, cfg.CertManagement, certsReady), "Unable to set up cert rotation")
 	} else {
 		close(certsReady)
 	}
 
-	// Ascynchronous because controllers need to wait for certificate to be ready for webhooks to work
-	go controller.SetupControllers(ctx, mgr, cfg.AppWrapper, *cfg.WebhooksEnabled, certsReady, setupLog)
+	go func() {
+		setupLog.Info("Waiting for certificates to be generated")
+		<-certsReady
+		setupLog.Info("Certs ready")
+		if ptr.Deref(cfg.WebhooksEnabled, false) {
+			exitOnError(controller.SetupWebhooks(ctx, mgr, cfg.AppWrapper), "unable to configure webhook")
+		}
+		exitOnError(controller.SetupControllers(ctx, mgr, cfg.AppWrapper), "unable to start controllers")
+	}()
 
 	exitOnError(controller.SetupIndexers(ctx, mgr, cfg.AppWrapper), "unable to setup indexers")
 	exitOnError(controller.SetupProbeEndpoints(mgr, certsReady), "unable to setup probe endpoints")
 
 	setupLog.Info("starting manager")
-	exitOnError(mgr.Start(ctx), "problem running manager")
+	exitOnError(mgr.Start(ctx), "problem starting manager")
 }
 
 func getNamespace() (string, error) {

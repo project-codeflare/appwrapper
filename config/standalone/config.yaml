@@ -5,7 +5,7 @@ metadata:
 data:
   config.yaml: |
     appwrapper:
-      standaloneMode: true
+      enableKueueIntegrations: false
       manageJobsWithoutQueueName: false
     controllerManager:
       health:

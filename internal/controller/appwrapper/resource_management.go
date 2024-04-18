@@ -80,16 +80,16 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return nil, err, true
 	}
-	if r.Config.StandaloneMode {
-		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name}))
-	} else {
+	if r.Config.EnableKueueIntegrations {
 		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
+	} else {
+		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name}))
 	}
 
 	awLabels := map[string]string{AppWrapperLabel: aw.Name}
 	for podSetsIdx, podSet := range component.PodSets {
 		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
-		if !r.Config.StandaloneMode {
+		if r.Config.EnableKueueIntegrations {
 			if podSetsIdx < len(component.PodSetInfos) {
 				toInject = &component.PodSetInfos[podSetsIdx]
 			} else {

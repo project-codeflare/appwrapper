@@ -21,13 +21,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
-	"github.com/go-logr/logr"
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
@@ -39,29 +37,21 @@ import (
 )
 
 // SetupControllers creates and configures all components of the AppWrapper controller
-func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig,
-	webhooksEnabled bool, certsReady chan struct{}, log logr.Logger) {
-
-	log.Info("Waiting for certificates to be generated")
-	<-certsReady
-	log.Info("Certs ready")
-
-	if !awConfig.StandaloneMode {
+func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
+	if awConfig.EnableKueueIntegrations {
 		if err := workload.WorkloadReconciler(
 			mgr.GetClient(),
 			mgr.GetEventRecorderFor("kueue"),
 			jobframework.WithManageJobsWithoutQueueName(awConfig.ManageJobsWithoutQueueName),
 		).SetupWithManager(mgr); err != nil {
-			log.Error(err, "Failed to create workload controller")
-			os.Exit(1)
+			return fmt.Errorf("workload controller: %w", err)
 		}
 
 		if err := (&workload.ChildWorkloadReconciler{
 			Client: mgr.GetClient(),
 			Scheme: mgr.GetScheme(),
 		}).SetupWithManager(mgr); err != nil {
-			log.Error(err, "Failed to create child admission controller")
-			os.Exit(1)
+			return fmt.Errorf("child admission controller: %w", err)
 		}
 	}
 
@@ -70,22 +60,24 @@ func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 		Scheme: mgr.GetScheme(),
 		Config: awConfig,
 	}).SetupWithManager(mgr); err != nil {
-		log.Error(err, "Failed to create appwrapper controller")
-		os.Exit(1)
+		return fmt.Errorf("appwrapper controller: %w", err)
 	}
 
-	if webhooksEnabled {
-		if err := (&webhook.AppWrapperWebhook{
-			Config: awConfig,
-		}).SetupWebhookWithManager(mgr); err != nil {
-			log.Error(err, "Failed to create webhook")
-			os.Exit(1)
-		}
+	return nil
+}
+
+// SetupWebhooks creates and configures the AppWrapper controller's Webhooks
+func SetupWebhooks(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
+	if err := (&webhook.AppWrapperWebhook{
+		Config: awConfig,
+	}).SetupWebhookWithManager(mgr); err != nil {
+		return fmt.Errorf("webhook: %w", err)
 	}
+	return nil
 }
 
 func SetupIndexers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	if !awConfig.StandaloneMode {
+	if awConfig.EnableKueueIntegrations {
 		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
 			return fmt.Errorf("workload indexer: %w", err)
 		}
