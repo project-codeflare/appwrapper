@@ -31,4 +31,4 @@ WORKDIR /
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
-CMD ["/manager"]
+ENTRYPOINT ["/manager"]
