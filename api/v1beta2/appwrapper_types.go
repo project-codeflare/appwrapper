@@ -22,57 +22,88 @@ import (
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
-// AppWrapperSpec defines the desired state of the appwrapper
+// AppWrapperSpec defines the desired state of the AppWrapper
 type AppWrapperSpec struct {
-	// Components lists the components in the job
+	// Components lists the components contained in the AppWrapper
 	Components []AppWrapperComponent `json:"components"`
 
-	// Suspend suspends the job when set to true
+	// Suspend suspends the AppWrapper when set to true
+	//+optional
 	Suspend bool `json:"suspend,omitempty"`
 }
 
-// AppWrapperComponent describes a wrapped resource
+// AppWrapperComponent describes a single wrapped Kubernetes resource
 type AppWrapperComponent struct {
-	// PodSets contained in the component
+	// Annotations is an unstructured key value map that may be used to store and retrieve
+	// arbitrary metadata about the Component to customize its treatment by the AppWrapper controller.
+	//+optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// PodSets contained in the Component
+	//+optional
 	PodSets []AppWrapperPodSet `json:"podSets,omitempty"`
 
-	// PodSetInfos assigned to the Component by Kueue
+	// PodSetInfos assigned to the Component's PodSets by Kueue
+	//+optional
 	PodSetInfos []AppWrapperPodSetInfo `json:"podSetInfos,omitempty"`
 
 	// +kubebuilder:pruning:PreserveUnknownFields
 	// +kubebuilder:validation:EmbeddedResource
-	// Template for the component
+	// Template defines the Kubernetes resource for the Component
 	Template runtime.RawExtension `json:"template"`
 }
 
 // AppWrapperPodSet describes an homogeneous set of pods
 type AppWrapperPodSet struct {
-	// Replicas is the number of pods in the set
+	// Replicas is the number of pods in this PodSet
+	//+optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// ReplicaPath is the path to the replica count for the set
+	// ReplicaPath is the path within Component.Template to the replica count for this PodSet
+	//+optional
 	ReplicaPath string `json:"replicaPath,omitempty"`
 
-	// PodPath is the path to the PodTemplateSpec
+	// PodPath is the path Component.Template to the PodTemplateSpec for this PodSet
 	PodPath string `json:"podPath"`
 }
 
+// AppWrapperPodSetInfo contains the data that Kueue wants to inject into an admitted PodSpecTemplate
 type AppWrapperPodSetInfo struct {
-	Annotations  map[string]string   `json:"annotations,omitempty"`
-	Labels       map[string]string   `json:"labels,omitempty"`
-	NodeSelector map[string]string   `json:"nodeSelector,omitempty"`
-	Tolerations  []corev1.Toleration `json:"tolerations,omitempty"`
+	// Annotations to be added to the PodSpecTemplate
+	//+optional
+	Annotations map[string]string `json:"annotations,omitempty"`
+	// Labels to be added to the PodSepcTemplate
+	//+optional
+	Labels map[string]string `json:"labels,omitempty"`
+	// NodeSelectors to be added to the PodSpecTemplate
+	//+optional
+	NodeSelector map[string]string `json:"nodeSelector,omitempty"`
+	// Tolerations to be added to the PodSpecTemplate
+	//+optional
+	Tolerations []corev1.Toleration `json:"tolerations,omitempty"`
 }
 
 // AppWrapperStatus defines the observed state of the appwrapper
 type AppWrapperStatus struct {
 	// Phase of the AppWrapper object
+	//+optional
 	Phase AppWrapperPhase `json:"phase,omitempty"`
 
 	// Retries counts the number of times the AppWrapper has entered the Resetting Phase
+	//+optional
 	Retries int32 `json:"resettingCount,omitempty"`
 
-	// Conditions
+	// Conditions hold the latest available observations of the AppWrapper current state.
+	//
+	// The type of the condition could be:
+	//
+	// - QuotaReserved: The AppWrapper was admitted by Kueue and has quota allocated to it
+	// - ResourcesDeployed: The contained resources are deployed (or being deployed) on the cluster
+	// - PodsReady: All pods of the contained resources are in the Ready or Succeeded state
+	// - Unhealthy: One or more of the contained resources is unhealthy
+	// - DeletingResources: The contained resources are in the process of being deleted from the cluster
+	//
+	//+optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
