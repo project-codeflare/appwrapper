@@ -37,7 +37,7 @@ import (
 )
 
 // SetupControllers creates and configures all components of the AppWrapper controller
-func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
+func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
 	if awConfig.EnableKueueIntegrations {
 		if err := workload.WorkloadReconciler(
 			mgr.GetClient(),
@@ -67,7 +67,7 @@ func SetupControllers(ctx context.Context, mgr ctrl.Manager, awConfig *config.Ap
 }
 
 // SetupWebhooks creates and configures the AppWrapper controller's Webhooks
-func SetupWebhooks(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
+func SetupWebhooks(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
 	if err := (&webhook.AppWrapperWebhook{
 		Config: awConfig,
 	}).SetupWebhookWithManager(mgr); err != nil {

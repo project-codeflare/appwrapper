@@ -146,9 +146,9 @@ func main() {
 		<-certsReady
 		setupLog.Info("Certs ready")
 		if ptr.Deref(cfg.WebhooksEnabled, false) {
-			exitOnError(controller.SetupWebhooks(ctx, mgr, cfg.AppWrapper), "unable to configure webhook")
+			exitOnError(controller.SetupWebhooks(mgr, cfg.AppWrapper), "unable to configure webhook")
 		}
-		exitOnError(controller.SetupControllers(ctx, mgr, cfg.AppWrapper), "unable to start controllers")
+		exitOnError(controller.SetupControllers(mgr, cfg.AppWrapper), "unable to start controllers")
 	}()
 
 	exitOnError(controller.SetupIndexers(ctx, mgr, cfg.AppWrapper), "unable to setup indexers")
