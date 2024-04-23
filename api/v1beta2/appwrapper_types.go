@@ -100,7 +100,11 @@ type AppWrapperStatus struct {
 	// - DeletingResources: The contained resources are in the process of being deleted from the cluster
 	//
 	//+optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	//+patchMergeKey=type
+	//+patchStrategy=merge
+	//+listType=map
+	//+listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // AppWrapperPhase is the phase of the appwrapper
