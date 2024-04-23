@@ -196,10 +196,6 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
 				aw.Spec.Components[0].PodSets[0].Replicas = ptr.To(int32(12))
 			})).ShouldNot(Succeed())
-
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
-				aw.Spec.Components[0].PodSets[0].ReplicaPath = "bad"
-			})).ShouldNot(Succeed())
 		})
 	})
 

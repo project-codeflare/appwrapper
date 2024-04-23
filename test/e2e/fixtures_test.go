@@ -25,6 +25,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
@@ -158,7 +159,7 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{ReplicaPath: "template.spec.replicas", PodPath: "template.spec.template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), PodPath: "template.spec.template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -198,7 +199,7 @@ func statefulset(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperCom
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{ReplicaPath: "template.spec.replicas", PodPath: "template.spec.template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), PodPath: "template.spec.template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -334,7 +335,7 @@ func pytorchjob(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWra
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
-			{ReplicaPath: "template.spec.pytorchReplicaSpecs.Worker.replicas", PodPath: "template.spec.pytorchReplicaSpecs.Worker.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), PodPath: "template.spec.pytorchReplicaSpecs.Worker.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
@@ -390,7 +391,7 @@ func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapper
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
 			{PodPath: "template.spec.replicatedJobs[0].template.spec.template"},
-			{ReplicaPath: "template.spec.replicatedJobs[1].template.spec.parallelism", PodPath: "template.spec.replicatedJobs[1].template.spec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), PodPath: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}

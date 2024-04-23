@@ -59,10 +59,6 @@ type AppWrapperPodSet struct {
 	//+optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// ReplicaPath is the path within Component.Template to the replica count for this PodSet
-	//+optional
-	ReplicaPath string `json:"replicaPath,omitempty"`
-
 	// PodPath is the path Component.Template to the PodTemplateSpec for this PodSet
 	PodPath string `json:"podPath"`
 }

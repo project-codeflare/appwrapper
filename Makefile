@@ -83,7 +83,7 @@ generate: controller-gen ## Generate code containing DeepCopy, DeepCopyInto, and
 	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
 
 .PHONY: generate-apiref
-generate-apiref: genref
+generate-apiref: genref ## Generate API Reference for project website.
 	cd  site/genref && $(GENREF)  -o ../_pages
 
 .PHONY: fmt

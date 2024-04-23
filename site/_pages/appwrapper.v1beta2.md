@@ -126,13 +126,6 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
    <p>Replicas is the number of pods in this PodSet</p>
 </td>
 </tr>
-<tr><td><code>replicaPath</code><br/>
-<code>string</code>
-</td>
-<td>
-   <p>ReplicaPath is the path within Component.Template to the replica count for this PodSet</p>
-</td>
-</tr>
 <tr><td><code>podPath</code> <B>[Required]</B><br/>
 <code>string</code>
 </td>
