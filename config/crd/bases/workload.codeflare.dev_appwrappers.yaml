@@ -138,10 +138,6 @@ spec:
                             description: PodPath is the path Component.Template to
                               the PodTemplateSpec for this PodSet
                             type: string
-                          replicaPath:
-                            description: ReplicaPath is the path within Component.Template
-                              to the replica count for this PodSet
-                            type: string
                           replicas:
                             description: Replicas is the number of pods in this PodSet
                             format: int32

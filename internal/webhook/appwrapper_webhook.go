@@ -62,10 +62,6 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	if w.Config.EnableKueueIntegrations {
 		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
 	}
-	if err := expandPodSets(ctx, aw); err != nil {
-		log.FromContext(ctx).Info("Error raised during podSet expansion", "job", aw)
-		return err
-	}
 	return nil
 }
 
@@ -100,44 +96,6 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 // ValidateDelete is a noop for us, but is required to implement the CustomValidator interface
 func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	return nil, nil
-}
-
-// expandPodSets expands and simplifies the AppWrapper's PodSets
-func expandPodSets(_ context.Context, aw *workloadv1beta2.AppWrapper) error {
-	components := aw.Spec.Components
-	componentsPath := field.NewPath("spec").Child("components")
-	for idx, component := range components {
-		compPath := componentsPath.Index(idx)
-		podSetsPath := compPath.Child("podSets")
-
-		// TODO: Here is where we would automatically create elided PodSets for known GVKs
-		//       See https://github.com/project-codeflare/appwrapper/issues/65
-
-		// Evaluate any ReplicaPaths and expand them to Replicas to simplify later processing
-		for psIdx, ps := range component.PodSets {
-			podSetPath := podSetsPath.Index(psIdx)
-			if ps.ReplicaPath != "" {
-				unstruct := &unstructured.Unstructured{}
-				_, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
-				if err != nil {
-					return field.Invalid(compPath.Child("template"), component.Template, "failed to decode as JSON")
-				}
-
-				if rc, err := utils.GetReplicas(unstruct, ps.ReplicaPath); err != nil {
-					return field.Invalid(podSetPath.Child("replicaPath"), ps.ReplicaPath,
-						fmt.Sprintf("replicaPath does not refer to an int: %v", err))
-				} else {
-					if ps.Replicas != nil && *ps.Replicas != rc {
-						return field.Invalid(podSetPath.Child("replicas"), ps.Replicas,
-							fmt.Sprintf("does not match value %v at path %v", rc, ps.ReplicaPath))
-					}
-					component.PodSets[psIdx].Replicas = &rc
-				}
-			}
-		}
-
-	}
-	return nil
 }
 
 // rbacs required to enable SubjectAccessReview
@@ -261,9 +219,6 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 				}
 				if oldComponent.PodSets[psIdx].PodPath != newComponent.PodSets[psIdx].PodPath {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("podPath"), msg))
-				}
-				if oldComponent.PodSets[psIdx].ReplicaPath != newComponent.PodSets[psIdx].ReplicaPath {
-					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replciaPath"), msg))
 				}
 			}
 		}
