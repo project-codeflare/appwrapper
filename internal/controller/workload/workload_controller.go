@@ -85,7 +85,7 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 			}
 			for psIdx, podSet := range component.PodSets {
 				replicas := utils.Replicas(podSet)
-				if template, err := utils.GetPodTemplateSpec(obj, podSet.PodPath); err == nil {
+				if template, err := utils.GetPodTemplateSpec(obj, podSet.Path); err == nil {
 					podSets = append(podSets, kueue.PodSet{
 						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, psIdx),
 						Template: *template,

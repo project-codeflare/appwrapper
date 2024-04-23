@@ -59,8 +59,8 @@ type AppWrapperPodSet struct {
 	//+optional
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// PodPath is the path Component.Template to the PodTemplateSpec for this PodSet
-	PodPath string `json:"podPath"`
+	// Path is the path Component.Template to the PodTemplateSpec for this PodSet
+	Path string `json:"path"`
 }
 
 // AppWrapperPodSetInfo contains the data that Kueue wants to inject into an admitted PodSpecTemplate

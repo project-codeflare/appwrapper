@@ -16,7 +16,7 @@ spec:
   components:
   - podSets:
     - replicas: 1
-      podPath: template.spec.template
+      path: template.spec.template
     template:
       apiVersion: batch/v1
       kind: Job

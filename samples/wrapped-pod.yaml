@@ -8,7 +8,7 @@ spec:
   components:
   - podSets:
     - replicas: 1
-      podPath: template
+      path: template
     template:
       apiVersion: v1
       kind: Pod

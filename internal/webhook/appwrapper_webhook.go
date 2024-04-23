@@ -173,11 +173,11 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 		podSetsPath := compPath.Child("podSets")
 		for psIdx, ps := range component.PodSets {
 			podSetPath := podSetsPath.Index(psIdx)
-			if ps.PodPath == "" {
-				allErrors = append(allErrors, field.Required(podSetPath.Child("podPath"), "podspec must specify path"))
+			if ps.Path == "" {
+				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
-			if _, err := utils.GetPodTemplateSpec(unstruct, ps.PodPath); err != nil {
-				allErrors = append(allErrors, field.Invalid(podSetPath.Child("podPath"), ps.PodPath,
+			if _, err := utils.GetPodTemplateSpec(unstruct, ps.Path); err != nil {
+				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
 					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}
 			podSpecCount += 1
@@ -217,8 +217,8 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 				if utils.Replicas(oldComponent.PodSets[psIdx]) != utils.Replicas(newComponent.PodSets[psIdx]) {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replicas"), msg))
 				}
-				if oldComponent.PodSets[psIdx].PodPath != newComponent.PodSets[psIdx].PodPath {
-					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("podPath"), msg))
+				if oldComponent.PodSets[psIdx].Path != newComponent.PodSets[psIdx].Path {
+					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("path"), msg))
 				}
 			}
 		}

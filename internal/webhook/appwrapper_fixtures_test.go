@@ -81,7 +81,7 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{PodPath: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -111,7 +111,7 @@ func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperC
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{PodPath: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -174,7 +174,7 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), PodPath: "template.spec.template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), Path: "template.spec.template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -364,8 +364,8 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
-			{Replicas: ptr.To(int32(1)), PodPath: "template.spec.headGroupSpec.template"},
-			{Replicas: ptr.To(int32(workerCount)), PodPath: "template.spec.workerGroupSpecs[0].template"},
+			{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"},
+			{Replicas: ptr.To(int32(workerCount)), Path: "template.spec.workerGroupSpecs[0].template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
@@ -420,8 +420,8 @@ func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapper
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets: []workloadv1beta2.AppWrapperPodSet{
-			{PodPath: "template.spec.replicatedJobs[0].template.spec.template"},
-			{Replicas: ptr.To(int32(replicasWorker)), PodPath: "template.spec.replicatedJobs[1].template.spec.template"},
+			{Path: "template.spec.replicatedJobs[0].template.spec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}

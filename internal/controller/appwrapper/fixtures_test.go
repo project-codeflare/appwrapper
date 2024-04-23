@@ -107,7 +107,7 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), PodPath: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -134,7 +134,7 @@ func malformedPod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
-		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), PodPath: "template"}},
+		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
