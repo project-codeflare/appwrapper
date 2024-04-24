@@ -24,9 +24,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/utils/ptr"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
+
+const templateString = "template"
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
 func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
@@ -92,11 +96,11 @@ func GetRawTemplate(obj map[string]interface{}, path string) (map[string]interfa
 
 // get the value found at the given path or an error if the path is invalid
 func getValueAtPath(obj map[string]interface{}, path string) (interface{}, error) {
-	if !strings.HasPrefix(path, "template") {
+	processed := templateString
+	if !strings.HasPrefix(path, processed) {
 		return nil, fmt.Errorf("first element of the path must be 'template'")
 	}
-	remaining := strings.TrimPrefix(path, "template")
-	processed := "template"
+	remaining := strings.TrimPrefix(path, processed)
 	var cursor interface{} = obj
 
 	for remaining != "" {
@@ -166,4 +170,141 @@ func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 		}
 	}
 	return expected
+}
+
+// InferReplicas parses the value at the given path within obj as an int or return 1 or error
+func InferReplicas(obj map[string]interface{}, path string) (int32, error) {
+	if path == "" {
+		// no path specified, default to one replica
+		return 1, nil
+	}
+
+	// check obj is well formed
+	index := strings.LastIndex(path, ".")
+	if index >= 0 {
+		var err error
+		obj, err = GetRawTemplate(obj, path[:index])
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	// check type and value
+	switch v := obj[path[index+1:]].(type) {
+	case nil:
+		return 1, nil // default to 1
+	case int:
+		return int32(v), nil
+	case int32:
+		return v, nil
+	case int64:
+		return int32(v), nil
+	default:
+		return 0, fmt.Errorf("at path position '%v' non-int value %v", path, v)
+	}
+}
+
+// where to find a replica count and a PodTemplateSpec in a resource
+type resourceTemplate struct {
+	path     string // path to pod template spec
+	replicas string // path to replica count
+}
+
+// map from known GVKs to resource templates
+var templatesForGVK = map[schema.GroupVersionKind][]resourceTemplate{
+	{Group: "", Version: "v1", Kind: "Pod"}:             {{path: "template"}},
+	{Group: "apps", Version: "v1", Kind: "Deployment"}:  {{path: "template.spec.template", replicas: "template.spec.replicas"}},
+	{Group: "apps", Version: "v1", Kind: "StatefulSet"}: {{path: "template.spec.template", replicas: "template.spec.replicas"}},
+}
+
+// InferPodSets infers PodSets for known GVKs
+func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperPodSet, error) {
+	gvk := obj.GroupVersionKind()
+	podSets := []workloadv1beta2.AppWrapperPodSet{}
+
+	switch gvk {
+	case schema.GroupVersionKind{Group: "batch", Version: "v1", Kind: "Job"}:
+		var replicas int32 = 1
+		if parallelism, err := GetReplicas(obj, "template.spec.parallelism"); err == nil {
+			replicas = parallelism
+		}
+		if completions, err := GetReplicas(obj, "template.spec.completions"); err == nil && completions < replicas {
+			replicas = completions
+		}
+		podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: "template.spec.template"})
+
+	case schema.GroupVersionKind{Group: "kubeflow.org", Version: "v1", Kind: "PyTorchJob"}:
+		for _, replicaType := range []string{"Master", "Worker"} {
+			prefix := "template.spec.pytorchReplicaSpecs." + replicaType + "."
+			// validate path to replica template
+			if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+"template"); err == nil {
+				// infer replica count
+				replicas, err := InferReplicas(obj.UnstructuredContent(), prefix+"replicas")
+				if err != nil {
+					return nil, err
+				}
+				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + "template"})
+			}
+		}
+
+	default:
+		for _, template := range templatesForGVK[gvk] {
+			// validate path to template
+			if _, err := getValueAtPath(obj.UnstructuredContent(), template.path); err == nil {
+				replicas, err := InferReplicas(obj.UnstructuredContent(), template.replicas)
+				// infer replica count
+				if err != nil {
+					return nil, err
+				}
+				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: template.path})
+			}
+		}
+	}
+
+	return podSets, nil
+}
+
+// ValidatePodSets compares declared and inferred PodSets for known GVKs
+func ValidatePodSets(obj *unstructured.Unstructured, podSets []workloadv1beta2.AppWrapperPodSet) error {
+	declared := map[string]workloadv1beta2.AppWrapperPodSet{}
+
+	// construct a map with declared PodSets and find duplicates
+	for _, p := range podSets {
+		if _, ok := declared[p.Path]; ok {
+			return fmt.Errorf("duplicate PodSets with path '%v'", p.Path)
+		}
+		declared[p.Path] = p
+	}
+
+	// infer PodSets
+	inferred, err := InferPodSets(obj)
+	if err != nil {
+		return err
+	}
+
+	// nothing inferred, nothing to validate
+	if len(inferred) == 0 {
+		return nil
+	}
+
+	// compare PodSet counts
+	if len(inferred) != len(declared) {
+		return fmt.Errorf("PodSet count %v differs from expected count %v", len(declared), len(inferred))
+	}
+
+	// match inferred PodSets to declared PodSets
+	for _, ips := range inferred {
+		dps, ok := declared[ips.Path]
+		if !ok {
+			return fmt.Errorf("PodSet with path '%v' is missing", ips.Path)
+		}
+
+		ipr := ptr.Deref(ips.Replicas, 1)
+		dpr := ptr.Deref(dps.Replicas, 1)
+		if ipr != dpr {
+			return fmt.Errorf("replica count %v differs from expected count %v for PodSet at path position '%v'", dpr, ipr, ips.Path)
+		}
+	}
+
+	return nil
 }
