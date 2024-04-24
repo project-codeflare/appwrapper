@@ -80,7 +80,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return nil, err, true
 	}
-	if r.Config.EnableKueueIntegrations {
+	if r.Config.EnableKueueIntegrations && !r.Config.DisableChildAdmissionCtrl {
 		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
 	} else {
 		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name}))
