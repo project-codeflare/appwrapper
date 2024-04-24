@@ -30,6 +30,7 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -42,6 +43,11 @@ import (
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
+)
+
+const (
+	AppWrapperUsernameLabel = "workload.codeflare.dev/user"
+	AppWrapperUserIDLabel   = "workload.codeflare.dev/userid"
 )
 
 type AppWrapperWebhook struct {
@@ -66,6 +72,14 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 		log.FromContext(ctx).Info("Error raised during podSet inference", "job", aw)
 		return err
 	}
+
+	// inject labels with user name and id
+	request, err := admission.RequestFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	userInfo := request.UserInfo
+	aw.SetLabels(utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: userInfo.Username, AppWrapperUserIDLabel: userInfo.UID}, aw.GetLabels()))
 	return nil
 }
 
@@ -256,6 +270,14 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 				}
 			}
 		}
+	}
+
+	// ensure user name and id are not mutated
+	if old.GetLabels()[AppWrapperUsernameLabel] != new.GetLabels()[AppWrapperUsernameLabel] {
+		allErrors = append(allErrors, field.Forbidden(field.NewPath("metadata").Child("labels").Key(AppWrapperUsernameLabel), msg))
+	}
+	if old.GetLabels()[AppWrapperUserIDLabel] != new.GetLabels()[AppWrapperUserIDLabel] {
+		allErrors = append(allErrors, field.Forbidden(field.NewPath("metadata").Child("labels").Key(AppWrapperUserIDLabel), msg))
 	}
 
 	return allErrors
