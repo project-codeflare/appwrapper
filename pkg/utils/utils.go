@@ -118,8 +118,8 @@ func getValueAtPath(obj map[string]interface{}, path string) (interface{}, error
 				return nil, fmt.Errorf("at path position '%v' out of bounds index '%v'", processed, index)
 			}
 			cursor = asArray[index]
-			remaining = remaining[end+1:]
 			processed += remaining[0:end]
+			remaining = remaining[end+1:]
 		} else if strings.HasPrefix(remaining, ".") {
 			// Field reference expression
 			remaining = remaining[1:]
