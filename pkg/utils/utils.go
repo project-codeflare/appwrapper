@@ -237,13 +237,34 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 		for _, replicaType := range []string{"Master", "Worker"} {
 			prefix := "template.spec.pytorchReplicaSpecs." + replicaType + "."
 			// validate path to replica template
-			if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+"template"); err == nil {
+			if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+templateString); err == nil {
 				// infer replica count
 				replicas, err := InferReplicas(obj.UnstructuredContent(), prefix+"replicas")
 				if err != nil {
 					return nil, err
 				}
-				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + "template"})
+				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + templateString})
+			}
+		}
+
+	case schema.GroupVersionKind{Group: "ray.io", Version: "v1", Kind: "RayCluster"}:
+		if _, err := getValueAtPath(obj.UnstructuredContent(), "template.spec.headGroupSpec.template"); err == nil {
+			podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"})
+		}
+		if workers, err := getValueAtPath(obj.UnstructuredContent(), "template.spec.workerGroupSpecs"); err == nil {
+			if workers, ok := workers.([]interface{}); ok {
+				for i := range workers {
+					prefix := fmt.Sprintf("template.spec.workerGroupSpecs[%v].", i)
+					// validate path to replica template
+					if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+templateString); err == nil {
+						// infer replica count
+						replicas, err := InferReplicas(obj.UnstructuredContent(), prefix+"replicas")
+						if err != nil {
+							return nil, err
+						}
+						podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + templateString})
+					}
+				}
 			}
 		}
 

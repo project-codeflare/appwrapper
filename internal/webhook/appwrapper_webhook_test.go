@@ -191,13 +191,23 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 
-		It("PodSets are inferred for known GVKs", func() {
-			aw := toAppWrapper(pod(100), deploymentForInference(1, 100), podForInference(100),
-				jobForInference(2, 4, 100), jobForInference(8, 4, 100), pytorchJobForInference(100, 4, 100))
+		Context("PodSets are inferred for known GVKs", func() {
+			It("PodSets are inferred for common kinds", func() {
+				aw := toAppWrapper(pod(100), deploymentForInference(1, 100), podForInference(100),
+					jobForInference(2, 4, 100), jobForInference(8, 4, 100))
 
-			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets for deployments and pods should be inferred")
-			Expect(aw.Spec.Suspend).Should(BeTrue())
-			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+				Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets should be inferred")
+				Expect(aw.Spec.Suspend).Should(BeTrue())
+				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+			})
+
+			It("PodSets are inferred for PyTorchJobs and RayClusters", func() {
+				aw := toAppWrapper(pytorchJobForInference(100, 4, 100), rayClusterForInference(7, 100))
+
+				Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets should be inferred")
+				Expect(aw.Spec.Suspend).Should(BeTrue())
+				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+			})
 		})
 	})
 

@@ -396,6 +396,20 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 	}
 }
 
+func rayClusterForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	workerCPU := resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
+	yamlString := fmt.Sprintf(rayClusterYAML,
+		randName("raycluster"),
+		workerCount, workerCount, workerCount,
+		workerCPU)
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 const jobSetYAML = `
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
