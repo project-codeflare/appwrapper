@@ -47,11 +47,13 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 			return fmt.Errorf("workload controller: %w", err)
 		}
 
-		if err := (&workload.ChildWorkloadReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
-		}).SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("child admission controller: %w", err)
+		if !awConfig.DisableChildAdmissionCtrl {
+			if err := (&workload.ChildWorkloadReconciler{
+				Client: mgr.GetClient(),
+				Scheme: mgr.GetScheme(),
+			}).SetupWithManager(mgr); err != nil {
+				return fmt.Errorf("child admission controller: %w", err)
+			}
 		}
 	}
 
