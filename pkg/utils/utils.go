@@ -172,8 +172,8 @@ func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	return expected
 }
 
-// InferReplicas parses the value at the given path within obj as an int or return 1 or error
-func InferReplicas(obj map[string]interface{}, path string) (int32, error) {
+// inferReplicas parses the value at the given path within obj as an int or return 1 or error
+func inferReplicas(obj map[string]interface{}, path string) (int32, error) {
 	if path == "" {
 		// no path specified, default to one replica
 		return 1, nil
@@ -217,6 +217,30 @@ var templatesForGVK = map[schema.GroupVersionKind][]resourceTemplate{
 	{Group: "apps", Version: "v1", Kind: "StatefulSet"}: {{path: "template.spec.template", replicas: "template.spec.replicas"}},
 }
 
+// inferPodSets infers PodSets for RayJobs and RayClusters
+func inferRayPodSets(obj *unstructured.Unstructured, clusterSpecPrefix string) ([]workloadv1beta2.AppWrapperPodSet, error) {
+	podSets := []workloadv1beta2.AppWrapperPodSet{}
+
+	podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(int32(1)), Path: clusterSpecPrefix + "headGroupSpec.template"})
+	if workers, err := getValueAtPath(obj.UnstructuredContent(), clusterSpecPrefix+"workerGroupSpecs"); err == nil {
+		if workers, ok := workers.([]interface{}); ok {
+			for i := range workers {
+				workerGroupSpecPrefix := fmt.Sprintf(clusterSpecPrefix+"workerGroupSpecs[%v].", i)
+				// validate path to replica template
+				if _, err := getValueAtPath(obj.UnstructuredContent(), workerGroupSpecPrefix+templateString); err == nil {
+					// infer replica count
+					replicas, err := inferReplicas(obj.UnstructuredContent(), workerGroupSpecPrefix+"replicas")
+					if err != nil {
+						return nil, err
+					}
+					podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: workerGroupSpecPrefix + templateString})
+				}
+			}
+		}
+	}
+	return podSets, nil
+}
+
 // InferPodSets infers PodSets for known GVKs
 func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperPodSet, error) {
 	gvk := obj.GroupVersionKind()
@@ -239,7 +263,7 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 			// validate path to replica template
 			if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+templateString); err == nil {
 				// infer replica count
-				replicas, err := InferReplicas(obj.UnstructuredContent(), prefix+"replicas")
+				replicas, err := inferReplicas(obj.UnstructuredContent(), prefix+"replicas")
 				if err != nil {
 					return nil, err
 				}
@@ -248,31 +272,24 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 		}
 
 	case schema.GroupVersionKind{Group: "ray.io", Version: "v1", Kind: "RayCluster"}:
-		if _, err := getValueAtPath(obj.UnstructuredContent(), "template.spec.headGroupSpec.template"); err == nil {
-			podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"})
+		rayPodSets, err := inferRayPodSets(obj, "template.spec.")
+		if err != nil {
+			return nil, err
 		}
-		if workers, err := getValueAtPath(obj.UnstructuredContent(), "template.spec.workerGroupSpecs"); err == nil {
-			if workers, ok := workers.([]interface{}); ok {
-				for i := range workers {
-					prefix := fmt.Sprintf("template.spec.workerGroupSpecs[%v].", i)
-					// validate path to replica template
-					if _, err := getValueAtPath(obj.UnstructuredContent(), prefix+templateString); err == nil {
-						// infer replica count
-						replicas, err := InferReplicas(obj.UnstructuredContent(), prefix+"replicas")
-						if err != nil {
-							return nil, err
-						}
-						podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + templateString})
-					}
-				}
-			}
+		podSets = append(podSets, rayPodSets...)
+
+	case schema.GroupVersionKind{Group: "ray.io", Version: "v1", Kind: "RayJob"}:
+		rayPodSets, err := inferRayPodSets(obj, "template.spec.rayClusterSpec.")
+		if err != nil {
+			return nil, err
 		}
+		podSets = append(podSets, rayPodSets...)
 
 	default:
 		for _, template := range templatesForGVK[gvk] {
 			// validate path to template
 			if _, err := getValueAtPath(obj.UnstructuredContent(), template.path); err == nil {
-				replicas, err := InferReplicas(obj.UnstructuredContent(), template.replicas)
+				replicas, err := inferReplicas(obj.UnstructuredContent(), template.replicas)
 				// infer replica count
 				if err != nil {
 					return nil, err

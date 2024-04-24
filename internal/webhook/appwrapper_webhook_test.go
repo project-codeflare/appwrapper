@@ -201,8 +201,8 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 			})
 
-			It("PodSets are inferred for PyTorchJobs and RayClusters", func() {
-				aw := toAppWrapper(pytorchJobForInference(100, 4, 100), rayClusterForInference(7, 100))
+			It("PodSets are inferred for PyTorchJobs, RayClusters, and RayJobs", func() {
+				aw := toAppWrapper(pytorchJobForInference(100, 4, 100), rayClusterForInference(7, 100), rayJobForInference(7, 100))
 
 				Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets should be inferred")
 				Expect(aw.Spec.Suspend).Should(BeTrue())

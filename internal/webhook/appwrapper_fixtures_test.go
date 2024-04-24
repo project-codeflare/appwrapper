@@ -549,3 +549,44 @@ func pytorchJobForInference(masterMilliCPU int64, workerReplicas int, workerMill
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
+
+const rayJobYAML = `
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: %v
+spec:
+  rayClusterSpec:
+    headGroupSpec:
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              image: rayproject/ray:2.9.0
+              resources:
+                requests:
+                  cpu: 1
+    workerGroupSpecs:
+      - replicas: %v
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                image: rayproject/ray:2.9.0
+                resources:
+                  requests:
+                    cpu: %v
+`
+
+func rayJobForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(rayJobYAML,
+		randName("rayjob"),
+		workerCount,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
