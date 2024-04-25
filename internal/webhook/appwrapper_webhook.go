@@ -62,6 +62,10 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	if w.Config.EnableKueueIntegrations {
 		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
 	}
+	if err := inferPodSets(ctx, aw); err != nil {
+		log.FromContext(ctx).Info("Error raised during podSet inference", "job", aw)
+		return err
+	}
 	return nil
 }
 
@@ -96,6 +100,30 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 // ValidateDelete is a noop for us, but is required to implement the CustomValidator interface
 func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	return nil, nil
+}
+
+// inferPodSets infers the AppWrapper's PodSets
+func inferPodSets(_ context.Context, aw *workloadv1beta2.AppWrapper) error {
+	components := aw.Spec.Components
+	componentsPath := field.NewPath("spec").Child("components")
+	for idx, component := range components {
+		compPath := componentsPath.Index(idx)
+
+		// Automatically create elided PodSets for known GVKs
+		if len(component.PodSets) == 0 {
+			unstruct := &unstructured.Unstructured{}
+			_, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
+			if err != nil {
+				return field.Invalid(compPath.Child("template"), component.Template, "failed to decode as JSON")
+			}
+			podSets, err := utils.InferPodSets(unstruct)
+			if err != nil {
+				return err
+			}
+			components[idx].PodSets = podSets
+		}
+	}
+	return nil
 }
 
 // rbacs required to enable SubjectAccessReview
@@ -182,9 +210,15 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 			}
 			podSpecCount += 1
 		}
+
+		// 5. Validate PodSets for known GVKs
+		if err := utils.ValidatePodSets(unstruct, component.PodSets); err != nil {
+			allErrors = append(allErrors, field.Invalid(podSetsPath, component.PodSets, err.Error()))
+		}
+
 	}
 
-	// 5. Enforce Kueue limitation that 0 < podSpecCount <= 8
+	// 6. Enforce Kueue limitation that 0 < podSpecCount <= 8
 	if podSpecCount == 0 {
 		allErrors = append(allErrors, field.Invalid(componentsPath, components, "components contains no podspecs"))
 	}

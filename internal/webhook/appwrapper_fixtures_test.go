@@ -86,6 +86,18 @@ func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
+func podForInference(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(podYAML,
+		randName("pod"),
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 const namespacedPodYAML = `
 apiVersion: v1
 kind: Pod
@@ -175,6 +187,19 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 	Expect(err).NotTo(HaveOccurred())
 	return workloadv1beta2.AppWrapperComponent{
 		PodSets:  []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), Path: "template.spec.template"}},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+func deploymentForInference(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(deploymentYAML,
+		randName("deployment"),
+		replicaCount,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -371,6 +396,20 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 	}
 }
 
+func rayClusterForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	workerCPU := resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
+	yamlString := fmt.Sprintf(rayClusterYAML,
+		randName("raycluster"),
+		workerCount, workerCount, workerCount,
+		workerCPU)
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 const jobSetYAML = `
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
@@ -423,6 +462,131 @@ func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapper
 			{Path: "template.spec.replicatedJobs[0].template.spec.template"},
 			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const jobYAML = `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: %v
+spec:
+  parallelism: %v
+  completions: %v
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 30"]
+        resources:
+          requests:
+            cpu: %v`
+
+func jobForInference(parallelism int, completions int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(jobYAML,
+		randName("job"),
+		parallelism,
+		completions,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const pytorchJobYAML = `
+apiVersion: "kubeflow.org/v1"
+kind: PyTorchJob
+metadata:
+  name: %v
+spec:
+  pytorchReplicaSpecs:
+    Master:
+      restartPolicy: OnFailure
+      template:
+        spec:
+          containers:
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
+            resources:
+              requests:
+                cpu: %v
+    Worker:
+      replicas: %v
+      restartPolicy: OnFailure
+      template:
+        spec:
+          containers:
+          - name: pytorch
+            image: docker.io/kubeflowkatib/pytorch-mnist-cpu:v1beta1-fc858d1
+            command:
+            - "python3"
+            - "/opt/pytorch-mnist/mnist.py"
+            - "--epochs=1"
+            resources:
+              requests:
+                cpu: %v`
+
+func pytorchJobForInference(masterMilliCPU int64, workerReplicas int, workerMilliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(pytorchJobYAML,
+		randName("pytorch-job"),
+		resource.NewMilliQuantity(masterMilliCPU, resource.DecimalSI),
+		workerReplicas,
+		resource.NewMilliQuantity(workerMilliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+const rayJobYAML = `
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: %v
+spec:
+  rayClusterSpec:
+    headGroupSpec:
+      template:
+        spec:
+          containers:
+            - name: ray-head
+              image: rayproject/ray:2.9.0
+              resources:
+                requests:
+                  cpu: 1
+    workerGroupSpecs:
+      - replicas: %v
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                image: rayproject/ray:2.9.0
+                resources:
+                  requests:
+                    cpu: %v
+`
+
+func rayJobForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(rayJobYAML,
+		randName("rayjob"),
+		workerCount,
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
