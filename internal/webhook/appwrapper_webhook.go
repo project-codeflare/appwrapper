@@ -79,7 +79,7 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 		return err
 	}
 	userInfo := request.UserInfo
-	aw.SetLabels(utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: userInfo.Username, AppWrapperUserIDLabel: userInfo.UID}, aw.GetLabels()))
+	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: userInfo.Username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
 	return nil
 }
 
@@ -273,10 +273,10 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 	}
 
 	// ensure user name and id are not mutated
-	if old.GetLabels()[AppWrapperUsernameLabel] != new.GetLabels()[AppWrapperUsernameLabel] {
+	if old.Labels[AppWrapperUsernameLabel] != new.Labels[AppWrapperUsernameLabel] {
 		allErrors = append(allErrors, field.Forbidden(field.NewPath("metadata").Child("labels").Key(AppWrapperUsernameLabel), msg))
 	}
-	if old.GetLabels()[AppWrapperUserIDLabel] != new.GetLabels()[AppWrapperUserIDLabel] {
+	if old.Labels[AppWrapperUserIDLabel] != new.Labels[AppWrapperUserIDLabel] {
 		allErrors = append(allErrors, field.Forbidden(field.NewPath("metadata").Child("labels").Key(AppWrapperUserIDLabel), msg))
 	}
 
