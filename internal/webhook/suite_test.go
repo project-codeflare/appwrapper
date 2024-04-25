@@ -60,6 +60,9 @@ var testEnv *envtest.Environment
 var ctx context.Context
 var cancel context.CancelFunc
 
+const limitedUserName = "limited-user"
+const limitedUserID = "8da0fcfe-6d7f-4f44-b433-d91d22cc1b8c"
+
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
@@ -115,9 +118,8 @@ var _ = BeforeSuite(func() {
 	Expect(k8sClient).NotTo(BeNil())
 
 	// configure a restricted rbac user who can create AppWrappers and Pods but not Deployments
-	limitedUserName := "limited-user"
 	limitedCfg := *cfg
-	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName, Extra: map[string][]string{"xyzzy": {"plugh"}}}
+	limitedCfg.Impersonate = rest.ImpersonationConfig{UserName: limitedUserName, UID: string(limitedUserID), Extra: map[string][]string{"xyzzy": {"plugh"}}}
 	_, err = testEnv.AddUser(envtest.User{Name: limitedUserName, Groups: []string{}}, &limitedCfg)
 	Expect(err).NotTo(HaveOccurred())
 	clusterRole := &rbacv1.ClusterRole{

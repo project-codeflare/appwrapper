@@ -39,6 +39,15 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
+
+		It("User name and ID are set", func() {
+			aw := toAppWrapper(pod(100))
+
+			Expect(k8sLimitedClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.GetLabels()[AppWrapperUsernameLabel]).Should(BeIdenticalTo(limitedUserName))
+			Expect(aw.GetLabels()[AppWrapperUserIDLabel]).Should(BeIdenticalTo(limitedUserID))
+			Expect(k8sLimitedClient.Delete(ctx, aw)).To(Succeed())
+		})
 	})
 
 	Context("Validating Webhook", func() {
@@ -126,6 +135,36 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Template: runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
+		})
+
+		It("User name and ID are immutable", func() {
+			aw := toAppWrapper(pod(100))
+			awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+			Expect(k8sClient.Create(ctx, aw)).Should(Succeed())
+
+			aw = getAppWrapper(awName)
+			aw.Labels[AppWrapperUsernameLabel] = "bad"
+			Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+			aw = getAppWrapper(awName)
+			aw.Labels[AppWrapperUserIDLabel] = "bad"
+			Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
+
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+		})
+
+		It("User name and ID should be preserved on updates", func() {
+			aw := toAppWrapper(pod(100))
+			awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+			Expect(k8sLimitedClient.Create(ctx, aw)).Should(Succeed())
+
+			aw = getAppWrapper(awName)
+			Expect(k8sClient.Update(ctx, aw)).Should(Succeed())
+
+			aw = getAppWrapper(awName)
+			Expect(aw.GetLabels()[AppWrapperUsernameLabel]).Should(BeIdenticalTo(limitedUserName))
+			Expect(aw.GetLabels()[AppWrapperUserIDLabel]).Should(BeIdenticalTo(limitedUserID))
+			Expect(k8sLimitedClient.Delete(ctx, aw)).To(Succeed())
 		})
 
 		Context("aw.Spec.Components is immutable", func() {
