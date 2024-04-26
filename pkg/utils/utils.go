@@ -18,6 +18,7 @@ package utils
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -345,4 +346,19 @@ func ValidatePodSets(obj *unstructured.Unstructured, podSets []workloadv1beta2.A
 	}
 
 	return nil
+}
+
+var labelRegex = regexp.MustCompile(`[^-_.\w]`)
+
+// SanitizeLabel sanitizes a string for use as a label
+func SanitizeLabel(label string) string {
+	// truncate to max length
+	if len(label) > 63 {
+		label = label[0:63]
+	}
+	// replace invalid characters with underscores
+	label = labelRegex.ReplaceAllString(label, "_")
+	// trim non-alphanumeric characters at both ends
+	label = strings.Trim(label, "-_.")
+	return label
 }
