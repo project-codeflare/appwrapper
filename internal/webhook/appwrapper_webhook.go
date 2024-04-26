@@ -182,33 +182,35 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 		}
 
 		// 3. RBAC check: Perform SubjectAccessReview to verify user is entitled to create component
-		ra := authv1.ResourceAttributes{
-			Namespace: aw.Namespace,
-			Verb:      "create",
-			Group:     gvk.Group,
-			Version:   gvk.Version,
-			Resource:  w.lookupResource(gvk),
-		}
-		sar := &authv1.SubjectAccessReview{
-			Spec: authv1.SubjectAccessReviewSpec{
-				ResourceAttributes: &ra,
-				User:               userInfo.Username,
-				UID:                userInfo.UID,
-				Groups:             userInfo.Groups,
-			}}
-		if len(userInfo.Extra) > 0 {
-			sar.Spec.Extra = make(map[string]authv1.ExtraValue, len(userInfo.Extra))
-			for k, v := range userInfo.Extra {
-				sar.Spec.Extra[k] = authv1.ExtraValue(v)
+		if w.Config.UserRBACAdmissionCheck {
+			ra := authv1.ResourceAttributes{
+				Namespace: aw.Namespace,
+				Verb:      "create",
+				Group:     gvk.Group,
+				Version:   gvk.Version,
+				Resource:  w.lookupResource(gvk),
 			}
-		}
-		sar, err = w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
-		if err != nil {
-			allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
-		} else {
-			if !sar.Status.Allowed {
-				reason := fmt.Sprintf("User %v is not authorized to create %v in %v", userInfo.Username, ra.Resource, ra.Namespace)
-				allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+			sar := &authv1.SubjectAccessReview{
+				Spec: authv1.SubjectAccessReviewSpec{
+					ResourceAttributes: &ra,
+					User:               userInfo.Username,
+					UID:                userInfo.UID,
+					Groups:             userInfo.Groups,
+				}}
+			if len(userInfo.Extra) > 0 {
+				sar.Spec.Extra = make(map[string]authv1.ExtraValue, len(userInfo.Extra))
+				for k, v := range userInfo.Extra {
+					sar.Spec.Extra[k] = authv1.ExtraValue(v)
+				}
+			}
+			sar, err = w.SubjectAccessReviewer.Create(ctx, sar, metav1.CreateOptions{})
+			if err != nil {
+				allErrors = append(allErrors, field.InternalError(compPath.Child("template"), err))
+			} else {
+				if !sar.Status.Allowed {
+					reason := fmt.Sprintf("User %v is not authorized to create %v in %v", userInfo.Username, ra.Resource, ra.Namespace)
+					allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), reason))
+				}
 			}
 		}
 

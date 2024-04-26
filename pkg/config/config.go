@@ -32,6 +32,7 @@ type AppWrapperConfig struct {
 	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
 	EnableKueueIntegrations    bool                  `json:"enableKueueIntegrations,omitempty"`
 	DisableChildAdmissionCtrl  bool                  `json:"disableChildAdmissionCtrl,omitempty"`
+	UserRBACAdmissionCheck     bool                  `json:"userRBACAdmissionCheck,omitempty"`
 	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
 }
 
@@ -77,6 +78,7 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 		ManageJobsWithoutQueueName: true,
 		EnableKueueIntegrations:    true,
 		DisableChildAdmissionCtrl:  false,
+		UserRBACAdmissionCheck:     true,
 		FaultTolerance: &FaultToleranceConfig{
 			WarmupGracePeriod:   5 * time.Minute,
 			FailureGracePeriod:  1 * time.Minute,
