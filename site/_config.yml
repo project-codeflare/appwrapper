@@ -25,7 +25,7 @@ repository: project-codeflare/appwrapper
 
 # Variables for use in pages
 gh_main_url: https://github.com/project-codeflare/appwrapper/blob/main
-appwrapper_version: v0.8.0
+appwrapper_version: v0.10.0
 kueue_version: v0.6.2
 
 # Outputting
