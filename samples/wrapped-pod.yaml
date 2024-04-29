@@ -6,10 +6,7 @@ metadata:
     kueue.x-k8s.io/queue-name: user-queue
 spec:
   components:
-  - podSets:
-    - replicas: 1
-      path: template
-    template:
+  - template:
       apiVersion: v1
       kind: Pod
       metadata:
