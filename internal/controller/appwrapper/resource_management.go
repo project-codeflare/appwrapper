@@ -151,7 +151,17 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	}
 
 	if err := r.Create(ctx, obj); err != nil {
-		if !apierrors.IsAlreadyExists(err) {
+		if apierrors.IsAlreadyExists(err) {
+			// obj is not updated if Create returns an error; Get required for accurate information
+			if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+				return nil, err, false
+			}
+			ctrlRef := metav1.GetControllerOf(obj)
+			if ctrlRef == nil || ctrlRef.Name != aw.Name {
+				return nil, fmt.Errorf("resource %v exists, but is not controlled by appwrapper", obj.GetName()), true
+			}
+			return obj, nil, false // ok -- already exists and the correct appwrapper owns it.
+		} else {
 			return nil, err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
 		}
 	}
