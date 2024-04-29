@@ -1,7 +1,7 @@
 apiVersion: workload.codeflare.dev/v1beta2
 kind: AppWrapper
 metadata:
-  name: sample-pod
+  name: sample-failing-pod
   annotations:
     kueue.x-k8s.io/queue-name: user-queue
     workload.codeflare.dev.appwrapper/failureGracePeriodDuration: 10s
@@ -14,7 +14,7 @@ spec:
       apiVersion: v1
       kind: Pod
       metadata:
-        name: sample-pod
+        name: sample-failing-pod
       spec:
         restartPolicy: Never
         initContainers:
