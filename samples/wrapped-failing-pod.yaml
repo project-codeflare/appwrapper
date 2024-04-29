@@ -10,10 +10,7 @@ metadata:
     workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration: "5m"
 spec:
   components:
-  - podSets:
-    - replicas: 1
-      path: template
-    template:
+  - template:
       apiVersion: v1
       kind: Pod
       metadata:

@@ -14,12 +14,7 @@ metadata:
     kueue.x-k8s.io/queue-name: user-queue
 spec:
   components:
-  - podSets:
-    - replicas: 1
-      path: template.spec.pytorchReplicaSpecs.Master.template
-    - replicas: 1
-      path: template.spec.pytorchReplicaSpecs.Worker.template
-    template:
+  - template:
       apiVersion: "kubeflow.org/v1"
       kind: PyTorchJob
       metadata:
