@@ -62,6 +62,8 @@ can be used to customize them.
 | RetryLimit          |             3 | workload.codeflare.dev.appwrapper/retryLimit                  |
 | DeletionGracePeriod |    10 Minutes | workload.codeflare.dev.appwrapper/deletionGracePeriodDuration |
 | GracePeriodCeiling  |      24 Hours | Not Applicable                                                |
+| SuccessTTLCeiling   |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration          |
+
 
 The `GracePeriodCeiling` imposes an upper limit on the other grace periods to
 reduce the impact of user-added annotations on overall system utilization.
@@ -73,3 +75,8 @@ AppWrapper enters the `Failed` state and when the process of deleting its resour
 begins. Since the AppWrapper continues to consume quota during this delayed deletion period,
 this annotation should be used sparingly and only when interactive debugging of
 the failed workload is being actively pursued.
+
+All child resources for an AppWrapper that successfully completed will be automatically
+deleted `SuccessTTLCeiling` time after the AppWrapper entered the `Succeeded` state.
+This duration can be shortened on a per-AppWrapper basis using the
+`workload.codeflare.dev.appwrapper/successTTLDuration` annotation.

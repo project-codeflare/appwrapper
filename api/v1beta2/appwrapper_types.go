@@ -139,6 +139,7 @@ const (
 	RetryLimitAnnotation                            = "workload.codeflare.dev.appwrapper/retryLimit"
 	DeletionGracePeriodAnnotation                   = "workload.codeflare.dev.appwrapper/deletionGracePeriodDuration"
 	DebuggingFailureDeletionDelayDurationAnnotation = "workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration"
+	SuccessTTLDurationAnnotation                    = "workload.codeflare.dev.appwrapper/successTTLDuration"
 )
 
 //+kubebuilder:object:root=true

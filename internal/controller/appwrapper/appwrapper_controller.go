@@ -208,11 +208,18 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		// Handle Success
 		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
+			msg := fmt.Sprintf("%v pods succeeded and no running, pending, or failed pods", podStatus.succeeded)
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
 				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
-				Message: fmt.Sprintf("%v pods succeeded and no running, pending, or failed pods", podStatus.succeeded),
+				Message: msg,
+			})
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionTrue,
+				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Message: msg,
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSucceeded)
 		}
@@ -370,6 +377,29 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Message: "No resources deployed",
 		})
 		return ctrl.Result{}, r.Status().Update(ctx, aw)
+
+	case workloadv1beta2.AppWrapperSucceeded:
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			deletionDelay := r.timeToLiveAfterSucceededDuration(ctx, aw)
+			whenSucceeded := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+			now := time.Now()
+			deadline := whenSucceeded.Add(deletionDelay)
+			if now.Before(deadline) {
+				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+			}
+
+			if !r.deleteComponents(ctx, aw) {
+				return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+			}
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Status:  metav1.ConditionFalse,
+				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Message: fmt.Sprintf("Time to live after success of %v expired", deletionDelay),
+			})
+			return ctrl.Result{}, r.Status().Update(ctx, aw)
+		}
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -493,6 +523,19 @@ func (r *AppWrapperReconciler) debuggingFailureDeletionDelay(ctx context.Context
 		}
 	}
 	return 0 * time.Second
+}
+
+func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.SuccessTTLDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			if duration > 0 && duration < r.Config.FaultTolerance.SuccessTTLCeiling {
+				return duration
+			}
+		} else {
+			log.FromContext(ctx).Info("Malformed successTTL annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return r.Config.FaultTolerance.SuccessTTLCeiling
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
