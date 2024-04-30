@@ -4,6 +4,7 @@ metadata:
   name: sample-job
   annotations:
     kueue.x-k8s.io/queue-name: user-queue
+    workload.codeflare.dev.appwrapper/successTTLDuration: "1m"
 spec:
   components:
   - template:

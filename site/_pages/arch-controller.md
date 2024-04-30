@@ -114,6 +114,8 @@ but will become false when the Framework Controller succeeds at deleting all res
 in the Resuming phase.
 
 ResourcesDeployed will be true in the Succeeded state (green), but QuotaReserved will be false.
+After a configurable delay, the Framework controller will eventually delete the resources of
+Succeeded AppWrappers and ResourcesDeployed will become false.
 
 Any phase may transition to the Terminating phase (not shown) when the AppWrapper is deleted.
 During the Terminating phase, QuotaReserved and ResourcesDeployed may initially be true

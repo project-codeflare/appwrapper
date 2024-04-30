@@ -43,6 +43,7 @@ type FaultToleranceConfig struct {
 	RetryLimit          int32         `json:"retryLimit,omitempty"`
 	DeletionGracePeriod time.Duration `json:"deletionGracePeriod,omitempty"`
 	GracePeriodCeiling  time.Duration `json:"gracePeriodCeiling,omitempty"`
+	SuccessTTLCeiling   time.Duration `json:"successTTLCeiling,omitempty"`
 }
 
 type CertManagementConfig struct {
@@ -86,6 +87,7 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			RetryLimit:          3,
 			DeletionGracePeriod: 10 * time.Minute,
 			GracePeriodCeiling:  24 * time.Hour,
+			SuccessTTLCeiling:   7 * 24 * time.Hour,
 		},
 	}
 }
@@ -106,6 +108,9 @@ func ValidateAppWrapperConfig(config *AppWrapperConfig) error {
 	if config.FaultTolerance.WarmupGracePeriod > config.FaultTolerance.GracePeriodCeiling {
 		return fmt.Errorf("WarmupGracePeriod %v exceeds GracePeriodCeiling %v",
 			config.FaultTolerance.WarmupGracePeriod, config.FaultTolerance.GracePeriodCeiling)
+	}
+	if config.FaultTolerance.SuccessTTLCeiling <= 0 {
+		return fmt.Errorf("SuccessTTLCeiling %v is not a positive duration", config.FaultTolerance.SuccessTTLCeiling)
 	}
 
 	return nil
