@@ -266,6 +266,9 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 		It("A failed Batch Job yields a failed AppWrapper", func() {
 			aw := toAppWrapper(failingBatchjob(500))
+			if aw.Annotations == nil {
+				aw.Annotations = make(map[string]string)
+			}
 			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "0s"
 			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "0"
 			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())

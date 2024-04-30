@@ -178,9 +178,9 @@ func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1
 	return &workloadv1beta2.AppWrapper{
 		TypeMeta: metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        randName("aw"),
-			Namespace:   testNamespace,
-			Annotations: map[string]string{kc.QueueLabel: testQueueName},
+			Name:      randName("aw"),
+			Namespace: testNamespace,
+			Labels:    map[string]string{kc.QueueLabel: testQueueName},
 		},
 		Spec: workloadv1beta2.AppWrapperSpec{Components: components},
 	}
