@@ -2,8 +2,9 @@ apiVersion: workload.codeflare.dev/v1beta2
 kind: AppWrapper
 metadata:
   name: sample-job
-  annotations:
+  labels:
     kueue.x-k8s.io/queue-name: user-queue
+  annotations:
     workload.codeflare.dev.appwrapper/successTTLDuration: "1m"
 spec:
   components:

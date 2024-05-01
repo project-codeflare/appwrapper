@@ -2,8 +2,9 @@ apiVersion: workload.codeflare.dev/v1beta2
 kind: AppWrapper
 metadata:
   name: sample-failing-job
-  annotations:
+  labels:
     kueue.x-k8s.io/queue-name: user-queue
+  annotations:
     workload.codeflare.dev.appwrapper/failureGracePeriodDuration: 10s
     workload.codeflare.dev.appwrapper/resetPauseDuration: 10s
     workload.codeflare.dev.appwrapper/retryLimit: "3"
