@@ -7,14 +7,17 @@ classes: wide
 ### Overall Design
 
 The `podSets` contained in the AppWrapper specification enable the AppWrapper
-controller to inject labels into every `Pod` that is created by
+controller to inject labels into every Pod that is created by
 the workload during its execution. Throughout the execution of the
 workload, the AppWrapper controller monitors the number and health of
-all labeled `Pods` and uses this information to determine if a
-workload is unhealthy.  A workload can be deemed *unhealthy* either
-because it contains a non-zero number of `Failed` pods or because
-after the `WarmupGracePeriod` has passed and it has fewer
-`Running` and `Completed` pods than expected.
+all labeled Pods and uses this information to determine if a
+workload is unhealthy.  A workload can be deemed *unhealthy* if any of
+the following conditions are true:
+   + There are a non-zero number of `Failed` Pods.
+   + It takes longer than `AdmissionGracePeriod` for the expected
+     number of Pods to at least reach the `Pending` state.
+   + It takes longer than the `WarmupGracePeriod` for the expected
+     number of Pods to at least reach the `Running` state.
 
 If a workload is determined to be unhealthy, the AppWrapper controller
 first waits for a `FailureGracePeriod` to allow the primary resource
@@ -54,15 +57,16 @@ and can be customized on a per-AppWrapper basis by adding annotations.
 The table below lists the parameters, gives their default, and the annotation that
 can be used to customize them.
 
-| Parameter           | Default Value | Annotation                                                    |
-|---------------------|---------------|---------------------------------------------------------------|
-| WarmupGracePeriod   |     5 Minutes | workload.codeflare.dev.appwrapper/warmupGracePeriodDuration   |
-| FailureGracePeriod  |      1 Minute | workload.codeflare.dev.appwrapper/failureGracePeriodDuration  |
-| ResetPause          |    90 Seconds | workload.codeflare.dev.appwrapper/resetPauseDuration          |
-| RetryLimit          |             3 | workload.codeflare.dev.appwrapper/retryLimit                  |
-| DeletionGracePeriod |    10 Minutes | workload.codeflare.dev.appwrapper/deletionGracePeriodDuration |
-| GracePeriodCeiling  |      24 Hours | Not Applicable                                                |
-| SuccessTTLCeiling   |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration          |
+| Parameter              | Default Value | Annotation                                                       |
+|------------------------|---------------|------------------------------------------------------------------|
+| AdmissionGracePeriod   |      1 Minute | workload.codeflare.dev.appwrapper/admissionGracePeriodDuration   |
+| WarmupGracePeriod      |     5 Minutes | workload.codeflare.dev.appwrapper/warmupGracePeriodDuration      |
+| FailureGracePeriod     |      1 Minute | workload.codeflare.dev.appwrapper/failureGracePeriodDuration     |
+| ResetPause             |    90 Seconds | workload.codeflare.dev.appwrapper/resetPauseDuration             |
+| RetryLimit             |             3 | workload.codeflare.dev.appwrapper/retryLimit                     |
+| DeletionGracePeriod    |    10 Minutes | workload.codeflare.dev.appwrapper/deletionGracePeriodDuration    |
+| GracePeriodCeiling     |      24 Hours | Not Applicable                                                   |
+| SuccessTTLCeiling      |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration             |
 
 
 The `GracePeriodCeiling` imposes an upper limit on the other grace periods to

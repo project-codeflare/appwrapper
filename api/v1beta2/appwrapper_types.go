@@ -133,6 +133,7 @@ const (
 )
 
 const (
+	AdmissionGracePeriodDurationAnnotation          = "workload.codeflare.dev.appwrapper/admissionGracePeriodDuration"
 	WarmupGracePeriodDurationAnnotation             = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
 	FailureGracePeriodDurationAnnotation            = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
 	ResetPauseDurationAnnotation                    = "workload.codeflare.dev.appwrapper/resetPauseDuration"

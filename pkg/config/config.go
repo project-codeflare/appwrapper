@@ -37,13 +37,14 @@ type AppWrapperConfig struct {
 }
 
 type FaultToleranceConfig struct {
-	WarmupGracePeriod   time.Duration `json:"warmupGracePeriod,omitempty"`
-	FailureGracePeriod  time.Duration `json:"failureGracePeriod,omitempty"`
-	ResetPause          time.Duration `json:"resetPause,omitempty"`
-	RetryLimit          int32         `json:"retryLimit,omitempty"`
-	DeletionGracePeriod time.Duration `json:"deletionGracePeriod,omitempty"`
-	GracePeriodCeiling  time.Duration `json:"gracePeriodCeiling,omitempty"`
-	SuccessTTLCeiling   time.Duration `json:"successTTLCeiling,omitempty"`
+	AdmissionGracePeriod time.Duration `json:"admissionGracePeriod,omitempty"`
+	WarmupGracePeriod    time.Duration `json:"warmupGracePeriod,omitempty"`
+	FailureGracePeriod   time.Duration `json:"failureGracePeriod,omitempty"`
+	ResetPause           time.Duration `json:"resetPause,omitempty"`
+	RetryLimit           int32         `json:"retryLimit,omitempty"`
+	DeletionGracePeriod  time.Duration `json:"deletionGracePeriod,omitempty"`
+	GracePeriodCeiling   time.Duration `json:"gracePeriodCeiling,omitempty"`
+	SuccessTTLCeiling    time.Duration `json:"successTTLCeiling,omitempty"`
 }
 
 type CertManagementConfig struct {
@@ -81,13 +82,14 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 		DisableChildAdmissionCtrl:  false,
 		UserRBACAdmissionCheck:     true,
 		FaultTolerance: &FaultToleranceConfig{
-			WarmupGracePeriod:   5 * time.Minute,
-			FailureGracePeriod:  1 * time.Minute,
-			ResetPause:          90 * time.Second,
-			RetryLimit:          3,
-			DeletionGracePeriod: 10 * time.Minute,
-			GracePeriodCeiling:  24 * time.Hour,
-			SuccessTTLCeiling:   7 * 24 * time.Hour,
+			AdmissionGracePeriod: 1 * time.Minute,
+			WarmupGracePeriod:    5 * time.Minute,
+			FailureGracePeriod:   1 * time.Minute,
+			ResetPause:           90 * time.Second,
+			RetryLimit:           3,
+			DeletionGracePeriod:  10 * time.Minute,
+			GracePeriodCeiling:   24 * time.Hour,
+			SuccessTTLCeiling:    7 * 24 * time.Hour,
 		},
 	}
 }
@@ -104,6 +106,10 @@ func ValidateAppWrapperConfig(config *AppWrapperConfig) error {
 	if config.FaultTolerance.FailureGracePeriod > config.FaultTolerance.GracePeriodCeiling {
 		return fmt.Errorf("FailureGracePeriod %v exceeds GracePeriodCeiling %v",
 			config.FaultTolerance.FailureGracePeriod, config.FaultTolerance.GracePeriodCeiling)
+	}
+	if config.FaultTolerance.AdmissionGracePeriod > config.FaultTolerance.GracePeriodCeiling {
+		return fmt.Errorf("AdmissionGracePeriod %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.AdmissionGracePeriod, config.FaultTolerance.GracePeriodCeiling)
 	}
 	if config.FaultTolerance.WarmupGracePeriod > config.FaultTolerance.GracePeriodCeiling {
 		return fmt.Errorf("WarmupGracePeriod %v exceeds GracePeriodCeiling %v",
