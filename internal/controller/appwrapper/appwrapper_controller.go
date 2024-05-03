@@ -261,8 +261,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		podDetailsMessage := fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded", podStatus.pending, podStatus.running, podStatus.succeeded)
 		clearCondition(aw, workloadv1beta2.PodsReady, "InsufficientPodsReady", podDetailsMessage)
 		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
-		warmupDuration := r.warmupGraceDuration(ctx, aw)
-		if time.Now().Before(whenDeployed.Add(warmupDuration)) {
+		var graceDuration time.Duration
+		if podStatus.pending+podStatus.running+podStatus.succeeded >= podStatus.expected {
+			graceDuration = r.warmupGraceDuration(ctx, aw)
+		} else {
+			graceDuration = r.admissionGraceDuration(ctx, aw)
+		}
+		if time.Now().Before(whenDeployed.Add(graceDuration)) {
 			return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
 		} else {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -457,6 +462,17 @@ func (r *AppWrapperReconciler) limitDuration(desired time.Duration) time.Duratio
 	} else {
 		return desired
 	}
+}
+
+func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.AdmissionGracePeriodDurationAnnotation]; ok {
+		if duration, err := time.ParseDuration(userPeriod); err == nil {
+			return r.limitDuration(duration)
+		} else {
+			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
+		}
+	}
+	return r.limitDuration(r.Config.FaultTolerance.AdmissionGracePeriod)
 }
 
 func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
