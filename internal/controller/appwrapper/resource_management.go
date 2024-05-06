@@ -202,7 +202,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 		remaining++ // no error deleting resource, resource therefore still exists
 	}
 
-	deletionGracePeriod := r.deletionGraceDuration(ctx, aw)
+	deletionGracePeriod := r.forcefulDeletionGraceDuration(ctx, aw)
 	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
 	gracePeriodExpired := time.Now().After(whenInitiated.Time.Add(deletionGracePeriod))
 

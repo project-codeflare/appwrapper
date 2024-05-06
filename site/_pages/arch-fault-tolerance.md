@@ -15,33 +15,43 @@ workload is unhealthy.  A workload can be deemed *unhealthy* if any of
 the following conditions are true:
    + There are a non-zero number of `Failed` Pods.
    + It takes longer than `AdmissionGracePeriod` for the expected
-     number of Pods to at least reach the `Pending` state.
+     number of Pods to reach the `Pending` state.
    + It takes longer than the `WarmupGracePeriod` for the expected
-     number of Pods to at least reach the `Running` state.
+     number of Pods to reach the `Running` state.
 
 If a workload is determined to be unhealthy, the AppWrapper controller
 first waits for a `FailureGracePeriod` to allow the primary resource
 controller an opportunity to react and return the workload to a
-healthy state.  If the `FailureGracePeriod` expires, the AppWrapper
-controller will *reset* the workload by deleting its resources, waiting
-for a `ResetPause`, and then creating new instances of the resources.
-During this reset period, the AppWrapper **does not** release the workload's
+healthy state.  If the `FailureGracePeriod` passes and the workload
+is still unhealthy, the AppWrapper controller will *reset* the workload by
+deleting its resources, waiting for a `RetryPausePeriod`, and then creating
+new instances of the resources.
+During this retry pause, the AppWrapper **does not** release the workload's
 quota; this ensures that when the resources are recreated they will still
 have sufficient quota to execute.  The number of times an AppWrapper is reset
 is tracked as part of its status; if the number of resets exceeds the `RetryLimit`,
 then the AppWrapper moves into a `Failed` state and its resources are deleted
-(thus finally releasing its quota). If at any time during this retry loop,
+(thus finally releasing its quota).  If at any time during this retry loop,
 an AppWrapper is suspended (ie, Kueue decides to preempt the AppWrapper),
 the AppWrapper controller will respect this request by proceeding to delete
-the resources
+the resources.
+
+To support debugging `Failed` workloads, an annotation can be added to an
+AppWrapper that adds a `DeletionOnFailureGracePeriod` between the time the
+AppWrapper enters the `Failed` state and when the process of deleting its resources
+begins. Since the AppWrapper continues to consume quota during this delayed deletion period,
+this annotation should be used sparingly and only when interactive debugging of
+the failed workload is being actively pursued.
+
+All child resources for an AppWrapper that successfully completed will be automatically
+deleted after a `SuccessTTLPeriod` after the AppWrapper entered the `Succeeded` state.
 
 When the AppWrapper controller decides to delete the resources for a workload,
-it proceeds through several phases.  First it does a normal delete of the
+it proceeds through several phases. First it does a normal delete of the
 resources, allowing the primary resource controllers time to cascade the deletion
-through all child resources. During a `DeletionGracePeriod`, the AppWrapper controller
-monitors to see if the primary controllers have managed to successfully delete
-all of the workload's Pods and resources.  If they fail to accomplish this within
-the `DeletionGracePeriod`, the AppWrapper controller then initiates a *forceful*
+through all child resources.  If they are not able to successfully delete
+all of the workload's Pods and resources within a `ForcefulDeletionGracePeriod`,
+the AppWrapper controller then initiates a *forceful*
 deletion of all remaining Pods and resources by deleting them with a `GracePeriod` of `0`.
 An AppWrapper will continue to have its `ResourcesDeployed` condition to be
 `True` until all resources and Pods are successfully deleted.
@@ -57,30 +67,17 @@ and can be customized on a per-AppWrapper basis by adding annotations.
 The table below lists the parameters, gives their default, and the annotation that
 can be used to customize them.
 
-| Parameter              | Default Value | Annotation                                                       |
-|------------------------|---------------|------------------------------------------------------------------|
-| AdmissionGracePeriod   |      1 Minute | workload.codeflare.dev.appwrapper/admissionGracePeriodDuration   |
-| WarmupGracePeriod      |     5 Minutes | workload.codeflare.dev.appwrapper/warmupGracePeriodDuration      |
-| FailureGracePeriod     |      1 Minute | workload.codeflare.dev.appwrapper/failureGracePeriodDuration     |
-| ResetPause             |    90 Seconds | workload.codeflare.dev.appwrapper/resetPauseDuration             |
-| RetryLimit             |             3 | workload.codeflare.dev.appwrapper/retryLimit                     |
-| DeletionGracePeriod    |    10 Minutes | workload.codeflare.dev.appwrapper/deletionGracePeriodDuration    |
-| GracePeriodCeiling     |      24 Hours | Not Applicable                                                   |
-| SuccessTTLCeiling      |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration             |
+| Parameter                    | Default Value | Annotation                                                             |
+|------------------------------|---------------|------------------------------------------------------------------------|
+| AdmissionGracePeriod         |      1 Minute | workload.codeflare.dev.appwrapper/admissionGracePeriodDuration         |
+| WarmupGracePeriod            |     5 Minutes | workload.codeflare.dev.appwrapper/warmupGracePeriodDuration            |
+| FailureGracePeriod           |      1 Minute | workload.codeflare.dev.appwrapper/failureGracePeriodDuration           |
+| RetryPausePeriod             |    90 Seconds | workload.codeflare.dev.appwrapper/retryPausePeriodDuration             |
+| RetryLimit                   |             3 | workload.codeflare.dev.appwrapper/retryLimit                           |
+| DeletionOnFailureGracePeriod |     0 Seconds | workload.codeflare.dev.appwrapper/deletionOnFailureGracePeriodDuration |
+| ForcefulDeletionGracePeriod  |    10 Minutes | workload.codeflare.dev.appwrapper/forcefulDeletionGracePeriodDuration  |
+| SuccessTTL                   |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration                   |
+| GracePeriodMaximum           |      24 Hours | Not Applicable                                                         |
 
-
-The `GracePeriodCeiling` imposes an upper limit on the other grace periods to
-reduce the impact of user-added annotations on overall system utilization.
-
-To support debugging `Failed` workloads, an additional annotation
-`workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration` can
-be added to an AppWrapper when it is created to add a delay between the time the
-AppWrapper enters the `Failed` state and when the process of deleting its resources
-begins. Since the AppWrapper continues to consume quota during this delayed deletion period,
-this annotation should be used sparingly and only when interactive debugging of
-the failed workload is being actively pursued.
-
-All child resources for an AppWrapper that successfully completed will be automatically
-deleted `SuccessTTLCeiling` time after the AppWrapper entered the `Succeeded` state.
-This duration can be shortened on a per-AppWrapper basis using the
-`workload.codeflare.dev.appwrapper/successTTLDuration` annotation.
+The `GracePeriodMaximum` imposes a system-wide upper limit on all other grace periods to
+limit the potential impact of user-added annotations on overall system utilization.

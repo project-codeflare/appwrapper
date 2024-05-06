@@ -58,7 +58,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		}
 		awConfig := config.NewAppWrapperConfig()
 		awConfig.FaultTolerance.FailureGracePeriod = 0 * time.Second
-		awConfig.FaultTolerance.ResetPause = 0 * time.Second
+		awConfig.FaultTolerance.RetryPausePeriod = 0 * time.Second
 		awConfig.FaultTolerance.RetryLimit = 0
 		awReconciler = &AppWrapperReconciler{
 			Client: k8sClient,

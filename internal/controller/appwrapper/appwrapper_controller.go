@@ -322,7 +322,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		// Pause before transitioning to Resuming to heuristically allow transient system problems to subside
 		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
-		pauseDuration := r.resettingPauseDuration(ctx, aw)
+		pauseDuration := r.retryPauseDuration(ctx, aw)
 		now := time.Now()
 		deadline := whenReset.Add(pauseDuration)
 		if now.Before(deadline) {
@@ -342,14 +342,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// When an appwrapper is annotated with a non-zero debugging delay,
 		// we hold quota for the delay period and do not delete the resources of
 		// a failed appwrapper unless Kueue preempts it by setting Suspend to true.
-		deletionDelay := r.debuggingFailureDeletionDelay(ctx, aw)
+		deletionDelay := r.deletionOnFailureGraceDuration(ctx, aw)
 
 		if deletionDelay > 0 && !aw.Spec.Suspend {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.DeletingResources),
 				Status:  metav1.ConditionFalse,
 				Reason:  "DeletionPaused",
-				Message: fmt.Sprintf("%v has value %v", workloadv1beta2.DebuggingFailureDeletionDelayDurationAnnotation, deletionDelay),
+				Message: fmt.Sprintf("%v has value %v", workloadv1beta2.DeletionOnFailureGracePeriodAnnotation, deletionDelay),
 			})
 			whenDelayed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
 
@@ -457,8 +457,8 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 func (r *AppWrapperReconciler) limitDuration(desired time.Duration) time.Duration {
 	if desired < 0 {
 		return 0 * time.Second
-	} else if desired > r.Config.FaultTolerance.GracePeriodCeiling {
-		return r.Config.FaultTolerance.GracePeriodCeiling
+	} else if desired > r.Config.FaultTolerance.GracePeriodMaximum {
+		return r.Config.FaultTolerance.GracePeriodMaximum
 	} else {
 		return desired
 	}
@@ -469,7 +469,7 @@ func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *w
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed admission grace period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.AdmissionGracePeriod)
@@ -480,7 +480,7 @@ func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *work
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed warmup period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed warmup grace period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.WarmupGracePeriod)
@@ -508,50 +508,50 @@ func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1bet
 	return r.Config.FaultTolerance.RetryLimit
 }
 
-func (r *AppWrapperReconciler) resettingPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.ResetPauseDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) retryPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed reset pause annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed retry pause annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.limitDuration(r.Config.FaultTolerance.ResetPause)
+	return r.limitDuration(r.Config.FaultTolerance.RetryPausePeriod)
 }
 
-func (r *AppWrapperReconciler) deletionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.DeletionGracePeriodAnnotation]; ok {
+func (r *AppWrapperReconciler) forcefulDeletionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.ForcefulDeletionGracePeriodAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed deletion period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed forceful deletion period annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.limitDuration(r.Config.FaultTolerance.DeletionGracePeriod)
+	return r.limitDuration(r.Config.FaultTolerance.ForcefulDeletionGracePeriod)
 }
 
-func (r *AppWrapperReconciler) debuggingFailureDeletionDelay(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.DebuggingFailureDeletionDelayDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) deletionOnFailureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.DeletionOnFailureGracePeriodAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed delay deletion annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Info("Malformed delection on failue delay annotation", "annotation", userPeriod, "error", err)
 		}
 	}
 	return 0 * time.Second
 }
 
 func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.SuccessTTLDurationAnnotation]; ok {
+	if userPeriod, ok := aw.Annotations[workloadv1beta2.SuccessTTLAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
-			if duration > 0 && duration < r.Config.FaultTolerance.SuccessTTLCeiling {
+			if duration > 0 && duration < r.Config.FaultTolerance.SuccessTTL {
 				return duration
 			}
 		} else {
 			log.FromContext(ctx).Info("Malformed successTTL annotation", "annotation", userPeriod, "error", err)
 		}
 	}
-	return r.Config.FaultTolerance.SuccessTTLCeiling
+	return r.Config.FaultTolerance.SuccessTTL
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
