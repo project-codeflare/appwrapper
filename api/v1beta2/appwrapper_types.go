@@ -133,14 +133,14 @@ const (
 )
 
 const (
-	AdmissionGracePeriodDurationAnnotation          = "workload.codeflare.dev.appwrapper/admissionGracePeriodDuration"
-	WarmupGracePeriodDurationAnnotation             = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
-	FailureGracePeriodDurationAnnotation            = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
-	ResetPauseDurationAnnotation                    = "workload.codeflare.dev.appwrapper/resetPauseDuration"
-	RetryLimitAnnotation                            = "workload.codeflare.dev.appwrapper/retryLimit"
-	DeletionGracePeriodAnnotation                   = "workload.codeflare.dev.appwrapper/deletionGracePeriodDuration"
-	DebuggingFailureDeletionDelayDurationAnnotation = "workload.codeflare.dev.appwrapper/debuggingFailureDeletionDelayDuration"
-	SuccessTTLDurationAnnotation                    = "workload.codeflare.dev.appwrapper/successTTLDuration"
+	AdmissionGracePeriodDurationAnnotation = "workload.codeflare.dev.appwrapper/admissionGracePeriodDuration"
+	WarmupGracePeriodDurationAnnotation    = "workload.codeflare.dev.appwrapper/warmupGracePeriodDuration"
+	FailureGracePeriodDurationAnnotation   = "workload.codeflare.dev.appwrapper/failureGracePeriodDuration"
+	RetryPausePeriodDurationAnnotation     = "workload.codeflare.dev.appwrapper/retryPausePeriodDuration"
+	RetryLimitAnnotation                   = "workload.codeflare.dev.appwrapper/retryLimit"
+	ForcefulDeletionGracePeriodAnnotation  = "workload.codeflare.dev.appwrapper/forcefulDeletionGracePeriodDuration"
+	DeletionOnFailureGracePeriodAnnotation = "workload.codeflare.dev.appwrapper/deletionOnFailureGracePeriodDuration"
+	SuccessTTLAnnotation                   = "workload.codeflare.dev.appwrapper/successTTLDuration"
 )
 
 //+kubebuilder:object:root=true
