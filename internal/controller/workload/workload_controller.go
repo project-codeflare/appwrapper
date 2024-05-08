@@ -20,7 +20,6 @@ import (
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -140,31 +139,19 @@ func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
 	return true
 }
 
-func (aw *AppWrapper) Finished() (metav1.Condition, bool) {
-	condition := metav1.Condition{
-		Type:   kueue.WorkloadFinished,
-		Status: metav1.ConditionFalse,
-		Reason: string(aw.Status.Phase),
-	}
-
+func (aw *AppWrapper) Finished() (message string, success, finished bool) {
 	switch aw.Status.Phase {
 	case workloadv1beta2.AppWrapperSucceeded:
-		condition.Status = metav1.ConditionTrue
-		condition.Message = "AppWrapper finished successfully"
-		return condition, true
+		return "AppWrapper finished successfully", true, true
 
 	case workloadv1beta2.AppWrapperFailed:
 		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
-			condition.Message = "Still deleting resources for failed AppWrapper"
-			return condition, false
+			return "Still deleting resources for failed AppWrapper", false, false
 		} else {
-			condition.Status = metav1.ConditionTrue
-			condition.Message = "AppWrapper failed"
-			return condition, true
+			return "AppWrapper failed", false, true
 		}
 	}
-
-	return condition, false
+	return "", false, false
 }
 
 func (aw *AppWrapper) PodsReady() bool {

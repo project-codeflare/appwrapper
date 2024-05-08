@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,8 +73,9 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		for componentIdx, componentStatus := range aw.Status.ComponentStatus {
 			if len(componentStatus.PodSets) > 0 {
 				childrenWithPods += 1
-				if gv, err := schema.ParseGroupVersion(componentStatus.APIVersion); err == nil {
-					wlName := jobframework.GetWorkloadNameForOwnerWithGVK(componentStatus.Name, gv.WithKind(componentStatus.Kind))
+				unstruct := &unstructured.Unstructured{}
+				if _, gvk, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[componentIdx].Template.Raw, nil, unstruct); err == nil {
+					wlName := jobframework.GetWorkloadNameForOwnerWithGVK(unstruct.GetName(), unstruct.GetUID(), *gvk)
 					wl := &kueue.Workload{}
 					if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
 						if workload.IsAdmitted(wl) {
