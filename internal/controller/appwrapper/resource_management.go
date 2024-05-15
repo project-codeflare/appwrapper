@@ -126,11 +126,11 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 
 		// NodeSelectors
 		if len(toInject.NodeSelector) > 0 {
-			existing := toMap(metadata["nodeSelector"])
+			existing := toMap(spec["nodeSelector"])
 			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
 				return nil, podset.BadPodSetsUpdateError("nodeSelector", err), true
 			}
-			metadata["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
+			spec["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 		}
 
 		// Tolerations
