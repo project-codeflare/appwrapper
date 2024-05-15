@@ -179,42 +179,67 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
 	for componentIdx := range aw.Spec.Components {
-		_, err, fatal := r.createComponent(ctx, aw, componentIdx)
-		if err != nil {
-			return err, fatal
+		if !meta.IsStatusConditionTrue(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			obj, err, fatal := r.createComponent(ctx, aw, componentIdx)
+			if err != nil {
+				return err, fatal
+			}
+			aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
+			aw.Status.ComponentStatus[componentIdx].Kind = obj.GetKind()
+			aw.Status.ComponentStatus[componentIdx].APIVersion = obj.GetAPIVersion()
+			meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+				Type:   string(workloadv1beta2.ResourcesDeployed),
+				Status: metav1.ConditionTrue,
+				Reason: "CompononetCreated",
+			})
 		}
 	}
 	return nil, false
 }
 
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
+	deleteIfPresent := func(idx int, opts ...client.DeleteOption) bool {
+		cs := &aw.Status.ComponentStatus[idx]
+		if !meta.IsStatusConditionTrue(cs.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			return false // not present
+		}
+		obj := &metav1.PartialObjectMetadata{
+			TypeMeta:   metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion},
+			ObjectMeta: metav1.ObjectMeta{Name: cs.Name, Namespace: aw.Namespace},
+		}
+		if err := r.Delete(ctx, obj, opts...); err != nil {
+			if apierrors.IsNotFound(err) {
+				// Has already been undeployed; update componentStatus and return not present
+				meta.SetStatusCondition(&cs.Conditions, metav1.Condition{
+					Type:   string(workloadv1beta2.ResourcesDeployed),
+					Status: metav1.ConditionFalse,
+					Reason: "CompononetDeleted",
+				})
+				return false
+			} else {
+				log.FromContext(ctx).Error(err, "Deletion error")
+				return true // unexpected error ==> still present
+			}
+		}
+		return true // still present
+	}
+
 	meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 		Type:   string(workloadv1beta2.DeletingResources),
 		Status: metav1.ConditionTrue,
 		Reason: "DeletionInitiated",
 	})
-	log := log.FromContext(ctx)
-	remaining := 0
-	for _, component := range aw.Spec.Components {
-		obj, err := parseComponent(aw, component.Template.Raw)
-		if err != nil {
-			log.Error(err, "Parsing error")
-			continue
-		}
-		if err := r.Delete(ctx, obj, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil {
-			if !apierrors.IsNotFound(err) {
-				log.Error(err, "Deletion error")
-			}
-			continue
-		}
-		remaining++ // no error deleting resource, resource therefore still exists
+
+	componentsRemaining := false
+	for componentIdx := range aw.Spec.Components {
+		componentsRemaining = deleteIfPresent(componentIdx, client.PropagationPolicy(metav1.DeletePropagationBackground)) || componentsRemaining
 	}
 
 	deletionGracePeriod := r.forcefulDeletionGraceDuration(ctx, aw)
 	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
 	gracePeriodExpired := time.Now().After(whenInitiated.Time.Add(deletionGracePeriod))
 
-	if remaining > 0 && !gracePeriodExpired {
+	if componentsRemaining && !gracePeriodExpired {
 		// Resources left and deadline hasn't expired, just requeue the deletion
 		return false
 	}
@@ -224,10 +249,10 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 		client.UnsafeDisableDeepCopy,
 		client.InNamespace(aw.Namespace),
 		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
-		log.Error(err, "Pod list error")
+		log.FromContext(ctx).Error(err, "Pod list error")
 	}
 
-	if remaining == 0 && len(pods.Items) == 0 {
+	if !componentsRemaining && len(pods.Items) == 0 {
 		// no resources or pods left; deletion is complete
 		clearCondition(aw, workloadv1beta2.DeletingResources, "DeletionComplete", "")
 		return true
@@ -238,20 +263,13 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 			// force deletion of pods first
 			for _, pod := range pods.Items {
 				if err := r.Delete(ctx, &pod, client.GracePeriodSeconds(0)); err != nil {
-					log.Error(err, "Forceful pod deletion error")
+					log.FromContext(ctx).Error(err, "Forceful pod deletion error")
 				}
 			}
 		} else {
 			// force deletion of wrapped resources once pods are gone
-			for _, component := range aw.Spec.Components {
-				obj, err := parseComponent(aw, component.Template.Raw)
-				if err != nil {
-					log.Error(err, "Parsing error")
-					continue
-				}
-				if err := r.Delete(ctx, obj, client.GracePeriodSeconds(0)); err != nil && !apierrors.IsNotFound(err) {
-					log.Error(err, "Forceful deletion error")
-				}
+			for componentIdx := range aw.Spec.Components {
+				_ = deleteIfPresent(componentIdx, client.GracePeriodSeconds(0))
 			}
 		}
 	}
