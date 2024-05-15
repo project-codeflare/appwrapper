@@ -51,6 +51,7 @@ func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.U
 	return obj, nil
 }
 
+//gocyclo:ignore
 func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (*unstructured.Unstructured, error, bool) {
 	component := aw.Spec.Components[componentIdx]
 	toMap := func(x interface{}) map[string]string {
@@ -143,6 +144,13 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 				tolerations = append(tolerations, addition)
 			}
 			spec["tolerations"] = tolerations
+		}
+
+		// Scheduler Name
+		if r.Config.SchedulerName != "" {
+			if existing, _ := spec["schedulerName"].(string); existing == "" {
+				spec["schedulerName"] = r.Config.SchedulerName
+			}
 		}
 	}
 

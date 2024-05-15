@@ -34,6 +34,7 @@ type AppWrapperConfig struct {
 	DisableChildAdmissionCtrl  bool                  `json:"disableChildAdmissionCtrl,omitempty"`
 	UserRBACAdmissionCheck     bool                  `json:"userRBACAdmissionCheck,omitempty"`
 	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
+	SchedulerName              string                `json:"schedulerName,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -136,7 +137,7 @@ func NewCertManagementConfig(namespace string) *CertManagementConfig {
 	}
 }
 
-// NewControllerRuntimeConfig constructs a ControllerRuntimeConfig and filles in default values
+// NewControllerRuntimeConfig constructs a ControllerRuntimeConfig and fills in default values
 func NewControllerManagerConfig() *ControllerManagerConfig {
 	return &ControllerManagerConfig{
 		Metrics: MetricsConfiguration{
