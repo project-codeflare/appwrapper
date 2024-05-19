@@ -48,6 +48,7 @@ import (
 const (
 	AppWrapperUsernameLabel = "workload.codeflare.dev/user"
 	AppWrapperUserIDLabel   = "workload.codeflare.dev/userid"
+	QueueNameLabel          = "kueue.x-k8s.io/queue-name"
 )
 
 type AppWrapperWebhook struct {
@@ -81,6 +82,12 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	userInfo := request.UserInfo
 	username := utils.SanitizeLabel(userInfo.Username)
 	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
+
+	// inject default queue name if missing from appwrapper and configured on controller
+	if w.Config.QueueName != "" && aw.Annotations[QueueNameLabel] == "" && aw.Labels[QueueNameLabel] == "" {
+		aw.Labels[QueueNameLabel] = w.Config.QueueName
+	}
+
 	return nil
 }
 
