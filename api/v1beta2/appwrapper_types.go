@@ -105,6 +105,34 @@ type AppWrapperStatus struct {
 	//+listType=map
 	//+listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// ComponentStatus parallels the Components array in the Spec and tracks the actually deployed resources
+	ComponentStatus []AppWrapperComponentStatus `json:"componentStatus,omitempty"`
+}
+
+// AppWrapperComponentStatus tracks the status of a single managed Component
+type AppWrapperComponentStatus struct {
+	// Name is the name of the Component
+	Name string `json:"name"`
+
+	// Kind is the Kind of the Component
+	Kind string `json:"kind"`
+
+	// APIVersion is the APIVersion of the Component
+	APIVersion string `json:"apiVersion"`
+
+	// Conditions hold the latest available observations of the Component's current state.
+	//
+	// The type of the condition could be:
+	//
+	// - ResourcesDeployed: The component is deployed on the cluster
+	//
+	//+optional
+	//+patchMergeKey=type
+	//+patchStrategy=merge
+	//+listType=map
+	//+listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
 }
 
 // AppWrapperPhase is the phase of the appwrapper

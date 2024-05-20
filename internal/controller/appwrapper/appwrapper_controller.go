@@ -144,6 +144,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 		}
+		aw.Status.ComponentStatus = make([]workloadv1beta2.AppWrapperComponentStatus, len(aw.Spec.Components))
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
 	case workloadv1beta2.AppWrapperSuspended: // no components deployed
