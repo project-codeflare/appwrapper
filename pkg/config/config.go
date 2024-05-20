@@ -35,6 +35,7 @@ type AppWrapperConfig struct {
 	UserRBACAdmissionCheck     bool                  `json:"userRBACAdmissionCheck,omitempty"`
 	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
 	SchedulerName              string                `json:"schedulerName,omitempty"`
+	QueueName                  string                `json:"queueName,omitempty"`
 }
 
 type FaultToleranceConfig struct {
