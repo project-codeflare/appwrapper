@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -275,6 +276,19 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+		})
+
+		It("Deleting a Running Component yields a failed AppWrapper", func() {
+			aw := createAppWrapper(ctx, pytorchjob(2, 500))
+			appwrappers = append(appwrappers, aw)
+			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
+			toDelete := &metav1.PartialObjectMetadata{
+				TypeMeta:   metav1.TypeMeta{Kind: aw.Status.ComponentStatus[0].Kind, APIVersion: aw.Status.ComponentStatus[0].APIVersion},
+				ObjectMeta: metav1.ObjectMeta{Name: aw.Status.ComponentStatus[0].Name, Namespace: aw.Namespace},
+			}
+			Expect(getClient(ctx).Delete(ctx, toDelete)).Should(Succeed())
+			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
 		})
 	})
 

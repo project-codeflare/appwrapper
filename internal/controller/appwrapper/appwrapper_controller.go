@@ -23,6 +23,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -59,6 +60,11 @@ type podStatusSummary struct {
 	running   int32
 	succeeded int32
 	failed    int32
+}
+
+type componentStatusSummary struct {
+	expected int32
+	deployed int32
 }
 
 // permission to fully control appwrappers
@@ -202,7 +208,26 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if aw.Spec.Suspend {
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // begin undeployment
 		}
-		podStatus, err := r.workloadStatus(ctx, aw)
+
+		// First, check the Component-level status of the workload
+		compStatus, err := r.getComponentStatus(ctx, aw)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+
+		// Detect externally deleted components and transition to Failed with no GracePeriod or retry
+		if compStatus.deployed != compStatus.expected {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "MissingComponent",
+				Message: fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected),
+			})
+			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+		}
+
+		// Second, check the Pod-level status of the workload
+		podStatus, err := r.getPodStatus(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -430,7 +455,7 @@ func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1be
 	}
 }
 
-func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
+func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(aw.Namespace),
@@ -449,6 +474,30 @@ func (r *AppWrapperReconciler) workloadStatus(ctx context.Context, aw *workloadv
 			summary.succeeded += 1
 		case v1.PodFailed:
 			summary.failed += 1
+		}
+	}
+
+	return summary, nil
+}
+
+func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*componentStatusSummary, error) {
+	summary := &componentStatusSummary{expected: int32(len(aw.Status.ComponentStatus))}
+
+	for componentIdx := range aw.Status.ComponentStatus {
+		cs := &aw.Status.ComponentStatus[componentIdx]
+		obj := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
+		if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			summary.deployed += 1
+		} else {
+			if apierrors.IsNotFound(err) {
+				meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+					Type:   string(workloadv1beta2.Unhealthy),
+					Status: metav1.ConditionTrue,
+					Reason: "ComponentNotFound",
+				})
+			} else {
+				return nil, err
+			}
 		}
 	}
 
