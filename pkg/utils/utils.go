@@ -26,20 +26,12 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	pkgcorev1 "k8s.io/kubernetes/pkg/apis/core/v1"
 	"k8s.io/utils/ptr"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
-var scheme = runtime.NewScheme()
-
 const templateString = "template"
-
-func init() {
-	utilruntime.Must(pkgcorev1.AddToScheme(scheme))
-}
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
 func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
@@ -59,7 +51,7 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 	}
 
 	// Set default values. Required for proper operation of Kueue's ComparePodSetSlices
-	scheme.Default(podTemplate)
+	setObjectDefaults_PodTemplate(podTemplate)
 
 	// Copy in the subset of the metadate expected by Kueye.
 	if metadata, ok := candidatePTS["metadata"].(map[string]interface{}); ok {
