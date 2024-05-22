@@ -89,6 +89,7 @@ func setDefaults_Volume(obj *v1.Volume) {
 		}
 	}
 }
+
 func setDefaults_Container(obj *v1.Container) {
 	if obj.ImagePullPolicy == "" {
 		// Ignore error and assume it has been validated elsewhere
@@ -135,6 +136,7 @@ func setDefaults_PodSpec(obj *v1.PodSpec) {
 		obj.SchedulerName = v1.DefaultSchedulerName
 	}
 }
+
 func setDefaults_Probe(obj *v1.Probe) {
 	if obj.TimeoutSeconds == 0 {
 		obj.TimeoutSeconds = 1
@@ -149,52 +151,55 @@ func setDefaults_Probe(obj *v1.Probe) {
 		obj.FailureThreshold = 3
 	}
 }
+
 func setDefaults_SecretVolumeSource(obj *v1.SecretVolumeSource) {
 	if obj.DefaultMode == nil {
 		perm := int32(v1.SecretVolumeSourceDefaultMode)
 		obj.DefaultMode = &perm
 	}
 }
+
 func setDefaults_ConfigMapVolumeSource(obj *v1.ConfigMapVolumeSource) {
 	if obj.DefaultMode == nil {
 		perm := int32(v1.ConfigMapVolumeSourceDefaultMode)
 		obj.DefaultMode = &perm
 	}
 }
+
 func setDefaults_DownwardAPIVolumeSource(obj *v1.DownwardAPIVolumeSource) {
 	if obj.DefaultMode == nil {
 		perm := int32(v1.DownwardAPIVolumeSourceDefaultMode)
 		obj.DefaultMode = &perm
 	}
 }
+
 func setDefaults_ProjectedVolumeSource(obj *v1.ProjectedVolumeSource) {
 	if obj.DefaultMode == nil {
 		perm := int32(v1.ProjectedVolumeSourceDefaultMode)
 		obj.DefaultMode = &perm
 	}
 }
+
 func setDefaults_ServiceAccountTokenProjection(obj *v1.ServiceAccountTokenProjection) {
 	hour := int64(time.Hour.Seconds())
 	if obj.ExpirationSeconds == nil {
 		obj.ExpirationSeconds = &hour
 	}
 }
-func setDefaults_PersistentVolumeClaim(obj *v1.PersistentVolumeClaim) {
-	if obj.Status.Phase == "" {
-		obj.Status.Phase = v1.ClaimPending
-	}
-}
+
 func setDefaults_PersistentVolumeClaimSpec(obj *v1.PersistentVolumeClaimSpec) {
 	if obj.VolumeMode == nil {
 		obj.VolumeMode = new(v1.PersistentVolumeMode)
 		*obj.VolumeMode = v1.PersistentVolumeFilesystem
 	}
 }
+
 func setDefaults_ISCSIVolumeSource(obj *v1.ISCSIVolumeSource) {
 	if obj.ISCSIInterface == "" {
 		obj.ISCSIInterface = "default"
 	}
 }
+
 func setDefaults_AzureDiskVolumeSource(obj *v1.AzureDiskVolumeSource) {
 	if obj.CachingMode == nil {
 		obj.CachingMode = new(v1.AzureDataDiskCachingMode)
@@ -213,6 +218,7 @@ func setDefaults_AzureDiskVolumeSource(obj *v1.AzureDiskVolumeSource) {
 		*obj.ReadOnly = false
 	}
 }
+
 func setDefaults_HTTPGetAction(obj *v1.HTTPGetAction) {
 	if obj.Path == "" {
 		obj.Path = "/"
