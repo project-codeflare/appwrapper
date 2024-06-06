@@ -21,6 +21,7 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -33,16 +34,33 @@ func CacheClient(k8sclient client.Client) {
 	cachedClient = k8sclient
 }
 
+const controllerName = "workload.codeflare.dev-appwrapper"
+
+func BaseForStatusPatch(aw *workloadv1beta2.AppWrapper) *workloadv1beta2.AppWrapper {
+	patch := &workloadv1beta2.AppWrapper{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:       aw.UID,
+			Name:      aw.Name,
+			Namespace: aw.Namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: workloadv1beta2.GroupVersion.String(),
+			Kind:       "AppWrapper",
+		},
+	}
+	return patch
+}
+
 func EnsureComponentStatusInitialized(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
 	if len(aw.Status.ComponentStatus) == len(aw.Spec.Components) {
 		return nil
 	}
 
 	// Construct definitive PodSets from the Spec + InferPodSets and cache in the Status (to avoid clashing with user updates to the Spec via apply)
-	aw.Status.ComponentStatus = make([]workloadv1beta2.AppWrapperComponentStatus, len(aw.Spec.Components))
+	compStatus := make([]workloadv1beta2.AppWrapperComponentStatus, len(aw.Spec.Components))
 	for idx := range aw.Spec.Components {
 		if len(aw.Spec.Components[idx].DeclaredPodSets) > 0 {
-			aw.Status.ComponentStatus[idx].PodSets = aw.Spec.Components[idx].DeclaredPodSets
+			compStatus[idx].PodSets = aw.Spec.Components[idx].DeclaredPodSets
 		} else {
 			obj := &unstructured.Unstructured{}
 			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
@@ -54,9 +72,12 @@ func EnsureComponentStatusInitialized(ctx context.Context, aw *workloadv1beta2.A
 				// Transient error; InferPodSets was validated by our AdmissionController
 				return err
 			}
-			aw.Status.ComponentStatus[idx].PodSets = podSets
+			compStatus[idx].PodSets = podSets
 		}
 	}
+	aw.Status.ComponentStatus = compStatus
 
-	return cachedClient.Status().Update(ctx, aw)
+	patch := BaseForStatusPatch(aw)
+	patch.Status.ComponentStatus = compStatus
+	return cachedClient.Status().Patch(ctx, patch, client.Apply, client.FieldOwner(controllerName), client.ForceOwnership)
 }
