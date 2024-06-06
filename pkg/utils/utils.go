@@ -311,7 +311,7 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 	return podSets, nil
 }
 
-// ValidatePodSets valdiates the declared and inferred PodSets
+// ValidatePodSets validates the declared and inferred PodSets
 func ValidatePodSets(declared []workloadv1beta2.AppWrapperPodSet, inferred []workloadv1beta2.AppWrapperPodSet) error {
 	if len(declared) == 0 {
 		return nil
