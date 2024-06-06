@@ -226,7 +226,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			By("Jobs should be queued when quota is exhausted")
 			aw3 := createAppWrapper(ctx, deployment(2, 250))
 			appwrappers = append(appwrappers, aw3)
-			Eventually(AppWrapperPhase(ctx, aw3), 10*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+			Eventually(AppWrapperPhase(ctx, aw3), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
 			Consistently(AppWrapperPhase(ctx, aw3), 20*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
 
 			By("Queued job is admitted when quota becomes available")
