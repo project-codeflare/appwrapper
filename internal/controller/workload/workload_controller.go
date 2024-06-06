@@ -17,6 +17,7 @@ limitations under the License.
 package workload
 
 import (
+	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/podset"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/controller/awstatus"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
@@ -77,17 +79,21 @@ func (aw *AppWrapper) GVK() schema.GroupVersionKind {
 
 func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	podSets := []kueue.PodSet{}
-	for componentIdx, component := range aw.Spec.Components {
-		if len(component.PodSets) > 0 {
+	if err := awstatus.EnsureComponentStatusInitialized(context.Background(), (*workloadv1beta2.AppWrapper)(aw)); err != nil {
+		// Kueue will raise an error on zero length PodSet.  Unfortunately, the Kueue API prevents propagating the actual error
+		return podSets
+	}
+	for idx := range aw.Status.ComponentStatus {
+		if len(aw.Status.ComponentStatus[idx].PodSets) > 0 {
 			obj := &unstructured.Unstructured{}
-			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, obj); err != nil {
+			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
 				continue // Should be unreachable; Template.Raw validated by our AdmissionController
 			}
-			for psIdx, podSet := range component.PodSets {
+			for psIdx, podSet := range aw.Status.ComponentStatus[idx].PodSets {
 				replicas := utils.Replicas(podSet)
 				if template, err := utils.GetPodTemplateSpec(obj, podSet.Path); err == nil {
 					podSets = append(podSets, kueue.PodSet{
-						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, componentIdx, psIdx),
+						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, idx, psIdx),
 						Template: *template,
 						Count:    replicas,
 					})
@@ -101,17 +107,16 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 // RunWithPodSetsInfo records the assigned PodSetInfos for each component and sets aw.spec.Suspend to false
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
 	podSetsInfoIndex := 0
-	for componentIdx := range aw.Spec.Components {
-		component := &aw.Spec.Components[componentIdx]
-		if len(component.PodSetInfos) != len(component.PodSets) {
-			component.PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, len(component.PodSets))
+	for idx := range aw.Spec.Components {
+		if len(aw.Spec.Components[idx].PodSetInfos) != len(aw.Status.ComponentStatus[idx].PodSets) {
+			aw.Spec.Components[idx].PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, len(aw.Status.ComponentStatus[idx].PodSets))
 		}
-		for podSetIdx := range component.PodSets {
+		for podSetIdx := range aw.Status.ComponentStatus[idx].PodSets {
 			podSetsInfoIndex += 1
 			if podSetsInfoIndex > len(podSetsInfo) {
 				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
-			component.PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
+			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
 				Annotations:  podSetsInfo[podSetIdx].Annotations,
 				Labels:       podSetsInfo[podSetIdx].Labels,
 				NodeSelector: podSetsInfo[podSetIdx].NodeSelector,

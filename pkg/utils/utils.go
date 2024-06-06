@@ -167,7 +167,7 @@ func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
 
 func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	var expected int32
-	for _, c := range aw.Spec.Components {
+	for _, c := range aw.Status.ComponentStatus {
 		for _, s := range c.PodSets {
 			expected += Replicas(s)
 		}
@@ -302,48 +302,48 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 		}
 	}
 
+	for _, ps := range podSets {
+		if _, err := GetPodTemplateSpec(obj, ps.Path); err != nil {
+			return nil, fmt.Errorf("%v does not refer to a v1.PodSpecTemplate: %v", ps.Path, err)
+		}
+	}
+
 	return podSets, nil
 }
 
-// ValidatePodSets compares declared and inferred PodSets for known GVKs
-func ValidatePodSets(obj *unstructured.Unstructured, podSets []workloadv1beta2.AppWrapperPodSet) error {
-	declared := map[string]workloadv1beta2.AppWrapperPodSet{}
-
-	// construct a map with declared PodSets and find duplicates
-	for _, p := range podSets {
-		if _, ok := declared[p.Path]; ok {
-			return fmt.Errorf("duplicate PodSets with path '%v'", p.Path)
-		}
-		declared[p.Path] = p
-	}
-
-	// infer PodSets
-	inferred, err := InferPodSets(obj)
-	if err != nil {
-		return err
-	}
-
-	// nothing inferred, nothing to validate
-	if len(inferred) == 0 {
+// ValidatePodSets validates the declared and inferred PodSets
+func ValidatePodSets(declared []workloadv1beta2.AppWrapperPodSet, inferred []workloadv1beta2.AppWrapperPodSet) error {
+	if len(declared) == 0 {
 		return nil
 	}
 
-	// compare PodSet counts
-	if len(inferred) != len(declared) {
-		return fmt.Errorf("PodSet count %v differs from expected count %v", len(declared), len(inferred))
+	// Validate that there are no duplicate paths in declared
+	declaredPaths := map[string]workloadv1beta2.AppWrapperPodSet{}
+	for _, p := range declared {
+		if _, ok := declaredPaths[p.Path]; ok {
+			return fmt.Errorf("multiple DeclaredPodSets with path '%v'", p.Path)
+		}
+		declaredPaths[p.Path] = p
 	}
 
-	// match inferred PodSets to declared PodSets
-	for _, ips := range inferred {
-		dps, ok := declared[ips.Path]
-		if !ok {
-			return fmt.Errorf("PodSet with path '%v' is missing", ips.Path)
+	// Validate that the declared PodSets match what inference computed
+	if len(inferred) > 0 {
+		if len(inferred) != len(declared) {
+			return fmt.Errorf("DeclaredPodSet count %v differs from inferred count %v", len(declared), len(inferred))
 		}
 
-		ipr := ptr.Deref(ips.Replicas, 1)
-		dpr := ptr.Deref(dps.Replicas, 1)
-		if ipr != dpr {
-			return fmt.Errorf("replica count %v differs from expected count %v for PodSet at path position '%v'", dpr, ipr, ips.Path)
+		// match inferred PodSets to declared PodSets
+		for _, ips := range inferred {
+			dps, ok := declaredPaths[ips.Path]
+			if !ok {
+				return fmt.Errorf("PodSet with path '%v' is missing", ips.Path)
+			}
+
+			ipr := ptr.Deref(ips.Replicas, 1)
+			dpr := ptr.Deref(dps.Replicas, 1)
+			if ipr != dpr {
+				return fmt.Errorf("replica count %v differs from inferred count %v for PodSet at path position '%v'", dpr, ipr, ips.Path)
+			}
 		}
 	}
 

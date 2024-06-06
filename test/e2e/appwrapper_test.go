@@ -105,53 +105,53 @@ var _ = Describe("AppWrapper E2E Test", func() {
 
 			It("Non-existent PodSpec paths are rejected", func() {
 				comp := deployment(4, 100)
-				comp.PodSets[0].Path = "template.spec.missing"
+				comp.DeclaredPodSets[0].Path = "template.spec.missing"
 				aw := toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = ""
+				comp.DeclaredPodSets[0].Path = ""
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("PodSpec paths must refer to a PodSpecTemplate", func() {
 				comp := deployment(4, 100)
-				comp.PodSets[0].Path = "template.spec.template.metadata"
+				comp.DeclaredPodSets[0].Path = "template.spec.template.metadata"
 				aw := toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("Validation of Array and Map path elements", func() {
 				comp := jobSet(2, 100)
-				comp.PodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
 				aw := toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[1"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[1"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 			})
@@ -167,8 +167,8 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
 			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
-				PodSets:  []workloadv1beta2.AppWrapperPodSet{},
-				Template: runtime.RawExtension{Raw: childBytes},
+				DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{},
+				Template:        runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
 		})
@@ -187,15 +187,15 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			})).ShouldNot(Succeed())
 
 			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
-				aw.Spec.Components[0].PodSets = append(aw.Spec.Components[0].PodSets, aw.Spec.Components[0].PodSets...)
+				aw.Spec.Components[0].DeclaredPodSets = append(aw.Spec.Components[0].DeclaredPodSets, aw.Spec.Components[0].DeclaredPodSets...)
 			})).ShouldNot(Succeed())
 
 			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
-				aw.Spec.Components[0].PodSets[0].Path = "bad"
+				aw.Spec.Components[0].DeclaredPodSets[0].Path = "bad"
 			})).ShouldNot(Succeed())
 
 			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
-				aw.Spec.Components[0].PodSets[0].Replicas = ptr.To(int32(12))
+				aw.Spec.Components[0].DeclaredPodSets[0].Replicas = ptr.To(int32(12))
 			})).ShouldNot(Succeed())
 		})
 	})
@@ -226,7 +226,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			By("Jobs should be queued when quota is exhausted")
 			aw3 := createAppWrapper(ctx, deployment(2, 250))
 			appwrappers = append(appwrappers, aw3)
-			Eventually(AppWrapperPhase(ctx, aw3), 10*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+			Eventually(AppWrapperPhase(ctx, aw3), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
 			Consistently(AppWrapperPhase(ctx, aw3), 20*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
 
 			By("Queued job is admitted when quota becomes available")

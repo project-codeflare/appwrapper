@@ -71,53 +71,53 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 
 			It("Non-existent PodSpec paths are rejected", func() {
 				comp := deployment(4, 100)
-				comp.PodSets[0].Path = "template.spec.missing"
+				comp.DeclaredPodSets[0].Path = "template.spec.missing"
 				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = ""
+				comp.DeclaredPodSets[0].Path = ""
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("PodSpec paths must refer to a PodSpecTemplate", func() {
 				comp := deployment(4, 100)
-				comp.PodSets[0].Path = "template.spec.template.metadata"
+				comp.DeclaredPodSets[0].Path = "template.spec.template.metadata"
 				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
 
 			It("Validation of Array and Map path elements", func() {
 				comp := jobSet(2, 100)
-				comp.PodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs.template.spec.template"
 				aw := toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[0].template[0].spec.template"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[10].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[-1].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[a10].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[1"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[1"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 
-				comp.PodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
+				comp.DeclaredPodSets[0].Path = "template.spec.replicatedJobs[1]].template.spec.template"
 				aw = toAppWrapper(comp)
 				Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 			})
@@ -133,8 +133,8 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
 			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
-				PodSets:  []workloadv1beta2.AppWrapperPodSet{},
-				Template: runtime.RawExtension{Raw: childBytes},
+				DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{},
+				Template:        runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
 		})
@@ -198,15 +198,15 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 
 				aw = getAppWrapper(awName)
-				aw.Spec.Components[0].PodSets = append(aw.Spec.Components[0].PodSets, aw.Spec.Components[0].PodSets...)
+				aw.Spec.Components[0].DeclaredPodSets = append(aw.Spec.Components[0].DeclaredPodSets, aw.Spec.Components[0].DeclaredPodSets...)
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 
 				aw = getAppWrapper(awName)
-				aw.Spec.Components[0].PodSets[0].Path = "bad"
+				aw.Spec.Components[0].DeclaredPodSets[0].Path = "bad"
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 
 				aw = getAppWrapper(awName)
-				aw.Spec.Components[0].PodSets[0].Replicas = ptr.To(int32(12))
+				aw.Spec.Components[0].DeclaredPodSets[0].Replicas = ptr.To(int32(12))
 				Expect(k8sClient.Update(ctx, aw)).ShouldNot(Succeed())
 			})
 		})
