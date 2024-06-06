@@ -30,13 +30,17 @@ var (
 	cachedClient client.Client
 )
 
+const controllerName = "workload.codeflare.dev-appwrapper"
+
+// CacheClient initializes cachedClient; must be called during startup
 func CacheClient(k8sclient client.Client) {
 	cachedClient = k8sclient
 }
 
-const controllerName = "workload.codeflare.dev-appwrapper"
-
-func BaseForStatusPatch(aw *workloadv1beta2.AppWrapper) *workloadv1beta2.AppWrapper {
+// BaseSSAAppWrapper creates a new object based on the input AppWrapper that
+// only contains the fields necessary to identify the original object.
+// The object can be used as a base for Server-Side-Apply.
+func BaseSSAAppWrapper(aw *workloadv1beta2.AppWrapper) *workloadv1beta2.AppWrapper {
 	patch := &workloadv1beta2.AppWrapper{
 		ObjectMeta: metav1.ObjectMeta{
 			UID:       aw.UID,
@@ -51,6 +55,7 @@ func BaseForStatusPatch(aw *workloadv1beta2.AppWrapper) *workloadv1beta2.AppWrap
 	return patch
 }
 
+// EnsureComponentStatusInitialized initializes aw.Status.ComponenetStatus, including performing PodSet inference for known GVKs
 func EnsureComponentStatusInitialized(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
 	if len(aw.Status.ComponentStatus) == len(aw.Spec.Components) {
 		return nil
@@ -77,7 +82,7 @@ func EnsureComponentStatusInitialized(ctx context.Context, aw *workloadv1beta2.A
 	}
 	aw.Status.ComponentStatus = compStatus
 
-	patch := BaseForStatusPatch(aw)
+	patch := BaseSSAAppWrapper(aw)
 	patch.Status.ComponentStatus = compStatus
 	return cachedClient.Status().Patch(ctx, patch, client.Apply, client.FieldOwner(controllerName), client.ForceOwnership)
 }
