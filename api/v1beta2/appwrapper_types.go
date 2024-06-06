@@ -39,9 +39,9 @@ type AppWrapperComponent struct {
 	//+optional
 	Annotations map[string]string `json:"annotations,omitempty"`
 
-	// PodSets contained in the Component
+	// DeclaredPodSets for the Component (optional for known PodCreating GVKs)
 	//+optional
-	PodSets []AppWrapperPodSet `json:"podSets,omitempty"`
+	DeclaredPodSets []AppWrapperPodSet `json:"podSets,omitempty"`
 
 	// PodSetInfos assigned to the Component's PodSets by Kueue
 	//+optional
@@ -120,6 +120,9 @@ type AppWrapperComponentStatus struct {
 
 	// APIVersion is the APIVersion of the Component
 	APIVersion string `json:"apiVersion"`
+
+	// PodSets is the validated PodSets for the Component (either from AppWrapperComponent.DeclaredPodSets or inferred by the controller)
+	PodSets []AppWrapperPodSet `json:"podSets"`
 
 	// Conditions hold the latest available observations of the Component's current state.
 	//

@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -70,12 +70,11 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		!meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)) {
 		admittedChildren := 0
 		childrenWithPods := 0
-		for componentIdx, component := range aw.Spec.Components {
-			if len(component.PodSets) > 0 {
+		for componentIdx, componentStatus := range aw.Status.ComponentStatus {
+			if len(componentStatus.PodSets) > 0 {
 				childrenWithPods += 1
-				unstruct := &unstructured.Unstructured{}
-				if _, gvk, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct); err == nil {
-					wlName := jobframework.GetWorkloadNameForOwnerWithGVK(unstruct.GetName(), *gvk)
+				if gv, err := schema.ParseGroupVersion(componentStatus.APIVersion); err == nil {
+					wlName := jobframework.GetWorkloadNameForOwnerWithGVK(componentStatus.Name, gv.WithKind(componentStatus.Kind))
 					wl := &kueue.Workload{}
 					if err := r.Client.Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: wlName}, wl); err == nil {
 						if workload.IsAdmitted(wl) {
@@ -83,7 +82,7 @@ func (r *ChildWorkloadReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 						} else {
 							admission := kueue.Admission{
 								ClusterQueue:      childJobQueueName,
-								PodSetAssignments: make([]kueue.PodSetAssignment, len(aw.Spec.Components[componentIdx].PodSets)),
+								PodSetAssignments: make([]kueue.PodSetAssignment, len(componentStatus.PodSets)),
 							}
 							for i := range admission.PodSetAssignments {
 								admission.PodSetAssignments[i].Name = wl.Spec.PodSets[i].Name

@@ -132,7 +132,7 @@ func inferPodSets(_ context.Context, aw *workloadv1beta2.AppWrapper) error {
 		compPath := componentsPath.Index(idx)
 
 		// Automatically create elided PodSets for known GVKs
-		if len(component.PodSets) == 0 {
+		if len(component.DeclaredPodSets) == 0 {
 			unstruct := &unstructured.Unstructured{}
 			_, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
 			if err != nil {
@@ -142,7 +142,7 @@ func inferPodSets(_ context.Context, aw *workloadv1beta2.AppWrapper) error {
 			if err != nil {
 				return err
 			}
-			components[idx].PodSets = podSets
+			components[idx].DeclaredPodSets = podSets
 		}
 	}
 	return nil
@@ -223,7 +223,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 
 		// 4. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
 		podSetsPath := compPath.Child("podSets")
-		for psIdx, ps := range component.PodSets {
+		for psIdx, ps := range component.DeclaredPodSets {
 			podSetPath := podSetsPath.Index(psIdx)
 			if ps.Path == "" {
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
@@ -236,8 +236,8 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 		}
 
 		// 5. Validate PodSets for known GVKs
-		if err := utils.ValidatePodSets(unstruct, component.PodSets); err != nil {
-			allErrors = append(allErrors, field.Invalid(podSetsPath, component.PodSets, err.Error()))
+		if err := utils.ValidatePodSets(unstruct, component.DeclaredPodSets); err != nil {
+			allErrors = append(allErrors, field.Invalid(podSetsPath, component.DeclaredPodSets, err.Error()))
 		}
 
 	}
@@ -268,14 +268,14 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 		if !bytes.Equal(oldComponent.Template.Raw, newComponent.Template.Raw) {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template").Child("raw"), msg))
 		}
-		if len(oldComponent.PodSets) != len(newComponent.PodSets) {
+		if len(oldComponent.DeclaredPodSets) != len(newComponent.DeclaredPodSets) {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets"), msg))
 		} else {
-			for psIdx := range newComponent.PodSets {
-				if utils.Replicas(oldComponent.PodSets[psIdx]) != utils.Replicas(newComponent.PodSets[psIdx]) {
+			for psIdx := range newComponent.DeclaredPodSets {
+				if utils.Replicas(oldComponent.DeclaredPodSets[psIdx]) != utils.Replicas(newComponent.DeclaredPodSets[psIdx]) {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("replicas"), msg))
 				}
-				if oldComponent.PodSets[psIdx].Path != newComponent.PodSets[psIdx].Path {
+				if oldComponent.DeclaredPodSets[psIdx].Path != newComponent.DeclaredPodSets[psIdx].Path {
 					allErrors = append(allErrors, field.Forbidden(compPath.Child("podsets").Index(psIdx).Child("path"), msg))
 				}
 			}

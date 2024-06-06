@@ -36,17 +36,17 @@ import (
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 )
 
-func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.Unstructured, error) {
+func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstructured, error) {
 	obj := &unstructured.Unstructured{}
 	if _, _, err := unstructured.UnstructuredJSONScheme.Decode(raw, nil, obj); err != nil {
 		return nil, err
 	}
 	namespace := obj.GetNamespace()
 	if namespace == "" {
-		obj.SetNamespace(aw.Namespace)
-	} else if namespace != aw.Namespace {
+		obj.SetNamespace(expectedNamespace)
+	} else if namespace != expectedNamespace {
 		// Should not happen, namespace equality checked by validateAppWrapperInvariants
-		return nil, fmt.Errorf("component namespace \"%s\" is different from appwrapper namespace \"%s\"", namespace, aw.Namespace)
+		return nil, fmt.Errorf("component namespace \"%s\" is different from appwrapper namespace \"%s\"", namespace, expectedNamespace)
 	}
 	return obj, nil
 }
@@ -54,6 +54,7 @@ func parseComponent(aw *workloadv1beta2.AppWrapper, raw []byte) (*unstructured.U
 //gocyclo:ignore
 func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (*unstructured.Unstructured, error, bool) {
 	component := aw.Spec.Components[componentIdx]
+	componentStatus := aw.Status.ComponentStatus[componentIdx]
 	toMap := func(x interface{}) map[string]string {
 		if x == nil {
 			return nil
@@ -77,7 +78,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		}
 	}
 
-	obj, err := parseComponent(aw, component.Template.Raw)
+	obj, err := parseComponent(component.Template.Raw, aw.Namespace)
 	if err != nil {
 		return nil, err, true
 	}
@@ -88,7 +89,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	}
 
 	awLabels := map[string]string{AppWrapperLabel: aw.Name}
-	for podSetsIdx, podSet := range component.PodSets {
+	for podSetsIdx, podSet := range componentStatus.PodSets {
 		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
 		if r.Config.EnableKueueIntegrations {
 			if podSetsIdx < len(component.PodSetInfos) {

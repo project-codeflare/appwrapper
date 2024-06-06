@@ -167,7 +167,7 @@ func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
 
 func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
 	var expected int32
-	for _, c := range aw.Spec.Components {
+	for _, c := range aw.Status.ComponentStatus {
 		for _, s := range c.PodSets {
 			expected += Replicas(s)
 		}

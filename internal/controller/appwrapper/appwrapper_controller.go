@@ -37,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/controller/awstatus"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
@@ -150,13 +151,19 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return ctrl.Result{}, err
 			}
 		}
-		aw.Status.ComponentStatus = make([]workloadv1beta2.AppWrapperComponentStatus, len(aw.Spec.Components))
+
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
 	case workloadv1beta2.AppWrapperSuspended: // no components deployed
 		if aw.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
 		}
+
+		// Normally already done as a side-effect of Kueue calling PodSets(), but be absolutely certain before we start using it.
+		if err := awstatus.EnsureComponentStatusInitialized(ctx, aw); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		// begin deployment
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(workloadv1beta2.QuotaReserved),
