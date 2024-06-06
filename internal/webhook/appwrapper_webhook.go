@@ -62,16 +62,20 @@ type AppWrapperWebhook struct {
 
 var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 
-// Default ensures that Suspend is set appropriately when an AppWrapper is created
+// Default fills in default values when an AppWrapper is created:
+//  1. Inject default queue name
+//  2. Ensure Suspend is set appropriately
+//  3. Add labels with the user name and id
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
 	log.FromContext(ctx).Info("Applying defaults", "job", aw)
+
+	// Queue name and Suspend
 	if w.Config.EnableKueueIntegrations {
+		if w.Config.QueueName != "" && aw.Annotations[QueueNameLabel] == "" && aw.Labels[QueueNameLabel] == "" {
+			aw.Labels[QueueNameLabel] = w.Config.QueueName
+		}
 		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
-	}
-	if err := inferPodSets(ctx, aw); err != nil {
-		log.FromContext(ctx).Info("Error raised during podSet inference", "job", aw)
-		return err
 	}
 
 	// inject labels with user name and id
@@ -82,11 +86,6 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	userInfo := request.UserInfo
 	username := utils.SanitizeLabel(userInfo.Username)
 	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
-
-	// inject default queue name if missing from appwrapper and configured on controller
-	if w.Config.QueueName != "" && aw.Annotations[QueueNameLabel] == "" && aw.Labels[QueueNameLabel] == "" {
-		aw.Labels[QueueNameLabel] = w.Config.QueueName
-	}
 
 	return nil
 }
@@ -122,30 +121,6 @@ func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 // ValidateDelete is a noop for us, but is required to implement the CustomValidator interface
 func (w *AppWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
 	return nil, nil
-}
-
-// inferPodSets infers the AppWrapper's PodSets
-func inferPodSets(_ context.Context, aw *workloadv1beta2.AppWrapper) error {
-	components := aw.Spec.Components
-	componentsPath := field.NewPath("spec").Child("components")
-	for idx, component := range components {
-		compPath := componentsPath.Index(idx)
-
-		// Automatically create elided PodSets for known GVKs
-		if len(component.DeclaredPodSets) == 0 {
-			unstruct := &unstructured.Unstructured{}
-			_, _, err := unstructured.UnstructuredJSONScheme.Decode(component.Template.Raw, nil, unstruct)
-			if err != nil {
-				return field.Invalid(compPath.Child("template"), component.Template, "failed to decode as JSON")
-			}
-			podSets, err := utils.InferPodSets(unstruct)
-			if err != nil {
-				return err
-			}
-			components[idx].DeclaredPodSets = podSets
-		}
-	}
-	return nil
 }
 
 // rbacs required to enable SubjectAccessReview
@@ -221,7 +196,7 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 			}
 		}
 
-		// 4. Each PodSet.Path must specify a path within Template to a v1.PodSpecTemplate
+		// 4. Every DeclaredPodSet must specify a path within Template to a v1.PodSpecTemplate
 		podSetsPath := compPath.Child("podSets")
 		for psIdx, ps := range component.DeclaredPodSets {
 			podSetPath := podSetsPath.Index(psIdx)
@@ -229,17 +204,23 @@ func (w *AppWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 				allErrors = append(allErrors, field.Required(podSetPath.Child("path"), "podspec must specify path"))
 			}
 			if _, err := utils.GetPodTemplateSpec(unstruct, ps.Path); err != nil {
-				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path,
-					fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
+				allErrors = append(allErrors, field.Invalid(podSetPath.Child("path"), ps.Path, fmt.Sprintf("path does not refer to a v1.PodSpecTemplate: %v", err)))
 			}
-			podSpecCount += 1
 		}
 
 		// 5. Validate PodSets for known GVKs
-		if err := utils.ValidatePodSets(unstruct, component.DeclaredPodSets); err != nil {
-			allErrors = append(allErrors, field.Invalid(podSetsPath, component.DeclaredPodSets, err.Error()))
+		if inferred, err := utils.InferPodSets(unstruct); err != nil {
+			allErrors = append(allErrors, field.Invalid(compPath.Child("template"), component.Template, fmt.Sprintf("error inferring PodSets: %v", err)))
+		} else {
+			if len(component.DeclaredPodSets) > len(inferred) {
+				podSpecCount += len(component.DeclaredPodSets)
+			} else {
+				podSpecCount += len(inferred)
+			}
+			if err := utils.ValidatePodSets(component.DeclaredPodSets, inferred); err != nil {
+				allErrors = append(allErrors, field.Invalid(podSetsPath, component.DeclaredPodSets, err.Error()))
+			}
 		}
-
 	}
 
 	// 6. Enforce Kueue limitation that 0 < podSpecCount <= 8
