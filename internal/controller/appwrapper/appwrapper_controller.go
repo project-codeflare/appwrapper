@@ -137,7 +137,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				if err := r.Update(ctx, aw); err != nil {
 					return ctrl.Result{}, err
 				}
-				log.FromContext(ctx).Info("Deleted")
+				log.FromContext(ctx).Info("Finalizer Deleted")
 			}
 		}
 		return ctrl.Result{}, nil
@@ -526,7 +526,7 @@ func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *w
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed admission grace period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed admission grace period annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.AdmissionGracePeriod)
@@ -537,7 +537,7 @@ func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *work
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed warmup grace period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed warmup grace period annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.WarmupGracePeriod)
@@ -548,7 +548,7 @@ func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *wor
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed grace period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed failure grace period annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.FailureGracePeriod)
@@ -559,7 +559,7 @@ func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1bet
 		if limit, err := strconv.Atoi(userLimit); err == nil {
 			return int32(limit)
 		} else {
-			log.FromContext(ctx).Info("Malformed retry limit annotation", "annotation", userLimit, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed retry limit annotation; using default", "annotation", userLimit)
 		}
 	}
 	return r.Config.FaultTolerance.RetryLimit
@@ -570,7 +570,7 @@ func (r *AppWrapperReconciler) retryPauseDuration(ctx context.Context, aw *workl
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed retry pause annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed retry pause annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.RetryPausePeriod)
@@ -581,7 +581,7 @@ func (r *AppWrapperReconciler) forcefulDeletionGraceDuration(ctx context.Context
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed forceful deletion period annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed forceful deletion period annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.limitDuration(r.Config.FaultTolerance.ForcefulDeletionGracePeriod)
@@ -592,7 +592,7 @@ func (r *AppWrapperReconciler) deletionOnFailureGraceDuration(ctx context.Contex
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
-			log.FromContext(ctx).Info("Malformed delection on failue delay annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed deletion on failure grace period annotation; using default of 0", "annotation", userPeriod)
 		}
 	}
 	return 0 * time.Second
@@ -605,7 +605,7 @@ func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Cont
 				return duration
 			}
 		} else {
-			log.FromContext(ctx).Info("Malformed successTTL annotation", "annotation", userPeriod, "error", err)
+			log.FromContext(ctx).Error(err, "Malformed successTTL annotation; using default", "annotation", userPeriod)
 		}
 	}
 	return r.Config.FaultTolerance.SuccessTTL

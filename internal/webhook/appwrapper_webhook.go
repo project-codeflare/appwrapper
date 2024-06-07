@@ -68,7 +68,7 @@ var _ webhook.CustomDefaulter = &AppWrapperWebhook{}
 //  3. Add labels with the user name and id
 func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
 	aw := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Applying defaults", "job", aw)
+	log.FromContext(ctx).V(2).Info("Applying defaults", "job", aw)
 
 	// Queue name and Suspend
 	if w.Config.EnableKueueIntegrations {
@@ -97,7 +97,7 @@ var _ webhook.CustomValidator = &AppWrapperWebhook{}
 // ValidateCreate validates invariants when an AppWrapper is created
 func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	aw := obj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating create", "job", aw)
+	log.FromContext(ctx).V(2).Info("Validating create", "job", aw)
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
 	if w.Config.EnableKueueIntegrations {
 		allErrors = append(allErrors, jobframework.ValidateCreateForQueueName((*wlc.AppWrapper)(aw))...)
@@ -109,7 +109,7 @@ func (w *AppWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 func (w *AppWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
 	newAW := newObj.(*workloadv1beta2.AppWrapper)
-	log.FromContext(ctx).Info("Validating update", "job", newAW)
+	log.FromContext(ctx).V(2).Info("Validating update", "job", newAW)
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
 	if w.Config.EnableKueueIntegrations {
 		allErrors = append(allErrors, jobframework.ValidateUpdateForQueueName((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
