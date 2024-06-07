@@ -152,16 +152,15 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
+		if err := awstatus.EnsureComponentStatusInitialized(ctx, aw); err != nil {
+			return ctrl.Result{}, err
+		}
+
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspended)
 
 	case workloadv1beta2.AppWrapperSuspended: // no components deployed
 		if aw.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
-		}
-
-		// Normally already done as a side-effect of Kueue calling PodSets(), but be absolutely certain before we start using it.
-		if err := awstatus.EnsureComponentStatusInitialized(ctx, aw); err != nil {
-			return ctrl.Result{}, err
 		}
 
 		// begin deployment
