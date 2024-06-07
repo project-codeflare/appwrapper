@@ -29,7 +29,6 @@ import (
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
-	"github.com/project-codeflare/appwrapper/internal/controller/awstatus"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/webhook"
 	"github.com/project-codeflare/appwrapper/pkg/config"
@@ -39,7 +38,6 @@ import (
 
 // SetupControllers creates and configures all components of the AppWrapper controller
 func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	awstatus.CacheClient(mgr.GetClient())
 	if awConfig.EnableKueueIntegrations {
 		if err := workload.WorkloadReconciler(
 			mgr.GetClient(),
