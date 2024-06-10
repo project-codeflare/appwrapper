@@ -49,7 +49,7 @@ jobs:
       run: make test
 
     - name: Create and configure cluster
-      run: LABEL_FILTER=Kueue ./hack/create-test-cluster.sh
+      run: ./hack/create-test-cluster.sh
 
     - name: Deploy Kueue
       run: ./hack/deploy-kueue.sh
