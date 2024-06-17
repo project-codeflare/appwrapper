@@ -73,6 +73,9 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	// Queue name and Suspend
 	if w.Config.EnableKueueIntegrations {
 		if w.Config.QueueName != "" && aw.Annotations[QueueNameLabel] == "" && aw.Labels[QueueNameLabel] == "" {
+			if aw.Labels == nil {
+				aw.Labels = map[string]string{}
+			}
 			aw.Labels[QueueNameLabel] = w.Config.QueueName
 		}
 		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
