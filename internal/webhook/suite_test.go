@@ -62,6 +62,8 @@ var cancel context.CancelFunc
 
 const limitedUserName = "limited-user"
 const limitedUserID = "8da0fcfe-6d7f-4f44-b433-d91d22cc1b8c"
+const defaultQueueName = "default-queue"
+const userProvidedQueueName = "user-queue"
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -157,7 +159,9 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	err = (&AppWrapperWebhook{Config: config.NewAppWrapperConfig()}).SetupWebhookWithManager(mgr)
+	conf := config.NewAppWrapperConfig()
+	conf.QueueName = defaultQueueName // add default queue name
+	err = (&AppWrapperWebhook{Config: conf}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

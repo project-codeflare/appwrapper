@@ -41,6 +41,23 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 
+		It("Default queue name is set", func() {
+			aw := toAppWrapper(pod(100))
+
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.Labels[QueueNameLabel]).Should(BeIdenticalTo(defaultQueueName), "aw should be labeled with the default queue name")
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+		})
+
+		It("Provided queue name is not overridden by default queue name", func() {
+			aw := toAppWrapper(pod(100))
+			aw.Labels = utilmaps.MergeKeepFirst(map[string]string{QueueNameLabel: userProvidedQueueName}, aw.Labels)
+
+			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+			Expect(aw.Labels[QueueNameLabel]).Should(BeIdenticalTo(userProvidedQueueName), "queue name should not be overridden")
+			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
+		})
+
 		It("User name and ID are set", func() {
 			aw := toAppWrapper(pod(100))
 			aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: "bad", AppWrapperUserIDLabel: "bad"}, aw.Labels)
