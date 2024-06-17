@@ -38,6 +38,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
 			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
+			Expect(aw.Labels[QueueNameLabel]).Should(BeIdenticalTo(defaultQueueName), "aw should be labeled with the default queue name")
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 
