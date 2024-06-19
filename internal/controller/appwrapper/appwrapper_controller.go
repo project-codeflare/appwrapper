@@ -483,7 +483,9 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		case v1.PodPending:
 			summary.pending += 1
 		case v1.PodRunning:
-			summary.running += 1
+			if pod.DeletionTimestamp.IsZero() {
+				summary.running += 1
+			}
 		case v1.PodSucceeded:
 			summary.succeeded += 1
 		case v1.PodFailed:
