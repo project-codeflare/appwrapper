@@ -52,7 +52,7 @@ func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstruc
 }
 
 //gocyclo:ignore
-func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (*unstructured.Unstructured, error, bool) {
+func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (error, bool) {
 	component := aw.Spec.Components[componentIdx]
 	componentStatus := aw.Status.ComponentStatus[componentIdx]
 	toMap := func(x interface{}) map[string]string {
@@ -80,7 +80,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 
 	obj, err := parseComponent(component.Template.Raw, aw.Namespace)
 	if err != nil {
-		return nil, err, true
+		return err, true
 	}
 	if r.Config.EnableKueueIntegrations && !r.Config.DisableChildAdmissionCtrl {
 		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
@@ -95,13 +95,13 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			if podSetsIdx < len(component.PodSetInfos) {
 				toInject = &component.PodSetInfos[podSetsIdx]
 			} else {
-				return nil, fmt.Errorf("missing podSetInfo %v for component %v", podSetsIdx, componentIdx), true
+				return fmt.Errorf("missing podSetInfo %v for component %v", podSetsIdx, componentIdx), true
 			}
 		}
 
 		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
 		if err != nil {
-			return nil, err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
+			return err, true // Should not happen, path validity is enforced by validateAppWrapperInvariants
 		}
 		if md, ok := p["metadata"]; !ok || md == nil {
 			p["metadata"] = make(map[string]interface{})
@@ -113,7 +113,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		if len(toInject.Annotations) > 0 {
 			existing := toMap(metadata["annotations"])
 			if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
-				return nil, podset.BadPodSetsUpdateError("annotations", err), true
+				return podset.BadPodSetsUpdateError("annotations", err), true
 			}
 			metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
 		}
@@ -122,7 +122,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
 		existing := toMap(metadata["labels"])
 		if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
-			return nil, podset.BadPodSetsUpdateError("labels", err), true
+			return podset.BadPodSetsUpdateError("labels", err), true
 		}
 		metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
 
@@ -130,7 +130,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		if len(toInject.NodeSelector) > 0 {
 			existing := toMap(spec["nodeSelector"])
 			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
-				return nil, podset.BadPodSetsUpdateError("nodeSelector", err), true
+				return podset.BadPodSetsUpdateError("nodeSelector", err), true
 			}
 			spec["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 		}
@@ -156,43 +156,57 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	}
 
 	if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
-		return nil, err, true
+		return err, true
+	}
+
+	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) == nil {
+		aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
+		aw.Status.ComponentStatus[componentIdx].Kind = obj.GetKind()
+		aw.Status.ComponentStatus[componentIdx].APIVersion = obj.GetAPIVersion()
+		meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+			Type:   string(workloadv1beta2.ResourcesDeployed),
+			Status: metav1.ConditionUnknown,
+			Reason: "ComponentCreationInitiated",
+		})
+		if err := r.Status().Update(ctx, aw); err != nil {
+			return err, false
+		}
 	}
 
 	if err := r.Create(ctx, obj); err != nil {
 		if apierrors.IsAlreadyExists(err) {
 			// obj is not updated if Create returns an error; Get required for accurate information
 			if err := r.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-				return nil, err, false
+				return err, false
 			}
 			ctrlRef := metav1.GetControllerOf(obj)
 			if ctrlRef == nil || ctrlRef.Name != aw.Name {
-				return nil, fmt.Errorf("resource %v exists, but is not controlled by appwrapper", obj.GetName()), true
+				return fmt.Errorf("resource %v exists, but is not controlled by appwrapper", obj.GetName()), true
 			}
-			return obj, nil, false // ok -- already exists and the correct appwrapper owns it.
+			// fall through.  This is not actually an error. The object already exists and the correct appwrapper owns it.
 		} else {
-			return nil, err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
+			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
 		}
 	}
 
-	return obj, nil, false
+	meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+		Type:   string(workloadv1beta2.ResourcesDeployed),
+		Status: metav1.ConditionTrue,
+		Reason: "ComponentCreatedSuccessfully",
+	})
+	if err := r.Status().Update(ctx, aw); err != nil {
+		return err, false
+	}
+
+	return nil, false
 }
 
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
 	for componentIdx := range aw.Spec.Components {
 		if !meta.IsStatusConditionTrue(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) {
-			obj, err, fatal := r.createComponent(ctx, aw, componentIdx)
-			if err != nil {
+			if err, fatal := r.createComponent(ctx, aw, componentIdx); err != nil {
 				return err, fatal
 			}
-			aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
-			aw.Status.ComponentStatus[componentIdx].Kind = obj.GetKind()
-			aw.Status.ComponentStatus[componentIdx].APIVersion = obj.GetAPIVersion()
-			meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-				Type:   string(workloadv1beta2.ResourcesDeployed),
-				Status: metav1.ConditionTrue,
-				Reason: "CompononetCreated",
-			})
 		}
 	}
 	return nil, false
@@ -201,7 +215,7 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
 	deleteIfPresent := func(idx int, opts ...client.DeleteOption) bool {
 		cs := &aw.Status.ComponentStatus[idx]
-		if !meta.IsStatusConditionTrue(cs.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+		if rd := meta.FindStatusCondition(cs.Conditions, string(workloadv1beta2.ResourcesDeployed)); rd == nil || rd.Status == metav1.ConditionFalse {
 			return false // not present
 		}
 		obj := &metav1.PartialObjectMetadata{
