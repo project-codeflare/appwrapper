@@ -503,7 +503,9 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 		cs := &aw.Status.ComponentStatus[componentIdx]
 		obj := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
 		if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
-			summary.deployed += 1
+			if obj.DeletionTimestamp.IsZero() {
+				summary.deployed += 1
+			}
 		} else {
 			if apierrors.IsNotFound(err) {
 				meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
