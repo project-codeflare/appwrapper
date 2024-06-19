@@ -196,6 +196,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		err, fatal := r.createComponents(ctx, aw)
 		if err != nil {
+			if !fatal {
+				startTime := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+				graceDuration := r.admissionGraceDuration(ctx, aw)
+				if time.Now().Before(startTime.Add(graceDuration)) {
+					// be patient; non-fatal error; requeue and keep trying
+					return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
+				}
+			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
@@ -203,7 +211,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: fmt.Sprintf("error creating components: %v", err),
 			})
 			if fatal {
-				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // abort on fatal error
+				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
 				return r.resetOrFail(ctx, aw)
 			}
