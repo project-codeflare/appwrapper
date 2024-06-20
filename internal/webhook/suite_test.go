@@ -160,7 +160,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	conf := config.NewAppWrapperConfig()
-	conf.QueueName = defaultQueueName // add default queue name
+	conf.DefaultQueueName = defaultQueueName // add default queue name
 	err = (&AppWrapperWebhook{Config: conf}).SetupWebhookWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 

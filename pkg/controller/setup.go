@@ -42,7 +42,7 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 		if err := workload.WorkloadReconciler(
 			mgr.GetClient(),
 			mgr.GetEventRecorderFor("kueue"),
-			jobframework.WithManageJobsWithoutQueueName(awConfig.ManageJobsWithoutQueueName),
+			jobframework.WithManageJobsWithoutQueueName(true),
 		).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("workload controller: %w", err)
 		}

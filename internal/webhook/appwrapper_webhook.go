@@ -72,13 +72,10 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 
 	// Queue name and Suspend
 	if w.Config.EnableKueueIntegrations {
-		if w.Config.QueueName != "" && aw.Annotations[QueueNameLabel] == "" && aw.Labels[QueueNameLabel] == "" {
-			if aw.Labels == nil {
-				aw.Labels = map[string]string{}
-			}
-			aw.Labels[QueueNameLabel] = w.Config.QueueName
+		if w.Config.DefaultQueueName != "" {
+			aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.Config.DefaultQueueName})
 		}
-		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.ManageJobsWithoutQueueName)
+		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), true)
 	}
 
 	// inject labels with user name and id
