@@ -26,6 +26,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -66,6 +67,7 @@ type podStatusSummary struct {
 type componentStatusSummary struct {
 	expected int32
 	deployed int32
+	failed   int32
 }
 
 // permission to fully control appwrappers
@@ -238,6 +240,18 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Message: fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected),
 			})
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
+		}
+
+		// If a component's controller has put it into a failed state, we do not need
+		// to allow any further grace period.  The situation will not self-correct.
+		if compStatus.failed > 0 {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "FailedComponent",
+				Message: fmt.Sprintf("Found %v failed components", compStatus.failed),
+			})
+			return r.resetOrFail(ctx, aw)
 		}
 
 		// Second, check the Pod-level status of the workload
@@ -501,20 +515,66 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 
 	for componentIdx := range aw.Status.ComponentStatus {
 		cs := &aw.Status.ComponentStatus[componentIdx]
-		obj := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
-		if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
-			if obj.DeletionTimestamp.IsZero() {
-				summary.deployed += 1
-			}
-		} else {
-			if apierrors.IsNotFound(err) {
-				meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-					Type:   string(workloadv1beta2.Unhealthy),
-					Status: metav1.ConditionTrue,
-					Reason: "ComponentNotFound",
-				})
+		switch cs.Kind {
+		case "PyTorchJob":
+			obj := &unstructured.Unstructured{}
+			obj.SetAPIVersion(cs.APIVersion)
+			obj.SetKind(cs.Kind)
+			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+				if obj.GetDeletionTimestamp().IsZero() {
+					summary.deployed += 1
+
+					// PyTorchJob is failed if status.Conditions contains an entry with type "Failed" and status "True"
+					status, ok := obj.UnstructuredContent()["status"]
+					if !ok {
+						continue
+					}
+					cond, ok := status.(map[string]interface{})["conditions"]
+					if !ok {
+						continue
+					}
+					condArray, ok := cond.([]interface{})
+					if !ok {
+						continue
+					}
+					for _, aCond := range condArray {
+						if condMap, ok := aCond.(map[string]interface{}); ok {
+							if condType, ok := condMap["type"]; ok && condType.(string) == "Failed" {
+								if status, ok := condMap["status"]; ok && status.(string) == "True" {
+									summary.failed += 1
+								}
+							}
+						}
+					}
+				}
 			} else {
-				return nil, err
+				if apierrors.IsNotFound(err) {
+					meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+						Type:   string(workloadv1beta2.Unhealthy),
+						Status: metav1.ConditionTrue,
+						Reason: "ComponentNotFound",
+					})
+				} else {
+					return nil, err
+				}
+			}
+
+		default:
+			obj := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
+			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+				if obj.GetDeletionTimestamp().IsZero() {
+					summary.deployed += 1
+				}
+			} else {
+				if apierrors.IsNotFound(err) {
+					meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+						Type:   string(workloadv1beta2.Unhealthy),
+						Status: metav1.ConditionTrue,
+						Reason: "ComponentNotFound",
+					})
+				} else {
+					return nil, err
+				}
 			}
 		}
 	}
