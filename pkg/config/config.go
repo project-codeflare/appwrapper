@@ -29,13 +29,12 @@ type OperatorConfig struct {
 }
 
 type AppWrapperConfig struct {
-	ManageJobsWithoutQueueName bool                  `json:"manageJobsWithoutQueueName,omitempty"`
-	EnableKueueIntegrations    bool                  `json:"enableKueueIntegrations,omitempty"`
-	DisableChildAdmissionCtrl  bool                  `json:"disableChildAdmissionCtrl,omitempty"`
-	UserRBACAdmissionCheck     bool                  `json:"userRBACAdmissionCheck,omitempty"`
-	FaultTolerance             *FaultToleranceConfig `json:"faultTolerance,omitempty"`
-	SchedulerName              string                `json:"schedulerName,omitempty"`
-	QueueName                  string                `json:"queueName,omitempty"`
+	EnableKueueIntegrations   bool                  `json:"enableKueueIntegrations,omitempty"`
+	DisableChildAdmissionCtrl bool                  `json:"disableChildAdmissionCtrl,omitempty"`
+	UserRBACAdmissionCheck    bool                  `json:"userRBACAdmissionCheck,omitempty"`
+	FaultTolerance            *FaultToleranceConfig `json:"faultTolerance,omitempty"`
+	SchedulerName             string                `json:"schedulerName,omitempty"`
+	DefaultQueueName          string                `json:"defaultQueueName,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -79,10 +78,9 @@ type HealthConfiguration struct {
 // NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
-		ManageJobsWithoutQueueName: true,
-		EnableKueueIntegrations:    true,
-		DisableChildAdmissionCtrl:  false,
-		UserRBACAdmissionCheck:     true,
+		EnableKueueIntegrations:   true,
+		DisableChildAdmissionCtrl: false,
+		UserRBACAdmissionCheck:    true,
 		FaultTolerance: &FaultToleranceConfig{
 			AdmissionGracePeriod:        1 * time.Minute,
 			WarmupGracePeriod:           5 * time.Minute,
