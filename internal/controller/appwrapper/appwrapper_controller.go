@@ -39,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/controller/awstatus"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
@@ -155,7 +154,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
-		if err := awstatus.EnsureComponentStatusInitialized(ctx, aw); err != nil {
+		if err := utils.EnsureComponentStatusInitialized(aw); err != nil {
 			return ctrl.Result{}, err
 		}
 
@@ -491,7 +490,11 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
-	summary := &podStatusSummary{expected: utils.ExpectedPodCount(aw)}
+	pc, err := utils.ExpectedPodCount(aw)
+	if err != nil {
+		return nil, err
+	}
+	summary := &podStatusSummary{expected: pc}
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {

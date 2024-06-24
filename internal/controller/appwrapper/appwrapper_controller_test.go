@@ -106,7 +106,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(podStatus.pending).Should(Equal(utils.ExpectedPodCount(aw)))
+		Expect(utils.ExpectedPodCount(aw)).Should(Equal(podStatus.pending))
 
 		By("Simulating first Pod Running")
 		Expect(setPodStatus(aw, v1.PodRunning, 1)).To(Succeed())
@@ -123,15 +123,18 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err = awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(podStatus.pending).Should(Equal(utils.ExpectedPodCount(aw) - 1))
+		Expect(podStatus.running).Should(Equal(int32(1)))
+		Expect(utils.ExpectedPodCount(aw)).Should(Equal(podStatus.pending + podStatus.running))
 	}
 
 	fullyRunning := func() {
 		aw := getAppWrapper(awName)
 		By("Simulating all Pods Running")
-		Expect(setPodStatus(aw, v1.PodRunning, utils.ExpectedPodCount(aw))).To(Succeed())
+		pc, err := utils.ExpectedPodCount(aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(setPodStatus(aw, v1.PodRunning, pc)).To(Succeed())
 		By("Reconciling: Running -> Running")
-		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
@@ -144,7 +147,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect((*workload.AppWrapper)(aw).PodsReady()).Should(BeTrue())
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(podStatus.running).Should(Equal(utils.ExpectedPodCount(aw)))
+		Expect(podStatus.running).Should(Equal(pc))
 		_, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeFalse())
 	}
@@ -184,13 +187,16 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
+		pc, err := utils.ExpectedPodCount(aw)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(pc).Should(Equal(int32(2)))
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(podStatus.running).Should(Equal(utils.ExpectedPodCount(aw) - 1))
+		Expect(podStatus.running).Should(Equal(int32(1)))
 		Expect(podStatus.succeeded).Should(Equal(int32(1)))
 
 		By("Simulating all Pods Completing")
-		Expect(setPodStatus(aw, v1.PodSucceeded, utils.ExpectedPodCount(aw))).To(Succeed())
+		Expect(setPodStatus(aw, v1.PodSucceeded, 2)).To(Succeed())
 		By("Reconciling: Running -> Succeeded")
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
