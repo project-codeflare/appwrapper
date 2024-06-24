@@ -16,6 +16,8 @@ spec:
       metadata:
         name: sample-failing-job
       spec:
+        backoffLimit: 1
+        completions: 1
         template:
           spec:
             restartPolicy: Never
