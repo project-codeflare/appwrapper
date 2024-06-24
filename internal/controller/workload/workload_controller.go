@@ -17,7 +17,6 @@ limitations under the License.
 package workload
 
 import (
-	"context"
 	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -33,7 +32,6 @@ import (
 	"sigs.k8s.io/kueue/pkg/podset"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/controller/awstatus"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
@@ -79,7 +77,7 @@ func (aw *AppWrapper) GVK() schema.GroupVersionKind {
 
 func (aw *AppWrapper) PodSets() []kueue.PodSet {
 	podSets := []kueue.PodSet{}
-	if err := awstatus.EnsureComponentStatusInitialized(context.Background(), (*workloadv1beta2.AppWrapper)(aw)); err != nil {
+	if err := utils.EnsureComponentStatusInitialized((*workloadv1beta2.AppWrapper)(aw)); err != nil {
 		// Kueue will raise an error on zero length PodSet.  Unfortunately, the Kueue API prevents propagating the actual error
 		return podSets
 	}

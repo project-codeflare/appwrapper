@@ -285,14 +285,46 @@ func Replicas(ps workloadv1beta2.AppWrapperPodSet) int32 {
 	}
 }
 
-func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) int32 {
+func ExpectedPodCount(aw *workloadv1beta2.AppWrapper) (int32, error) {
+	if err := EnsureComponentStatusInitialized(aw); err != nil {
+		return 0, err
+	}
 	var expected int32
 	for _, c := range aw.Status.ComponentStatus {
 		for _, s := range c.PodSets {
 			expected += Replicas(s)
 		}
 	}
-	return expected
+	return expected, nil
+}
+
+// EnsureComponentStatusInitialized initializes aw.Status.ComponenetStatus, including performing PodSet inference for known GVKs
+func EnsureComponentStatusInitialized(aw *workloadv1beta2.AppWrapper) error {
+	if len(aw.Status.ComponentStatus) == len(aw.Spec.Components) {
+		return nil
+	}
+
+	// Construct definitive PodSets from the Spec + InferPodSets and cache in the Status (to avoid clashing with user updates to the Spec via apply)
+	compStatus := make([]workloadv1beta2.AppWrapperComponentStatus, len(aw.Spec.Components))
+	for idx := range aw.Spec.Components {
+		if len(aw.Spec.Components[idx].DeclaredPodSets) > 0 {
+			compStatus[idx].PodSets = aw.Spec.Components[idx].DeclaredPodSets
+		} else {
+			obj := &unstructured.Unstructured{}
+			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
+				// Transient error; Template.Raw was validated by our AdmissionController
+				return err
+			}
+			podSets, err := InferPodSets(obj)
+			if err != nil {
+				// Transient error; InferPodSets was validated by our AdmissionController
+				return err
+			}
+			compStatus[idx].PodSets = podSets
+		}
+	}
+	aw.Status.ComponentStatus = compStatus
+	return nil
 }
 
 // inferReplicas parses the value at the given path within obj as an int or return 1 or error

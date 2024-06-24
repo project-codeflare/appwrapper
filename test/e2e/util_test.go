@@ -253,15 +253,21 @@ func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string) e
 }
 
 func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
-	numExpected := utils.ExpectedPodCount(aw)
+	numExpected, err := utils.ExpectedPodCount(aw)
+	if err != nil {
+		return err
+	}
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
 	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 120*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 }
 
 func checkAllAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
-	numExpected := utils.ExpectedPodCount(aw)
+	numExpected, err := utils.ExpectedPodCount(aw)
+	if err != nil {
+		return false
+	}
 	phases := []v1.PodPhase{v1.PodRunning, v1.PodSucceeded}
-	err := wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 100*time.Millisecond, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
+	err = wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 100*time.Millisecond, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 	return err == nil
 }
 
