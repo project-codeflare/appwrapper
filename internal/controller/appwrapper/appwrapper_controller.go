@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"time"
 
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -515,8 +516,8 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 
 	for componentIdx := range aw.Status.ComponentStatus {
 		cs := &aw.Status.ComponentStatus[componentIdx]
-		switch cs.Kind {
-		case "PyTorchJob":
+		switch cs.APIVersion + ":" + cs.Kind {
+		case "kubeflow.org/v1:PyTorchJob":
 			obj := &unstructured.Unstructured{}
 			obj.SetAPIVersion(cs.APIVersion)
 			obj.SetKind(cs.Kind)
@@ -547,16 +548,26 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 						}
 					}
 				}
-			} else {
-				if apierrors.IsNotFound(err) {
-					meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-						Type:   string(workloadv1beta2.Unhealthy),
-						Status: metav1.ConditionTrue,
-						Reason: "ComponentNotFound",
-					})
-				} else {
-					return nil, err
+			} else if !apierrors.IsNotFound(err) {
+				return nil, err
+			}
+
+		case "batch/v1:Job":
+			obj := &batchv1.Job{}
+			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+				if obj.GetDeletionTimestamp().IsZero() {
+					summary.deployed += 1
+
+					// batch/v1 Jobs are failed when status.Conditions contains an entry with type "Failed" and status "True"
+					for _, jc := range obj.Status.Conditions {
+						if jc.Type == batchv1.JobFailed && jc.Status == v1.ConditionTrue {
+							summary.failed += 1
+						}
+					}
 				}
+
+			} else if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
 
 		default:
@@ -565,16 +576,8 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 				}
-			} else {
-				if apierrors.IsNotFound(err) {
-					meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-						Type:   string(workloadv1beta2.Unhealthy),
-						Status: metav1.ConditionTrue,
-						Reason: "ComponentNotFound",
-					})
-				} else {
-					return nil, err
-				}
+			} else if !apierrors.IsNotFound(err) {
+				return nil, err
 			}
 		}
 	}
