@@ -218,10 +218,20 @@ function cleanup {
       if [[ "$appwrapper_controller_pod" != "" ]]
       then
         echo "===================================================================================="
-        echo "==========================>>>>> AppWrapper Controller Logs <<<<<=========================="
+        echo "======================>>>>> AppWrapper Controller Logs <<<<<========================"
         echo "===================================================================================="
         echo "kubectl logs ${appwrapper_controller_pod} -n appwrapper-system"
         kubectl logs ${appwrapper_controller_pod} -n appwrapper-system
+      fi
+
+      local kueue_controller_pod=$(kubectl get pods -n kueue-system | grep kueue-controller | awk '{print $1}')
+      if [[ "$kueue_controller_pod" != "" ]]
+      then
+        echo "===================================================================================="
+        echo "=========================>>>>> Kueue Controller Logs <<<<<=========================="
+        echo "===================================================================================="
+        echo "kubectl logs ${kueue_controller_pod} -n kueue-system"
+        kubectl logs ${kueue_controller_pod} -n kueue-system
       fi
     fi
 
