@@ -148,7 +148,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.running).Should(Equal(pc))
-		_, finished := (*workload.AppWrapper)(aw).Finished()
+		_, _, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeFalse())
 	}
 
@@ -207,7 +207,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
-		_, finished := (*workload.AppWrapper)(aw).Finished()
+		_, _, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeTrue())
 	})
 
@@ -269,7 +269,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
-		_, finished := (*workload.AppWrapper)(aw).Finished()
+		_, _, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeFalse())
 
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // initiate deletion
@@ -284,7 +284,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
-		_, finished = (*workload.AppWrapper)(aw).Finished()
+		_, _, finished = (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeTrue())
 	})
 

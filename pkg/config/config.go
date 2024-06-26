@@ -79,7 +79,7 @@ type HealthConfiguration struct {
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
 		EnableKueueIntegrations:   true,
-		DisableChildAdmissionCtrl: false,
+		DisableChildAdmissionCtrl: true,
 		UserRBACAdmissionCheck:    true,
 		FaultTolerance: &FaultToleranceConfig{
 			AdmissionGracePeriod:        1 * time.Minute,
