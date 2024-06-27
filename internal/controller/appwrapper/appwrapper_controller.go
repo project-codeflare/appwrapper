@@ -583,6 +583,10 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
+					/* Disabled because failed is not a terminal state.
+					 *  We've observed RC transiently entering "failed" before becoming "ready" due to ingress not being ready
+					 * TODO: Explore fixing in upstream projects.
+
 					// RayCluster is failed if status.State is "failed"
 					status, ok := obj.UnstructuredContent()["status"]
 					if !ok {
@@ -595,6 +599,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 					if state.(string) == "failed" {
 						summary.failed += 1
 					}
+					*/
 				}
 			} else if !apierrors.IsNotFound(err) {
 				return nil, err
@@ -608,6 +613,9 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
+					/* Disabled because we are not sure if failed is  a terminal state.
+					 * TODO: Determine whether or not RayJob has the same issue as RayCluster
+
 					// RayJob is failed if status.jobsStatus is "FAILED"
 					status, ok := obj.UnstructuredContent()["status"]
 					if !ok {
@@ -620,6 +628,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workl
 					if jobStatus.(string) == "FAILED" {
 						summary.failed += 1
 					}
+					*/
 				}
 			} else if !apierrors.IsNotFound(err) {
 				return nil, err
