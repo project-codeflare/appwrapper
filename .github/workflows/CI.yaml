@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main]
+    branches: [main, rhoai-2.10]
     paths-ignore:
     - 'site/**'
   pull_request:
