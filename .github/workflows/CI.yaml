@@ -5,8 +5,7 @@ on:
     paths-ignore:
     - 'site/**'
   pull_request:
-    branches:
-    - 'main'
+    branches: [main, rhoai-2.10]
 
 jobs:
   CI:
