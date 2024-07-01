@@ -6,7 +6,7 @@ classes: wide
 
 ### Prerequisites
 
-You'll need `go` v1.21.0+ installed on your development machine.
+You'll need `go` v1.22.0+ installed on your development machine.
 
 You'll need a container runtime and cli (eg `docker` or `rancher-desktop`).
 
