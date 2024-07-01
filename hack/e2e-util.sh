@@ -25,6 +25,9 @@ DUMP_LOGS="true"
 export KUBEFLOW_VERSION=v1.7.0
 export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-855e096"
 
+export KUBERAY_VERSION=1.1.0
+export IMAGE_KUBERAY_OPERATOR="quay.io/kuberay/operator:v1.1.1"
+
 # These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
@@ -64,6 +67,18 @@ function update_test_host {
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
+  fi
+
+  which helm >/dev/null 2>&1
+  if [ $? -ne 0 ]
+  then
+    # Installing helm3
+    echo "Downloading and installing helm..."
+    curl -fsSL -o ${ROOT_DIR}/get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 &&
+      chmod 700 ${ROOT_DIR}/get_helm.sh && ${ROOT_DIR}/get_helm.sh
+    [ $? -ne 0 ] && echo "Failed to download and install helm" && exit 1
+    echo "Helm was sucessfully installed."
+    rm -rf ${ROOT_DIR}/get_helm.sh
   fi
 
   kubectl kuttl version >/dev/null 2>&1
@@ -113,10 +128,19 @@ function check_prerequisites {
   else
     echo -n "found kuttl plugin for kubectl, " && kubectl kuttl version
   fi
+
+  which helm >/dev/null 2>&1
+  if [ $? -ne 0 ]
+  then
+    echo "helm not installed, exiting."
+    exit 1
+  else
+    echo -n "found helm, " && helm version
+  fi
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -139,7 +163,7 @@ function kind_up_cluster {
   fi
   CLUSTER_STARTED="true"
 
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
@@ -153,10 +177,17 @@ function kind_up_cluster {
 function configure_cluster {
   echo "Installing Kubeflow operator version $KUBEFLOW_VERSION"
   kubectl apply -k "github.com/kubeflow/training-operator/manifests/overlays/standalone?ref=$KUBEFLOW_VERSION"
-
-  # Sleep until the kubeflow operator is running
   echo "Waiting for pods in the kubeflow namespace to become ready"
   while [[ $(kubectl get pods -n kubeflow -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+  do
+      echo -n "." && sleep 1;
+  done
+  echo ""
+
+  echo "Installing Kuberay operator version $KUBERAY_VERSION"
+  helm install kuberay-operator kuberay-operator --repo https://ray-project.github.io/kuberay-helm/ --version $KUBERAY_VERSION --create-namespace -n kuberay-system
+  echo "Waiting for pods in the kuberay namespace to become ready"
+  while [[ $(kubectl get pods -n kuberay-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
       echo -n "." && sleep 1;
   done
