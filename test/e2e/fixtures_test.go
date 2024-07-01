@@ -341,6 +341,128 @@ func pytorchjob(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWra
 	}
 }
 
+// This is not a functional RayCluster:
+//  1. Using a dummy busybox image to avoid pulling a large & rate-limited image from dockerhub,
+//     which means the command injected by the kuberay operator will never work.
+//
+// It is only useful to check that we validate the PodSpecTemplates and can reach the Resuming state.
+const rayclusterYAML = `
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: %v
+spec:
+  rayVersion: '2.9.0'
+  headGroupSpec:
+    rayStartParams: {}
+    template:
+      spec:
+        containers:
+          - name: ray-head
+            image: quay.io/project-codeflare/busybox:1.36
+            command: ["sh", "-c", "sleep 10"]
+            resources:
+              requests:
+                cpu: %v
+
+  workerGroupSpecs:
+  - replicas: %v
+    minReplicas: %v
+    maxReplicas: %v
+    groupName: small-group
+    rayStartParams: {}
+    # Pod template
+    template:
+      spec:
+        containers:
+          - name: ray-worker
+            image: quay.io/project-codeflare/busybox:1.36
+            command: ["sh", "-c", "sleep 10"]
+            resources:
+              requests:
+                cpu: %v
+`
+
+func raycluster(milliCPUHead int64, replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(rayclusterYAML,
+		randName("raycluster"),
+		resource.NewMilliQuantity(milliCPUHead, resource.DecimalSI),
+		replicasWorker, replicasWorker, replicasWorker,
+		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
+	)
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.workerGroupSpecs[0].template"},
+		},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+// This is not a functional RayJob:
+//  1. Using a dummy busybox image to avoid pulling a large & rate-limited image from dockerhub,
+//     which means the command injected by the kuberay operator will never work.
+//
+// It is only useful to check that we validate the PodSpecTemplates and can reach the Resuming state.
+const rayjobYAML = `
+apiVersion: ray.io/v1
+kind: RayJob
+metadata:
+  name: %v
+spec:
+  shutdownAfterJobFinishes: true
+  rayClusterSpec:
+      rayVersion: '2.9.0'
+      headGroupSpec:
+        rayStartParams: {}
+        template:
+          spec:
+            containers:
+              - name: ray-head
+                image: quay.io/project-codeflare/busybox:1.36
+                command: ["sh", "-c", "sleep 10"]
+                resources:
+                  requests:
+                    cpu: %v
+
+      workerGroupSpecs:
+      - replicas: %v
+        minReplicas: %v
+        maxReplicas: %v
+        groupName: small-group
+        rayStartParams: {}
+        # Pod template
+        template:
+          spec:
+            containers:
+              - name: ray-worker
+                image: quay.io/project-codeflare/busybox:1.36
+                command: ["sh", "-c", "sleep 10"]
+                resources:
+                  requests:
+                    cpu: %v
+`
+
+func rayjob(milliCPUHead int64, replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(rayjobYAML,
+		randName("raycluster"),
+		resource.NewMilliQuantity(milliCPUHead, resource.DecimalSI),
+		replicasWorker, replicasWorker, replicasWorker,
+		resource.NewMilliQuantity(milliCPUWorker, resource.DecimalSI),
+	)
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{
+			{Replicas: ptr.To(int32(1)), Path: "template.spec.rayClusterSpec.headGroupSpec.template"},
+			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.rayClusterSpec.workerGroupSpecs[0].template"},
+		},
+		Template: runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 const jobSetYAML = `
 apiVersion: jobset.x-k8s.io/v1alpha2
 kind: JobSet
