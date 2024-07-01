@@ -5,7 +5,6 @@ metadata:
 data:
   config.yaml: |
     appwrapper:
-      disableChildAdmissionCtrl: true
       enableKueueIntegrations: true
     controllerManager:
       health:

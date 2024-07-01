@@ -31,13 +31,12 @@ type OperatorConfig struct {
 }
 
 type AppWrapperConfig struct {
-	EnableKueueIntegrations   bool                  `json:"enableKueueIntegrations,omitempty"`
-	DisableChildAdmissionCtrl bool                  `json:"disableChildAdmissionCtrl,omitempty"`
-	KueueJobReconciller       *KueueJobReconciller  `json:"kueueJobReconciller,omitempty"`
-	UserRBACAdmissionCheck    bool                  `json:"userRBACAdmissionCheck,omitempty"`
-	FaultTolerance            *FaultToleranceConfig `json:"faultTolerance,omitempty"`
-	SchedulerName             string                `json:"schedulerName,omitempty"`
-	DefaultQueueName          string                `json:"defaultQueueName,omitempty"`
+	EnableKueueIntegrations bool                  `json:"enableKueueIntegrations,omitempty"`
+	KueueJobReconciller     *KueueJobReconciller  `json:"kueueJobReconciller,omitempty"`
+	UserRBACAdmissionCheck  bool                  `json:"userRBACAdmissionCheck,omitempty"`
+	FaultTolerance          *FaultToleranceConfig `json:"faultTolerance,omitempty"`
+	SchedulerName           string                `json:"schedulerName,omitempty"`
+	DefaultQueueName        string                `json:"defaultQueueName,omitempty"`
 }
 
 type KueueJobReconciller struct {
@@ -87,8 +86,7 @@ type HealthConfiguration struct {
 // NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
-		EnableKueueIntegrations:   true,
-		DisableChildAdmissionCtrl: true,
+		EnableKueueIntegrations: true,
 		KueueJobReconciller: &KueueJobReconciller{
 			ManageJobsWithoutQueueName: true,
 			WaitForPodsReady:           &v1beta1.WaitForPodsReady{Enable: true},
