@@ -82,7 +82,21 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		})
 	})
 
-	// TODO: KubeRay GVKs (would have to deploy KubeRay operator on e2e test cluster)
+	Describe("Creation of Kuberay GVKs", Label("Kueue", "Standalone"), func() {
+		It("RayClusters", func() {
+			aw := createAppWrapper(ctx, raycluster(500, 2, 250))
+			appwrappers = append(appwrappers, aw)
+			// Non-functonal RayCluster; will never reach Running Phase
+			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(workloadv1beta2.AppWrapperResuming))
+		})
+
+		It("RayJobs", func() {
+			aw := createAppWrapper(ctx, rayjob(500, 2, 250))
+			appwrappers = append(appwrappers, aw)
+			// Non-functonal RayJob; will never reach Running Phase
+			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(workloadv1beta2.AppWrapperResuming))
+		})
+	})
 
 	// TODO: JobSets (would have to deploy JobSet controller on e2e test cluster)
 
