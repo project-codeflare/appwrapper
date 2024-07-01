@@ -9,11 +9,12 @@ designed to smoothly interoperate with
 [Kueue](https://kueue.sigs.k8s.io).  They provide a flexible and
 workload-agnostic mechanism for enabling Kueue to manage a group of
 Kubernetes resources as a single logical unit without requiring any
-Kueue-specific support by the controllers of those resources. If the
-operators for some of the contained resources are Kueue-aware, the
-AppWrapper operator ensures that when Kueue admits an AppWrapper for
-execution, all of the necessary information will be propagated
-to cause the child's Kueue-enabled operator to admit it as well.
+Kueue-specific support by the controllers of those resources.
+Kueue can be configured to recognize AppWrappers as an
+[externalFramework](https://kueue.sigs.k8s.io/docs/tasks/dev/integrate_a_custom_job/#building-an-external-integration),
+thus ensuring that if you have enabled Kueue's `manageJobsWithoutQueueName`
+option, admission decisions made for the AppWrapper will be properly
+propagated to its contained resources.
 For a more detailed description of the overall design, see the
 [Architecture](https://project-codeflare.github.io/appwrapper/arch-controller/)
 section of our website.
@@ -42,6 +43,10 @@ kubectl apply --server-side -f https://github.com/project-codeflare/appwrapper/r
 The controller runs in the `appwrapper-system` namespace.
 
 Read the [Quick Start Guide](https://project-codeflare.github.io/appwrapper/quick-start/) to learn more.
+
+If you have modified the default configuration of Kueue to set `manageJobsWithoutQueueName` to true,
+then you must also apply [this patch](./hack/kueue-patches/02-aw-external-frameworks.txt) to your
+Kueue installation.
 
 ## Usage
 

@@ -35,13 +35,16 @@ the status of the AppWrapper to the format expected by Kueue.
 See [workload_controller.go]({{ site.gh_main_url }}/internal/controller/workload/workload_controller.go)
 for the implementation.
 
-A small additional piece of logic is currently needed to generalize
-Kueue's ability to recognize parent/children relationships and ensure
-that admission by Kueue of the parent AppWrapper will be propagated to
-its immediate children.
+To ensure smooth interoperation with all possible configurations of Kueue,
+it is recommended to register AppWrappers as an
+[externalFramework](https://kueue.sigs.k8s.io/docs/tasks/dev/integrate_a_custom_job/#building-an-external-integration)
+with Kueue. Our script [deploy-kueue.sh]({{ site.gh_main_url }}/hack/deploy-kueue.sh) automates
+this. The script accomplishes the following tasks:
 
-See [child_admission_controller.go]({{ site.gh_main_url }}/internal/controller/workload/child_admission_controller.go)
-for the implementation.
+1. Adds the ability to get, list, and watch AppWrappers to the RBACs for Kueue's manager role.
+2. Adds `"AppWrapper.v1beta2.workload.codeflare.dev"` to the list of `externalFrameworks` in
+   Kueue's manager configuration.
+
 
 #### Framework Controller
 
