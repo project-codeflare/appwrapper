@@ -33,7 +33,6 @@ import (
 	"github.com/project-codeflare/appwrapper/internal/webhook"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 
-	"sigs.k8s.io/kueue/apis/config/v1beta1"
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )
 
@@ -43,8 +42,9 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 		if err := workload.WorkloadReconciler(
 			mgr.GetClient(),
 			mgr.GetEventRecorderFor("kueue"),
-			jobframework.WithManageJobsWithoutQueueName(true),
-			jobframework.WithWaitForPodsReady(&v1beta1.WaitForPodsReady{Enable: true}),
+			jobframework.WithManageJobsWithoutQueueName(awConfig.KueueJobReconciller.ManageJobsWithoutQueueName),
+			jobframework.WithWaitForPodsReady(awConfig.KueueJobReconciller.WaitForPodsReady),
+			jobframework.WithLabelKeysToCopy(awConfig.KueueJobReconciller.LabelKeysToCopy),
 		).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("workload controller: %w", err)
 		}
