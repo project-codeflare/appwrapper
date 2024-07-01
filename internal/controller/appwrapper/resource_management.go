@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/kueue/pkg/controller/constants"
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 )
@@ -82,13 +81,9 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return err, true
 	}
-	if r.Config.EnableKueueIntegrations && !r.Config.DisableChildAdmissionCtrl {
-		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name, constants.QueueLabel: childJobQueueName}))
-	} else {
-		obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), map[string]string{AppWrapperLabel: aw.Name}))
-	}
-
 	awLabels := map[string]string{AppWrapperLabel: aw.Name}
+	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), awLabels))
+
 	for podSetsIdx, podSet := range componentStatus.PodSets {
 		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
 		if r.Config.EnableKueueIntegrations {
