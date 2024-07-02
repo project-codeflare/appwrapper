@@ -208,10 +208,10 @@ GENREF = $(LOCALBIN)/genref-$(GENREF_VERSION)
 
 
 ## Tool Versions
-KUSTOMIZE_VERSION ?= v5.3.0
-CONTROLLER_TOOLS_VERSION ?= v0.14.0
+KUSTOMIZE_VERSION ?= $(shell go list -m -f '{{.Version}}' sigs.k8s.io/kustomize/kustomize/v5)
+CONTROLLER_TOOLS_VERSION ?= $(shell go list -m -f '{{.Version}}' sigs.k8s.io/controller-tools)
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= v1.55.2
+GOLANGCI_LINT_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/golangci/golangci-lint)
 GENREF_VERSION ?= v0.28.0
 
 .PHONY: kustomize
