@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kueue-system
+
+resources:
+- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.7.0"
+
+configMapGenerator:
+- name: manager-config
+  namespace: kueue-system
+  behavior: replace
+  files:
+  - controller_manager_config.yaml
+
+images:
+- name: gcr.io/k8s-staging-kueue/kueue
+  newName: registry.k8s.io/kueue/kueue
+  newTag: v0.7.0
+
+patches:
+- target:
+    kind: ClusterRole
+    name: manager-role
+  patch: |
+    - op: add
+      path: /rules/-
+      value:
+        apiGroups:
+        - workload.codeflare.dev
+        resources:
+        - appwrappers
+        verbs:
+        - get
+        - list
+        - watch
