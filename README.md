@@ -37,7 +37,7 @@ To install the latest release of AppWrapper in a Kubernetes cluster with Kueue a
 and configured, simply run the command:
 
 ```sh
-kubectl apply --server-side -f https://github.com/project-codeflare/appwrapper/releases/download/v0.20.2/install.yaml
+kubectl apply --server-side -f https://github.com/project-codeflare/appwrapper/releases/download/v0.21.0/install.yaml
 ```
 
 The controller runs in the `appwrapper-system` namespace.
