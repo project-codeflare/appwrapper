@@ -1,6 +1,6 @@
 module github.com/project-codeflare/appwrapper
 
-go 1.22.2
+go 1.22.4
 
 require (
 	github.com/distribution/reference v0.5.0
@@ -14,7 +14,7 @@ require (
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
 	sigs.k8s.io/controller-runtime v0.17.3
 	sigs.k8s.io/controller-tools v0.14.0
-	sigs.k8s.io/kueue v0.7.0
+	sigs.k8s.io/kueue v0.7.1
 	sigs.k8s.io/kustomize/kustomize/v5 v5.3.0
 	sigs.k8s.io/yaml v1.4.0
 )
