@@ -14,19 +14,10 @@
 
 # Installs a kueue release onto an existing cluster
 
-KUEUE_VERSION=v0.7.0
-
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 
-echo "Downloading and patching Kueue ${KUEUE_VERSION} manifests"
-wget -q https://github.com/kubernetes-sigs/kueue/releases/download/${KUEUE_VERSION}/manifests.yaml -O $ROOT_DIR/hack/kueue-manifest.yaml
-patch -p 0 $ROOT_DIR/hack/kueue-manifest.yaml <  $ROOT_DIR/hack/kueue-patches/01-manage-all-jobs.txt || exit 1
-patch -p 0 $ROOT_DIR/hack/kueue-manifest.yaml <  $ROOT_DIR/hack/kueue-patches/02-aw-external-frameworks.txt || exit 1
-
-echo "Deploying Kueue version $KUEUE_VERSION"
-kubectl apply --server-side -f $ROOT_DIR/hack/kueue-manifest.yaml
-
-rm -f $ROOT_DIR/hack/kueue-manifest.yaml
+echo "Deploying Kueue"
+kubectl apply --server-side -k $ROOT_DIR/hack/kueue-config
 
 # Sleep until the kueue manager is running
 echo "Waiting for pods in the kueue-system namespace to become ready"
