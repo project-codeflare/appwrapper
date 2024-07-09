@@ -26,7 +26,6 @@ repository: project-codeflare/appwrapper
 # Variables for use in pages
 gh_main_url: https://github.com/project-codeflare/appwrapper/blob/main
 appwrapper_version: v0.20.2
-kueue_version: v0.7.0
 
 # Outputting
 permalink: /:categories/:title/

@@ -11,9 +11,9 @@ available to you and `kubectl` is properly configured.
 
 ### Install Kueue
 
-Install a compatible version of Kueue by executing this command:
+Install and configure a compatible version of Kueue by executing this command:
 ```sh
-kubectl apply --server-side -f https://github.com/kubernetes-sigs/kueue/releases/download/{{ site.kueue_version }}/manifests.yaml
+kubectl apply --server-side -k "https://github.com/project-codeflare/appwrapper/hack/kueue-config?ref={{ site.appwrapper_version }}"
 ```
 
 Before continuing, ensure Kueue is ready by executing this command:
