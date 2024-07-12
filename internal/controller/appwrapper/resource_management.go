@@ -184,6 +184,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		}
 	}
 
+	aw.Status.ComponentStatus[componentIdx].Name = obj.GetName() // Update name to support usage of GenerateName
 	meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
 		Type:   string(workloadv1beta2.ResourcesDeployed),
 		Status: metav1.ConditionTrue,
@@ -210,7 +211,8 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
 	deleteIfPresent := func(idx int, opts ...client.DeleteOption) bool {
 		cs := &aw.Status.ComponentStatus[idx]
-		if rd := meta.FindStatusCondition(cs.Conditions, string(workloadv1beta2.ResourcesDeployed)); rd == nil || rd.Status == metav1.ConditionFalse {
+		rd := meta.FindStatusCondition(cs.Conditions, string(workloadv1beta2.ResourcesDeployed))
+		if rd == nil || rd.Status == metav1.ConditionFalse || (rd.Status == metav1.ConditionUnknown && cs.Name == "") {
 			return false // not present
 		}
 		obj := &metav1.PartialObjectMetadata{
