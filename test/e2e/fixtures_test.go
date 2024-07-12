@@ -208,7 +208,7 @@ const batchJobYAML = `
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: %v
+  generateName: %v
 spec:
   template:
     spec:
@@ -225,7 +225,7 @@ spec:
 
 func batchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(batchJobYAML,
-		randName("batchjob"),
+		"batchjob-",
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
@@ -272,7 +272,7 @@ const succeedingBatchJobYAML = `
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: %v
+  generateName: %v
 spec:
   template:
     spec:
@@ -289,7 +289,7 @@ spec:
 
 func succeedingBatchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(succeedingBatchJobYAML,
-		randName("batchjob"),
+		"batchjob-",
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
