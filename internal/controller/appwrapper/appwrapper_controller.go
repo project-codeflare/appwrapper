@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -57,11 +58,12 @@ type AppWrapperReconciler struct {
 }
 
 type podStatusSummary struct {
-	expected  int32
-	pending   int32
-	running   int32
-	succeeded int32
-	failed    int32
+	expected        int32
+	pending         int32
+	running         int32
+	succeeded       int32
+	failed          int32
+	terminalFailure bool
 }
 
 type componentStatusSummary struct {
@@ -215,7 +217,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if fatal {
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
-				return r.resetOrFail(ctx, aw)
+				return r.resetOrFail(ctx, aw, false)
 			}
 		}
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperRunning)
@@ -225,8 +227,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperSuspending) // begin undeployment
 		}
 
-		// First, check the Component-level status of the workload
+		// Gather status information at the Component and Pod level.
 		compStatus, err := r.getComponentStatus(ctx, aw)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		podStatus, err := r.getPodStatus(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -251,13 +257,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "FailedComponent",
 				Message: fmt.Sprintf("Found %v failed components", compStatus.failed),
 			})
-			return r.resetOrFail(ctx, aw)
-		}
-
-		// Second, check the Pod-level status of the workload
-		podStatus, err := r.getPodStatus(ctx, aw)
-		if err != nil {
-			return ctrl.Result{}, err
+			return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
 		}
 
 		// Handle Success
@@ -295,7 +295,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if now.Before(deadline) {
 				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
 			} else {
-				return r.resetOrFail(ctx, aw)
+				return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
 			}
 		}
 
@@ -330,7 +330,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "InsufficientPodsReady",
 				Message: podDetailsMessage,
 			})
-			return r.resetOrFail(ctx, aw)
+			return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
 		}
 
 	case workloadv1beta2.AppWrapperSuspending: // undeploying components
@@ -473,9 +473,9 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *workloadv1b
 	return ctrl.Result{}, nil
 }
 
-func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper) (ctrl.Result, error) {
+func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper, terminalFailure bool) (ctrl.Result, error) {
 	maxRetries := r.retryLimit(ctx, aw)
-	if aw.Status.Retries < maxRetries {
+	if !terminalFailure && aw.Status.Retries < maxRetries {
 		aw.Status.Retries += 1
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
 	} else {
@@ -508,6 +508,40 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 			summary.succeeded += 1
 		case v1.PodFailed:
 			summary.failed += 1
+			if terminalCodes := r.terminalExitCodes(ctx, aw); len(terminalCodes) > 0 {
+				for _, containerStatus := range pod.Status.ContainerStatuses {
+					if containerStatus.State.Terminated != nil {
+						exitCode := containerStatus.State.Terminated.ExitCode
+						if exitCode != 0 {
+							for _, ec := range terminalCodes {
+								if ec == int(exitCode) {
+									summary.terminalFailure = true
+									break
+								}
+							}
+						}
+					}
+				}
+			}
+			if retryableCodes := r.retryableExitCodes(ctx, aw); len(retryableCodes) > 0 {
+				for _, containerStatus := range pod.Status.ContainerStatuses {
+					if containerStatus.State.Terminated != nil {
+						exitCode := containerStatus.State.Terminated.ExitCode
+						if exitCode != 0 {
+							terminal := true
+							for _, ec := range retryableCodes {
+								if ec == int(exitCode) {
+									terminal = false
+									break
+								}
+							}
+							if terminal {
+								summary.terminalFailure = terminal
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -747,6 +781,34 @@ func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Cont
 		}
 	}
 	return r.Config.FaultTolerance.SuccessTTL
+}
+
+func (r *AppWrapperReconciler) terminalExitCodes(_ context.Context, aw *workloadv1beta2.AppWrapper) []int {
+	ans := []int{}
+	if exitCodeAnn, ok := aw.Annotations[workloadv1beta2.TerminalExitCodesAnnotation]; ok {
+		exitCodes := strings.Split(exitCodeAnn, ",")
+		for _, str := range exitCodes {
+			exitCode, err := strconv.Atoi(str)
+			if err == nil {
+				ans = append(ans, exitCode)
+			}
+		}
+	}
+	return ans
+}
+
+func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *workloadv1beta2.AppWrapper) []int {
+	ans := []int{}
+	if exitCodeAnn, ok := aw.Annotations[workloadv1beta2.RetryableExitCodesAnnotation]; ok {
+		exitCodes := strings.Split(exitCodeAnn, ",")
+		for _, str := range exitCodes {
+			exitCode, err := strconv.Atoi(str)
+			if err == nil {
+				ans = append(ans, exitCode)
+			}
+		}
+	}
+	return ans
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {

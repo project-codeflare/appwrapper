@@ -172,6 +172,8 @@ const (
 	ForcefulDeletionGracePeriodAnnotation  = "workload.codeflare.dev.appwrapper/forcefulDeletionGracePeriodDuration"
 	DeletionOnFailureGracePeriodAnnotation = "workload.codeflare.dev.appwrapper/deletionOnFailureGracePeriodDuration"
 	SuccessTTLAnnotation                   = "workload.codeflare.dev.appwrapper/successTTLDuration"
+	TerminalExitCodesAnnotation            = "workload.codeflare.dev.appwrapper/terminalExitCodes"
+	RetryableExitCodesAnnotation           = "workload.codeflare.dev.appwrapper/retryableExitCodes"
 )
 
 //+kubebuilder:object:root=true
