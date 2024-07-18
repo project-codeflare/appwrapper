@@ -66,7 +66,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	hadEntries := len(flaggedResources) > 0
+	hadEntries := len(unhealthyNodes) > 0
 
 	if len(flaggedResources) == 0 {
 		delete(unhealthyNodes, node.GetName())
