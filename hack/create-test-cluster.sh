@@ -24,4 +24,5 @@ update_test_host
 check_prerequisites
 pull_images
 kind_up_cluster
+add_virtual_GPUs
 configure_cluster

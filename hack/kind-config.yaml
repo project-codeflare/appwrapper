@@ -7,7 +7,10 @@ nodes:
 - role: control-plane
   # kubernetes version 1.27.13 from kind v0.23.0
   image: kindest/node:v1.27.13@sha256:17439fa5b32290e3ead39ead1250dca1d822d94a10d26f1981756cd51b24b9d8
-# the worker
+# the workers
+- role: worker
+  # kubernetes version 1.27.13 from kind v0.23.0
+  image: kindest/node:v1.27.13@sha256:17439fa5b32290e3ead39ead1250dca1d822d94a10d26f1981756cd51b24b9d8
 - role: worker
   # kubernetes version 1.27.13 from kind v0.23.0
   image: kindest/node:v1.27.13@sha256:17439fa5b32290e3ead39ead1250dca1d822d94a10d26f1981756cd51b24b9d8

@@ -50,6 +50,15 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 		}
 	}
 
+	if awConfig.Autopilot != nil && awConfig.Autopilot.EvacuateWorkloads {
+		if err := (&appwrapper.NodeHealthMonitor{
+			Client: mgr.GetClient(),
+			Config: awConfig,
+		}).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("node health monitor: %w", err)
+		}
+	}
+
 	if err := (&appwrapper.AppWrapperReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),

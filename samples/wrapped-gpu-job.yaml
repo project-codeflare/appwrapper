@@ -1,7 +1,7 @@
 apiVersion: workload.codeflare.dev/v1beta2
 kind: AppWrapper
 metadata:
-  name: sample-job
+  name: sample-gpu-job
   labels:
     kueue.x-k8s.io/queue-name: user-queue
   annotations:
@@ -12,7 +12,7 @@ spec:
       apiVersion: batch/v1
       kind: Job
       metadata:
-        name: sample-job
+        name: sample-gpu-job
       spec:
         template:
           spec:
@@ -24,3 +24,6 @@ spec:
               resources:
                 requests:
                   cpu: 1
+                  nvidia.com/gpu: 4
+                limits:
+                  nvidia.com/gpu: 4

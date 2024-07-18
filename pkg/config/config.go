@@ -103,7 +103,7 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			InjectAffinity:    true,
 			EvacuateWorkloads: true,
 			ResourceUnhealthyConfig: map[string]map[string]string{
-				"nvidia.com/gpu": {"autopilot.ibm.com/health": "ERR"},
+				"nvidia.com/gpu": {"autopilot.ibm.com/gpuhealth": "ERR"},
 			},
 		},
 		UserRBACAdmissionCheck: true,
