@@ -1,0 +1,29 @@
+apiVersion: workload.codeflare.dev/v1beta2
+kind: AppWrapper
+metadata:
+  name: sample-gpu-job
+  labels:
+    kueue.x-k8s.io/queue-name: user-queue
+  annotations:
+    workload.codeflare.dev.appwrapper/successTTLDuration: "1m"
+spec:
+  components:
+  - template:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: sample-job
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: busybox
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 600"]
+              resources:
+                requests:
+                  cpu: 1
+                  nvidia.com/gpu: 4
+                limits:
+                  nvidia.com/gpu: 4
