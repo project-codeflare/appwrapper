@@ -309,7 +309,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "AutopilotUnhealthy",
 				Message: fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes),
 			})
-			// Go to reset directly because an Autopilot triggered evacuation does count against the retry limit
+			// Go to reset directly because an Autopilot triggered evacuation does not count against the retry limit
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
 		}
 
