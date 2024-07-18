@@ -512,37 +512,36 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 	summary := &podStatusSummary{expected: pc}
 
 	for _, pod := range pods.Items {
-		if len(unhealthyNodes) > 0 {
-			if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
-				for badResource := range resources {
-					for _, container := range pod.Spec.Containers {
-						if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
-							if !limit.IsZero() {
-								if summary.unhealthyNodes == nil {
-									summary.unhealthyNodes = make(sets.Set[string])
-								}
-								summary.unhealthyNodes.Insert(pod.Spec.NodeName)
-							}
-						}
-						if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
-							if !request.IsZero() {
-								if summary.unhealthyNodes == nil {
-									summary.unhealthyNodes = make(sets.Set[string])
-								}
-								summary.unhealthyNodes.Insert(pod.Spec.NodeName)
-							}
-						}
-					}
-				}
-			}
-		}
-
 		switch pod.Status.Phase {
 		case v1.PodPending:
 			summary.pending += 1
 		case v1.PodRunning:
 			if pod.DeletionTimestamp.IsZero() {
 				summary.running += 1
+				if len(unhealthyNodes) > 0 {
+					if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
+						for badResource := range resources {
+							for _, container := range pod.Spec.Containers {
+								if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
+									if !limit.IsZero() {
+										if summary.unhealthyNodes == nil {
+											summary.unhealthyNodes = make(sets.Set[string])
+										}
+										summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+									}
+								}
+								if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
+									if !request.IsZero() {
+										if summary.unhealthyNodes == nil {
+											summary.unhealthyNodes = make(sets.Set[string])
+										}
+										summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+									}
+								}
+							}
+						}
+					}
+				}
 			}
 		case v1.PodSucceeded:
 			summary.succeeded += 1
