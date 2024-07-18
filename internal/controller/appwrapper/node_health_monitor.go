@@ -55,7 +55,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	log.FromContext(ctx).Info("Reconcilling", "node", req.NamespacedName)
+	log.FromContext(ctx).V(2).Info("Reconcilling", "node", req.NamespacedName)
 
 	flaggedResources := make(sets.Set[string])
 	for key, value := range node.GetLabels() {
@@ -77,6 +77,8 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if len(unhealthyNodes) == 0 {
 		if hadEntries {
 			log.FromContext(ctx).Info("All nodes now healthy")
+		} else {
+			log.FromContext(ctx).V(2).Info("All nodes now healthy")
 		}
 	} else {
 		log.FromContext(ctx).Info("Some nodes unhealthy", "number", len(unhealthyNodes), "details", unhealthyNodes)

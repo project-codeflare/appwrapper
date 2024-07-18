@@ -301,7 +301,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
-		// Evacuate workloads that are using resources that Autopilot has flagged as unhealthy
+		// Initiate migration of workloads that are using resources that Autopilot has flagged as unhealthy
 		if len(podStatus.unhealthyNodes) > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
