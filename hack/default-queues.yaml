@@ -10,12 +10,14 @@ metadata:
 spec:
   namespaceSelector: {} # match all.
   resourceGroups:
-  - coveredResources: ["cpu"]
+  - coveredResources: ["cpu", "nvidia.com/gpu"]
     flavors:
     - name: "default-flavor"
       resources:
       - name: "cpu"
         nominalQuota: 4
+      - name: "nvidia.com/gpu"
+        nominalQuota: 8
 ---
 apiVersion: kueue.x-k8s.io/v1beta1
 kind: LocalQueue
