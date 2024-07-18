@@ -31,18 +31,25 @@ type OperatorConfig struct {
 }
 
 type AppWrapperConfig struct {
-	EnableKueueIntegrations bool                  `json:"enableKueueIntegrations,omitempty"`
-	KueueJobReconciller     *KueueJobReconciller  `json:"kueueJobReconciller,omitempty"`
-	UserRBACAdmissionCheck  bool                  `json:"userRBACAdmissionCheck,omitempty"`
-	FaultTolerance          *FaultToleranceConfig `json:"faultTolerance,omitempty"`
-	SchedulerName           string                `json:"schedulerName,omitempty"`
-	DefaultQueueName        string                `json:"defaultQueueName,omitempty"`
+	EnableKueueIntegrations bool                       `json:"enableKueueIntegrations,omitempty"`
+	KueueJobReconciller     *KueueJobReconcillerConfig `json:"kueueJobReconciller,omitempty"`
+	Autopilot               *AutopilotConfig           `json:"autopilot,omitempty"`
+	UserRBACAdmissionCheck  bool                       `json:"userRBACAdmissionCheck,omitempty"`
+	FaultTolerance          *FaultToleranceConfig      `json:"faultTolerance,omitempty"`
+	SchedulerName           string                     `json:"schedulerName,omitempty"`
+	DefaultQueueName        string                     `json:"defaultQueueName,omitempty"`
 }
 
-type KueueJobReconciller struct {
+type KueueJobReconcillerConfig struct {
 	ManageJobsWithoutQueueName bool                      `json:"manageJobsWithoutQueueName,omitempty"`
 	WaitForPodsReady           *v1beta1.WaitForPodsReady `json:"waitForPodsReady,omitempty"`
 	LabelKeysToCopy            []string                  `json:"labelKeysToCopy,omitempty"`
+}
+
+type AutopilotConfig struct {
+	InjectAffinity          bool                         `json:"injectAffinity,omitempty"`
+	EvacuateWorkloads       bool                         `json:"evacuateWorkloads,omitempty"`
+	ResourceUnhealthyConfig map[string]map[string]string `json:"resourceUnhealthyConfig,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -87,10 +94,17 @@ type HealthConfiguration struct {
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
 		EnableKueueIntegrations: true,
-		KueueJobReconciller: &KueueJobReconciller{
+		KueueJobReconciller: &KueueJobReconcillerConfig{
 			ManageJobsWithoutQueueName: true,
 			WaitForPodsReady:           &v1beta1.WaitForPodsReady{Enable: true},
 			LabelKeysToCopy:            []string{},
+		},
+		Autopilot: &AutopilotConfig{
+			InjectAffinity:    true,
+			EvacuateWorkloads: true,
+			ResourceUnhealthyConfig: map[string]map[string]string{
+				"nvidia.com/gpu": {"autopilot.ibm.com/health": "ERR"},
+			},
 		},
 		UserRBACAdmissionCheck: true,
 		FaultTolerance: &FaultToleranceConfig{

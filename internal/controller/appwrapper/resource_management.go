@@ -18,6 +18,7 @@ package appwrapper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	kresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,6 +50,107 @@ func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstruc
 		return nil, fmt.Errorf("component namespace \"%s\" is different from appwrapper namespace \"%s\"", namespace, expectedNamespace)
 	}
 	return obj, nil
+}
+
+func hasResourceRequest(spec map[string]interface{}, resource string) bool {
+	usesResource := func(container map[string]interface{}) bool {
+		_, ok := container["resources"]
+		if !ok {
+			return false
+		}
+		resources, ok := container["resources"].(map[string]interface{})
+		if !ok {
+			return false
+		}
+		for _, key := range []string{"limits", "requests"} {
+			if _, ok := resources[key]; ok {
+				if list, ok := resources[key].(map[string]interface{}); ok {
+					if _, ok := list[resource]; ok {
+						switch quantity := list[resource].(type) {
+						case int:
+							if quantity > 0 {
+								return true
+							}
+						case int32:
+							if quantity > 0 {
+								return true
+							}
+						case int64:
+							if quantity > 0 {
+								return true
+							}
+						case string:
+							kq, err := kresource.ParseQuantity(quantity)
+							if err == nil && !kq.IsZero() {
+								return true
+							}
+						}
+					}
+				}
+			}
+		}
+		return false
+	}
+
+	for _, key := range []string{"containers", "initContainers"} {
+		if containers, ok := spec[key]; ok {
+			if carray, ok := containers.([]interface{}); ok {
+				for _, containerI := range carray {
+					container, ok := containerI.(map[string]interface{})
+					if ok && usesResource(container) {
+						return true
+					}
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+func addNodeSelectorsToAffinity(spec map[string]interface{}, selectorTerms []v1.NodeSelectorTerm) error {
+	if _, ok := spec["affinity"]; !ok {
+		spec["affinity"] = map[string]interface{}{}
+	}
+	affinity, ok := spec["affinity"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("spec.affinity is not a map")
+	}
+	if _, ok := affinity["nodeAffinity"]; !ok {
+		affinity["nodeAffinity"] = map[string]interface{}{}
+	}
+	nodeAffinity, ok := affinity["nodeAffinity"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("spec.affinity.nodeAffinity is not a map")
+	}
+	if _, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"]; !ok {
+		nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"] = map[string]interface{}{}
+	}
+	nodeSelector, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"].(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution is not a map")
+	}
+	if _, ok := nodeSelector["nodeSelectorTerms"]; !ok {
+		nodeSelector["nodeSelectorTerms"] = []interface{}{}
+	}
+	existingTerms, ok := nodeSelector["nodeSelectorTerms"].([]interface{})
+	if !ok {
+		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms is not an array")
+	}
+	for _, termToAdd := range selectorTerms {
+		bytes, err := json.Marshal(termToAdd)
+		if err != nil {
+			return fmt.Errorf("marshalling selectorTerm %v: %w", termToAdd, err)
+		}
+		var obj interface{}
+		if err = json.Unmarshal(bytes, &obj); err != nil {
+			return fmt.Errorf("unmarshalling selectorTerm %v: %w", termToAdd, err)
+		}
+		existingTerms = append(existingTerms, obj)
+	}
+	nodeSelector["nodeSelectorTerms"] = existingTerms
+
+	return nil
 }
 
 //gocyclo:ignore
@@ -146,6 +249,28 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		if r.Config.SchedulerName != "" {
 			if existing, _ := spec["schedulerName"].(string); existing == "" {
 				spec["schedulerName"] = r.Config.SchedulerName
+			}
+		}
+
+		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAffinity {
+			toAdd := map[string]string{}
+			for resource, labels := range r.Config.Autopilot.ResourceUnhealthyConfig {
+				if hasResourceRequest(spec, resource) {
+					for k, v := range labels {
+						toAdd[k] = v
+					}
+				}
+			}
+			if len(toAdd) > 0 {
+				nodeSelectors := []v1.NodeSelectorTerm{}
+				for k, v := range toAdd {
+					nodeSelectors = append(nodeSelectors, v1.NodeSelectorTerm{
+						MatchExpressions: []v1.NodeSelectorRequirement{{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: []string{v}}},
+					})
+				}
+				if err := addNodeSelectorsToAffinity(spec, nodeSelectors); err != nil {
+					log.FromContext(ctx).Error(err, "failed to inject Autopilot affinities")
+				}
 			}
 		}
 	}
