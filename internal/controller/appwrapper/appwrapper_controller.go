@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -64,6 +65,7 @@ type podStatusSummary struct {
 	succeeded       int32
 	failed          int32
 	terminalFailure bool
+	unhealthyNodes  sets.Set[string]
 }
 
 type componentStatusSummary struct {
@@ -299,6 +301,18 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
+		// Evacuate workloads that are using resources that Autopilot has flagged as unhealthy
+		if len(podStatus.unhealthyNodes) > 0 {
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "AutopilotUnhealthy",
+				Message: fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes),
+			})
+			// Go to reset directly because an Autopilot triggered evacuation does count against the retry limit
+			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
+		}
+
 		clearCondition(aw, workloadv1beta2.Unhealthy, "FoundNoFailedPods", "")
 
 		if podStatus.running+podStatus.succeeded >= podStatus.expected {
@@ -483,6 +497,7 @@ func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1be
 	}
 }
 
+//gocyclo:ignore
 func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
@@ -497,6 +512,31 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 	summary := &podStatusSummary{expected: pc}
 
 	for _, pod := range pods.Items {
+		if len(unhealthyNodes) > 0 {
+			if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
+				for badResource := range resources {
+					for _, container := range pod.Spec.Containers {
+						if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
+							if !limit.IsZero() {
+								if summary.unhealthyNodes == nil {
+									summary.unhealthyNodes = make(sets.Set[string])
+								}
+								summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+							}
+						}
+						if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
+							if !request.IsZero() {
+								if summary.unhealthyNodes == nil {
+									summary.unhealthyNodes = make(sets.Set[string])
+								}
+								summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+							}
+						}
+					}
+				}
+			}
+		}
+
 		switch pod.Status.Phase {
 		case v1.PodPending:
 			summary.pending += 1
