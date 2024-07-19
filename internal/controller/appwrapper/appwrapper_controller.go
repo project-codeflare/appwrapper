@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/client-go/tools/record"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -54,8 +55,9 @@ const (
 // AppWrapperReconciler reconciles an appwrapper
 type AppWrapperReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	Config *config.AppWrapperConfig
+	Recorder record.EventRecorder
+	Scheme   *runtime.Scheme
+	Config   *config.AppWrapperConfig
 }
 
 type podStatusSummary struct {
@@ -210,12 +212,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 					return ctrl.Result{RequeueAfter: 1 * time.Second}, nil
 				}
 			}
+			detailMsg := fmt.Sprintf("error creating components: %v", err)
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "CreateFailed",
-				Message: fmt.Sprintf("error creating components: %v", err),
+				Message: detailMsg,
 			})
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "CreateFailed: "+detailMsg)
 			if fatal {
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
@@ -240,25 +244,29 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		// Detect externally deleted components and transition to Failed with no GracePeriod or retry
+		detailMsg := fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected)
 		if compStatus.deployed != compStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "MissingComponent",
-				Message: fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected),
+				Message: detailMsg,
 			})
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
 			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
 		}
 
 		// If a component's controller has put it into a failed state, we do not need
 		// to allow any further grace period.  The situation will not self-correct.
+		detailMsg = fmt.Sprintf("Found %v failed components", compStatus.failed)
 		if compStatus.failed > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "FailedComponent",
-				Message: fmt.Sprintf("Found %v failed components", compStatus.failed),
+				Message: detailMsg,
 			})
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "FailedComponent: "+detailMsg)
 			return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 		}
 
@@ -297,20 +305,22 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if now.Before(deadline) {
 				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
 			} else {
+				r.Recorder.Eventf(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "FoundFailedPods: %v failed pods", podStatus.failed)
 				return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 			}
 		}
 
 		// Initiate migration of workloads that are using resources that Autopilot has flagged as unhealthy
+		detailMsg = fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes)
 		if len(podStatus.unhealthyNodes) > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "AutopilotUnhealthy",
-				Message: fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes),
+				Message: detailMsg,
 			})
-			// Autopilot triggered evacuation does not increment retry count
-			return r.resetOrFail(ctx, aw, false, 0)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), detailMsg)
+			return r.resetOrFail(ctx, aw, false, 0) // Autopilot triggered evacuation does not increment retry count
 		}
 
 		clearCondition(aw, workloadv1beta2.Unhealthy, "FoundNoFailedPods", "")
@@ -344,6 +354,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "InsufficientPodsReady",
 				Message: podDetailsMessage,
 			})
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "InsufficientPodsReady: "+podDetailsMessage)
 			return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 		}
 
