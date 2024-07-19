@@ -18,6 +18,7 @@ package appwrapper
 
 import (
 	"context"
+	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,8 +39,11 @@ type NodeHealthMonitor struct {
 	Config *config.AppWrapperConfig
 }
 
-// unhealthyNodes is a mapping from Node names to a set of resources that Autopilot has labeled as unhealthy on that Node
-var unhealthyNodes = make(map[string]sets.Set[string])
+var (
+	// unhealthyNodes is a mapping from Node names to a set of resources that Autopilot has labeled as unhealthy on that Node
+	unhealthyNodes      = make(map[string]sets.Set[string])
+	unhealthyNodesMutex sync.RWMutex
+)
 
 // permission to watch nodes
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
@@ -55,8 +59,6 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, nil
 	}
 
-	log.FromContext(ctx).V(2).Info("Reconcilling", "node", req.NamespacedName)
-
 	flaggedResources := make(sets.Set[string])
 	for key, value := range node.GetLabels() {
 		for resource, apLabels := range r.Config.Autopilot.ResourceUnhealthyConfig {
@@ -66,22 +68,27 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 	}
 
-	hadEntries := len(unhealthyNodes) > 0
-
-	if len(flaggedResources) == 0 {
-		delete(unhealthyNodes, node.GetName())
-	} else {
-		unhealthyNodes[node.GetName()] = flaggedResources
-	}
-
-	if len(unhealthyNodes) == 0 {
-		if hadEntries {
-			log.FromContext(ctx).Info("All nodes now healthy")
-		} else {
-			log.FromContext(ctx).V(2).Info("All nodes now healthy")
+	nodeChanged := false
+	unhealthyNodesMutex.Lock() // BEGIN CRITICAL SECTION
+	if priorEntry, ok := unhealthyNodes[node.GetName()]; ok {
+		if len(flaggedResources) == 0 {
+			delete(unhealthyNodes, node.GetName())
+			nodeChanged = true
+		} else if !priorEntry.Equal(flaggedResources) {
+			unhealthyNodes[node.GetName()] = flaggedResources
+			nodeChanged = true
 		}
-	} else {
-		log.FromContext(ctx).Info("Some nodes unhealthy", "number", len(unhealthyNodes), "details", unhealthyNodes)
+	} else if len(flaggedResources) > 0 {
+		unhealthyNodes[node.GetName()] = flaggedResources
+		nodeChanged = true
+	}
+	numUnhealthy := len(unhealthyNodes)
+	unhealthyNodesMutex.Unlock() // END CRITICAL SECTION
+
+	if nodeChanged {
+		// This unsynchronized read of unhealthyNodes for logging purposes is safe because this method
+		// is the only writer to the map and the controller runtime is configured to not allow concurrent execution of this method.
+		log.FromContext(ctx).Info("Updated node health information", "Number Unhealthy Nodes", numUnhealthy, "Unhealthy Resource Details", unhealthyNodes)
 	}
 
 	return ctrl.Result{}, nil
