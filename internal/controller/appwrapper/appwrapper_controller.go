@@ -219,7 +219,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if fatal {
 				return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
-				return r.resetOrFail(ctx, aw, false)
+				return r.resetOrFail(ctx, aw, false, 1)
 			}
 		}
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperRunning)
@@ -259,7 +259,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "FailedComponent",
 				Message: fmt.Sprintf("Found %v failed components", compStatus.failed),
 			})
-			return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
+			return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 		}
 
 		// Handle Success
@@ -297,7 +297,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if now.Before(deadline) {
 				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
 			} else {
-				return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
+				return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 			}
 		}
 
@@ -309,8 +309,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "AutopilotUnhealthy",
 				Message: fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes),
 			})
-			// Go to reset directly because an Autopilot triggered evacuation does not count against the retry limit
-			return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
+			// Autopilot triggered evacuation does not increment retry count
+			return r.resetOrFail(ctx, aw, false, 0)
 		}
 
 		clearCondition(aw, workloadv1beta2.Unhealthy, "FoundNoFailedPods", "")
@@ -344,7 +344,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "InsufficientPodsReady",
 				Message: podDetailsMessage,
 			})
-			return r.resetOrFail(ctx, aw, podStatus.terminalFailure)
+			return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
 		}
 
 	case workloadv1beta2.AppWrapperSuspending: // undeploying components
@@ -487,10 +487,10 @@ func (r *AppWrapperReconciler) updateStatus(ctx context.Context, aw *workloadv1b
 	return ctrl.Result{}, nil
 }
 
-func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper, terminalFailure bool) (ctrl.Result, error) {
+func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, aw *workloadv1beta2.AppWrapper, terminalFailure bool, retryIncrement int32) (ctrl.Result, error) {
 	maxRetries := r.retryLimit(ctx, aw)
 	if !terminalFailure && aw.Status.Retries < maxRetries {
-		aw.Status.Retries += 1
+		aw.Status.Retries += retryIncrement
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperResetting)
 	} else {
 		return r.updateStatus(ctx, aw, workloadv1beta2.AppWrapperFailed)
