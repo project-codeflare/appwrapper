@@ -510,7 +510,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		return nil, err
 	}
 	summary := &podStatusSummary{expected: pc}
-	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.EvacuateWorkloads
+	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MigrateImpactedWorkloads && !r.isAutopilotExempt(ctx, aw)
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -853,6 +853,17 @@ func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *workloa
 		}
 	}
 	return ans
+}
+
+func (r *AppWrapperReconciler) isAutopilotExempt(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
+	if v, ok := aw.Annotations[workloadv1beta2.AutopilotExemptAnnotation]; ok {
+		if isExempt, err := strconv.ParseBool(v); err == nil {
+			return isExempt
+		} else {
+			log.FromContext(ctx).Error(err, "Malformed autopilotExempt annotation; treating as false", "annotation", v)
+		}
+	}
+	return false
 }
 
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {

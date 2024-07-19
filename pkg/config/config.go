@@ -47,9 +47,9 @@ type KueueJobReconcillerConfig struct {
 }
 
 type AutopilotConfig struct {
-	InjectAffinity          bool                         `json:"injectAffinity,omitempty"`
-	EvacuateWorkloads       bool                         `json:"evacuateWorkloads,omitempty"`
-	ResourceUnhealthyConfig map[string]map[string]string `json:"resourceUnhealthyConfig,omitempty"`
+	InjectAntiAffinities     bool                         `json:"injectAntiAffinities,omitempty"`
+	MigrateImpactedWorkloads bool                         `json:"migrateImpactedWorkloads,omitempty"`
+	ResourceUnhealthyConfig  map[string]map[string]string `json:"resourceUnhealthyConfig,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -100,8 +100,8 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			LabelKeysToCopy:            []string{},
 		},
 		Autopilot: &AutopilotConfig{
-			InjectAffinity:    true,
-			EvacuateWorkloads: true,
+			InjectAntiAffinities:     true,
+			MigrateImpactedWorkloads: true,
 			ResourceUnhealthyConfig: map[string]map[string]string{
 				"nvidia.com/gpu": {"autopilot.ibm.com/gpuhealth": "ERR"},
 			},

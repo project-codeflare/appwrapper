@@ -174,6 +174,7 @@ const (
 	SuccessTTLAnnotation                   = "workload.codeflare.dev.appwrapper/successTTLDuration"
 	TerminalExitCodesAnnotation            = "workload.codeflare.dev.appwrapper/terminalExitCodes"
 	RetryableExitCodesAnnotation           = "workload.codeflare.dev.appwrapper/retryableExitCodes"
+	AutopilotExemptAnnotation              = "workload.codeflare.dev.appwrapper/autopilotExempt"
 )
 
 //+kubebuilder:object:root=true
