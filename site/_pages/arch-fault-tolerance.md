@@ -8,7 +8,11 @@ classes: wide
 
 The AppWrapper controller is designed to enhance and extend the fault
 tolerance capabilities provided by the controllers of its wrapped
-resources. Throughout the execution of a workload, the AppWrapper
+resources. If [Autopilot](https://github.com/ibm/autopilot) is deployed on the
+cluster, the AppWrapper controller can automate both the injection of
+Node anti-affinites to avoid scheduling workloads on unhealthy Nodes
+and the migration of running workloads away from unhealthy Nodes.
+Throughout the execution of a workload, the AppWrapper
 controller monitors both the status of the contained top-level
 resources and the status of all Pods created by the workload. If a
 workload is determined to be *unhealthy*, the AppWrapper controller
@@ -20,7 +24,6 @@ been exceeded, recreating the workload. This reset process is carefully
 engineered to ensure that it will always make progress and eventually
 succeed in completely removing all Pods and other resources created by
 a failed workload.
-
 
 ```mermaid!
 ---
@@ -89,6 +92,8 @@ following conditions are true:
      number of Pods to reach the `Pending` state.
    + It takes longer than the `WarmupGracePeriod` for the expected
      number of Pods to reach the `Running` state.
+   + If a non-zero number of `Running` Pods are using resources
+     that Autopilot has tagged as unhealthy.
    + A top-level resource is missing.
    + The status information of a batch/v1 Job or PyTorchJob indicates
      that it has failed.
@@ -97,7 +102,7 @@ If a workload is determined to be unhealthy by one of the first three
 Pod-level conditions above, the AppWrapper controller first waits for
 a `FailureGracePeriod` to allow the primary resource controller an
 opportunity to react and return the workload to a healthy state. The
-`FailureGracePeriod` is elided by the last two conditions because the
+`FailureGracePeriod` is elided by the remaining conditions because the
 primary resource controller is not expected to take any further
 action. If the `FailureGracePeriod` passes and the workload is still
 unhealthy, the AppWrapper controller will *reset* the workload by
@@ -112,7 +117,8 @@ then the AppWrapper moves into a `Failed` state and its resources are deleted
 (thus finally releasing its quota).  If at any time during this retry loop,
 an AppWrapper is suspended (ie, Kueue decides to preempt the AppWrapper),
 the AppWrapper controller will respect this request by proceeding to delete
-the resources.
+the resources. Workload resets that are initiated in response to Autopilot
+are subject to the `RetryLimit` but do not increment the `retryCount`.
 
 To support debugging `Failed` workloads, an annotation can be added to an
 AppWrapper that adds a `DeletionOnFailureGracePeriod` between the time the
@@ -120,6 +126,13 @@ AppWrapper enters the `Failed` state and when the process of deleting its resour
 begins. Since the AppWrapper continues to consume quota during this delayed deletion period,
 this annotation should be used sparingly and only when interactive debugging of
 the failed workload is being actively pursued.
+
+An AppWrapper can be annotated as `autopilotExempt` to disable the
+injection of Autopilot Node anti-affinities into its Pods and the
+automatic migration of its Pods away from Nodes with Autopilot tagged
+unhealthy resources. This annotation should only be used for workloads
+that will be closely monitored by other means to identify and recover from
+unhealthy Nodes in the cluster.
 
 All child resources for an AppWrapper that successfully completed will be automatically
 deleted after a `SuccessTTL` after the AppWrapper entered the `Succeeded` state.
@@ -141,7 +154,35 @@ can be used to customize them.
 | DeletionOnFailureGracePeriod |     0 Seconds | workload.codeflare.dev.appwrapper/deletionOnFailureGracePeriodDuration |
 | ForcefulDeletionGracePeriod  |    10 Minutes | workload.codeflare.dev.appwrapper/forcefulDeletionGracePeriodDuration  |
 | SuccessTTL                   |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration                   |
+| AutopilotExempt              |         false | workload.codeflare.dev.appwrapper/autopilotExempt                      |
 | GracePeriodMaximum           |      24 Hours | Not Applicable                                                         |
 
 The `GracePeriodMaximum` imposes a system-wide upper limit on all other grace periods to
 limit the potential impact of user-added annotations on overall system utilization.
+
+The set of resources monitored by Autopilot and the associated labels that identify unhealthy
+resources can be customized as part of the AppWrapper operator's configuration.  The default
+Autopilot configuration used by the controller is:
+```yaml
+autopilot:
+  injectAntiAffinities: true
+  migrateImpactedWorkloads: true
+  resourceUnhealthyConfig:
+    nvidia.com/gpu:
+      autopilot.ibm.com/gpuhealth: ERR
+```
+
+The `resourceUnhealthyConfig` is a map from resource names to labels. For this example
+configuration, for exactly those Pods that have a non-zero resource request for
+`nvidia.com/gpu`, the AppWrapper controller will automatically inject the stanze below
+into the `affinity` portion of their Spec.
+```yaml
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: autopilot.ibm.com/gpuhealth
+              operator: NotIn
+              values:
+              - ERR
+```
