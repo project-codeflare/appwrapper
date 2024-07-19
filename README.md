@@ -32,7 +32,7 @@ to automatically inject Node anti-affinities into Pods and to trigger
 retries when Pods in already running workloads are using resources
 that Autopilot has tagged as unhealthy. For details on customizing and
 configuring these fault tolerance capabilities, please see the
-[Fault Tolerance](https://project-codeflare.github.io/appwrapper/arch-controller/)
+[Fault Tolerance](https://project-codeflare.github.io/appwrapper/arch-fault-tolerance/)
 section of our website.
 
 AppWrappers are designed to be used as part of fully open source software stack
