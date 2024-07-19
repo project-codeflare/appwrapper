@@ -510,6 +510,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		return nil, err
 	}
 	summary := &podStatusSummary{expected: pc}
+	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.EvacuateWorkloads
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -518,29 +519,33 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		case v1.PodRunning:
 			if pod.DeletionTimestamp.IsZero() {
 				summary.running += 1
-				if len(unhealthyNodes) > 0 {
-					if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
-						for badResource := range resources {
-							for _, container := range pod.Spec.Containers {
-								if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
-									if !limit.IsZero() {
-										if summary.unhealthyNodes == nil {
-											summary.unhealthyNodes = make(sets.Set[string])
+				if checkUnhealthyNodes {
+					unhealthyNodesMutex.RLock() // BEGIN CRITICAL SECTION
+					if len(unhealthyNodes) > 0 {
+						if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
+							for badResource := range resources {
+								for _, container := range pod.Spec.Containers {
+									if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
+										if !limit.IsZero() {
+											if summary.unhealthyNodes == nil {
+												summary.unhealthyNodes = make(sets.Set[string])
+											}
+											summary.unhealthyNodes.Insert(pod.Spec.NodeName)
 										}
-										summary.unhealthyNodes.Insert(pod.Spec.NodeName)
 									}
-								}
-								if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
-									if !request.IsZero() {
-										if summary.unhealthyNodes == nil {
-											summary.unhealthyNodes = make(sets.Set[string])
+									if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
+										if !request.IsZero() {
+											if summary.unhealthyNodes == nil {
+												summary.unhealthyNodes = make(sets.Set[string])
+											}
+											summary.unhealthyNodes.Insert(pod.Spec.NodeName)
 										}
-										summary.unhealthyNodes.Insert(pod.Spec.NodeName)
 									}
 								}
 							}
 						}
 					}
+					unhealthyNodesMutex.RUnlock() // END CRITICAL SECTION
 				}
 			}
 		case v1.PodSucceeded:
