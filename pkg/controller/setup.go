@@ -60,9 +60,10 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 	}
 
 	if err := (&appwrapper.AppWrapperReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		Config: awConfig,
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorderFor("appwrappers"),
+		Scheme:   mgr.GetScheme(),
+		Config:   awConfig,
 	}).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("appwrapper controller: %w", err)
 	}
