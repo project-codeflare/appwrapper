@@ -12,9 +12,13 @@ will:
    + create a [GitHub release](https://github.com/project-codeflare/appwrapper/releases) that contains the install.yaml
 
 3. To workaround back level go versions in ODH, we also maintain a
-   codeflare-releases branch.  After making a release, rebase the
-   codeflare-releases branch and then tag it using a `cf` prefix
+   codeflare-releases branch.  After making a release, merge main into
+   the codeflare-releases branch and then tag it using a `cf` prefix
    instead of a `v`. (eg v0.21.2 ==> cf0.21.2).  After making this
    tag, you can update the codeflare-operator, using the vX.Y.Z tag in
    the Makefile and the cfX.Y.Z in the replace clause in codeflare's
    go.mod.
+
+4. Update the kustomization.yaml files in MLBatch to refer to the new release:
+  + setup.k8s-v1.25/appwrapper/kustomization.yaml
+  + setup.k8s-v1.30/appwrapper/kustomization.yaml
