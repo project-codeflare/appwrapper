@@ -34,3 +34,10 @@ patches:
         - get
         - list
         - watch
+- target:
+    kind: Deployment
+    name: controller-manager
+  patch: |
+    - op: add
+      path: /spec/template/spec/containers/0/args/-
+      value: "--feature-gates=LendingLimit=true"
