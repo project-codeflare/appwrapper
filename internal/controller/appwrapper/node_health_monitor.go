@@ -18,12 +18,11 @@ package appwrapper
 
 import (
 	"context"
+	"reflect"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,8 +39,8 @@ type NodeHealthMonitor struct {
 }
 
 var (
-	// unhealthyNodes is a mapping from Node names to a set of resources that Autopilot has labeled as unhealthy on that Node
-	unhealthyNodes      = make(map[string]sets.Set[string])
+	// unhealthyNodes is a mapping from Node names to a set of resource quantities that Autopilot has labeled as unhealthy on that Node
+	unhealthyNodes      = make(map[string]map[string]*resource.Quantity)
 	unhealthyNodesMutex sync.RWMutex
 )
 
@@ -49,21 +48,16 @@ var (
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 
 func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	node := &metav1.PartialObjectMetadata{}
-	node.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "",
-		Version: "v1",
-		Kind:    "Node",
-	})
+	node := &v1.Node{}
 	if err := r.Get(ctx, req.NamespacedName, node); err != nil {
 		return ctrl.Result{}, nil
 	}
 
-	flaggedResources := make(sets.Set[string])
+	flaggedResources := make(map[string]*resource.Quantity)
 	for key, value := range node.GetLabels() {
-		for resource, apLabels := range r.Config.Autopilot.ResourceUnhealthyConfig {
+		for r, apLabels := range r.Config.Autopilot.ResourceUnhealthyConfig {
 			if apValue, ok := apLabels[key]; ok && apValue == value {
-				flaggedResources.Insert(resource)
+				flaggedResources[r] = node.Status.Capacity.Name(v1.ResourceName(r), resource.DecimalSI)
 			}
 		}
 	}
@@ -74,7 +68,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if len(flaggedResources) == 0 {
 			delete(unhealthyNodes, node.GetName())
 			nodeChanged = true
-		} else if !priorEntry.Equal(flaggedResources) {
+		} else if !reflect.DeepEqual(priorEntry, flaggedResources) {
 			unhealthyNodes[node.GetName()] = flaggedResources
 			nodeChanged = true
 		}
@@ -97,7 +91,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 // SetupWithManager sets up the controller with the Manager.
 func (r *NodeHealthMonitor) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		WatchesMetadata(&v1.Node{}, &handler.EnqueueRequestForObject{}).
+		Watches(&v1.Node{}, &handler.EnqueueRequestForObject{}).
 		Named("NodeMonitor").
 		Complete(r)
 }
