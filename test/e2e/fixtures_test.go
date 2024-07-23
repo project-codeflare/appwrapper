@@ -518,3 +518,44 @@ func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapper
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
+
+const autopilotJobYAML = `
+apiVersion: batch/v1
+kind: Job
+metadata:
+  generateName: %v
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: busybox
+        image: quay.io/project-codeflare/busybox:1.36
+        command: ["sh", "-c", "sleep 600"]
+        resources:
+          requests:
+            cpu: %v
+            nvidia.com/gpu: %v
+          limits:
+            nvidia.com/gpu: %v
+`
+
+func autopilotjob(milliCPU int64, gpus int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(autopilotJobYAML,
+		"apjob-",
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
+		resource.NewQuantity(gpus, resource.DecimalSI),
+		resource.NewQuantity(gpus, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		Annotations: map[string]string{
+			workloadv1beta2.RetryPausePeriodDurationAnnotation:   "5s",
+			workloadv1beta2.FailureGracePeriodDurationAnnotation: "5s",
+		},
+		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Path: "template.spec.template"}},
+		Template:        runtime.RawExtension{Raw: jsonBytes},
+	}
+}
