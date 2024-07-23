@@ -18,6 +18,7 @@ package e2e
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	// . "github.com/onsi/ginkgo/v2"
@@ -124,10 +125,11 @@ func ensureTestQueuesExist(ctx context.Context) {
 		Spec: kueue.ClusterQueueSpec{
 			NamespaceSelector: &metav1.LabelSelector{},
 			ResourceGroups: []kueue.ResourceGroup{{
-				CoveredResources: []v1.ResourceName{v1.ResourceCPU},
+				CoveredResources: []v1.ResourceName{v1.ResourceCPU, "nvidia.com/gpu"},
 				Flavors: []kueue.FlavorQuotas{{
-					Name:      testFlavorName,
-					Resources: []kueue.ResourceQuota{{Name: v1.ResourceCPU, NominalQuota: *resource.NewMilliQuantity(2000, resource.DecimalSI)}},
+					Name: testFlavorName,
+					Resources: []kueue.ResourceQuota{{Name: v1.ResourceCPU, NominalQuota: *resource.NewMilliQuantity(2000, resource.DecimalSI)},
+						{Name: "nvidia.com/gpu", NominalQuota: *resource.NewQuantity(2, resource.DecimalSI)}},
 				}},
 			},
 			},
@@ -205,6 +207,36 @@ func getAppWrapper(ctx context.Context, awName types.NamespacedName) *workloadv1
 	err := getClient(ctx).Get(ctx, awName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
+}
+
+func getNodeForAppwrapper(ctx context.Context, awName types.NamespacedName) (string, error) {
+	podList := &v1.PodList{}
+	err := getClient(ctx).List(ctx, podList, &client.ListOptions{Namespace: awName.Namespace})
+	if err != nil {
+		return "", err
+	}
+	for _, pod := range podList.Items {
+		if awn, found := pod.Labels[appwrapper.AppWrapperLabel]; found && awn == awName.Name {
+			return pod.Spec.NodeName, nil
+		}
+	}
+	return "", fmt.Errorf("No pods found for %v", awName)
+}
+
+func updateNode(ctx context.Context, nodeName string, update func(*v1.Node)) error {
+	for {
+		node := &v1.Node{}
+		err := getClient(ctx).Get(ctx, types.NamespacedName{Name: nodeName}, node)
+		Expect(err).NotTo(HaveOccurred())
+		update(node)
+		err = getClient(ctx).Update(ctx, node)
+		if err == nil {
+			return nil
+		}
+		if !apierrors.IsConflict(err) {
+			return err
+		}
+	}
 }
 
 func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimumPodCount int32) wait.ConditionWithContextFunc {
