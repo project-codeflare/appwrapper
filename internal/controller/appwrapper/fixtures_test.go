@@ -61,6 +61,13 @@ func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.App
 	return aw
 }
 
+func getNode(name string) *v1.Node {
+	node := &v1.Node{}
+	err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, node)
+	Expect(err).NotTo(HaveOccurred())
+	return node
+}
+
 // envTest doesn't have a Pod controller; so simulate it
 func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange int32) error {
 	podList := &v1.PodList{}
