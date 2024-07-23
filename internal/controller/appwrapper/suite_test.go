@@ -54,7 +54,7 @@ var cancel context.CancelFunc
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "AppWrapper Controller Unit Tests")
+	RunSpecs(t, "Controller Unit Tests")
 }
 
 var _ = BeforeSuite(func() {
