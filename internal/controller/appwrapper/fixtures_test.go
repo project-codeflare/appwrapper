@@ -105,12 +105,17 @@ spec:
     command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
-        cpu: %v`
+        cpu: %v
+        nvidia.com/gpu: %v
+      limits:
+        nvidia.com/gpu: %v`
 
-func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func pod(milliCPU int64, numGPU int64) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(podYAML,
 		randName("pod"),
-		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
+		resource.NewQuantity(numGPU, resource.DecimalSI),
+		resource.NewQuantity(numGPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
