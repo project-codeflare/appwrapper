@@ -28,6 +28,7 @@ import (
 )
 
 var _ = Describe("NodeMonitor Controller", func() {
+	var slackQueueName = "fake-queue"
 	var node1Name = types.NamespacedName{Name: "fake-node-1"}
 	var node2Name = types.NamespacedName{Name: "fake-node-2"}
 	var nodeMonitor *NodeHealthMonitor
@@ -47,6 +48,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 
 		// Create reconciller
 		awConfig := config.NewAppWrapperConfig()
+		awConfig.SlackQueueName = slackQueueName
 		nodeMonitor = &NodeHealthMonitor{
 			Client: k8sClient,
 			Config: awConfig,
@@ -106,6 +108,58 @@ var _ = Describe("NodeMonitor Controller", func() {
 	})
 
 	It("ClusterQueue Lending Adjustment", func() {
-		// TODO: tardieu
+		_, err := nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		// start with 6 gpus
+		queue := slackQueue(slackQueueName, resource.MustParse("6"))
+		Expect(k8sClient.Create(ctx, queue)).To(Succeed())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).Should(BeNil())
+
+		// remove 4 gpus, lending limit should be 2
+		node1 := getNode(node1Name.Name)
+		node1.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
+		Expect(k8sClient.Update(ctx, node1)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit.Value()).Should(Equal(int64(2)))
+
+		// remove another 4 gpus, lending limit should be 0 = max(0, 6-4-4)
+		node2 := getNode(node2Name.Name)
+		node2.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
+		Expect(k8sClient.Update(ctx, node2)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).ShouldNot(BeNil())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit.Value()).Should(Equal(int64(0)))
+
+		// restore 4 gpus, lending limit should be 2
+		node1.Labels["autopilot.ibm.com/gpuhealth"] = "OK"
+		Expect(k8sClient.Update(ctx, node1)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).ShouldNot(BeNil())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit.Value()).Should(Equal(int64(2)))
+
+		// restore last 4 gpus, lending limit should be nil
+		node2.Labels["autopilot.ibm.com/gpuhealth"] = "OK"
+		Expect(k8sClient.Update(ctx, node2)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).Should(BeNil())
+
+		Expect(k8sClient.Delete(ctx, queue)).To(Succeed())
 	})
 })
