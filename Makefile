@@ -94,8 +94,16 @@ fmt: ## Run go fmt against code.
 vet: ## Run go vet against code.
 	go vet ./...
 
+EXTERNAL_CRDS_DIR ?= $(shell pwd)/dep-crds
+
+KUEUE_ROOT = $(shell go list -m -mod=readonly -f "{{.Dir}}" sigs.k8s.io/kueue)
+.PHONY: dep-crds
+dep-crds: ## Copy CRDs from external operators to dep-crds directory.
+	mkdir -p $(EXTERNAL_CRDS_DIR)/kueue
+	cp -f $(KUEUE_ROOT)/config/components/crd/bases/* $(EXTERNAL_CRDS_DIR)/kueue
+
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run unit tests.
+test: manifests generate fmt vet dep-crds envtest ## Run unit tests.
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./api/... ./internal/... ./pkg/...) -v -ginkgo.v -coverprofile cover.out
 
 .PHONY: install
