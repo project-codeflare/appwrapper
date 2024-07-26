@@ -521,7 +521,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		return nil, err
 	}
 	summary := &podStatusSummary{expected: pc}
-	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MigrateImpactedWorkloads && !r.isAutopilotExempt(ctx, aw)
+	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MonitorNodes && !r.isAutopilotExempt(ctx, aw)
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {

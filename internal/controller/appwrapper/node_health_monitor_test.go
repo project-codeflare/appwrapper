@@ -76,9 +76,9 @@ var _ = Describe("NodeMonitor Controller", func() {
 		By("Healthy cluster has no unhealthy nodes")
 		Expect(len(unhealthyNodes)).Should(Equal(0))
 
-		By("A newly labeled node is detected as unhealthy")
+		By("A node labeled EVICT is detected as unhealthy")
 		node := getNode(node1Name.Name)
-		node.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
+		node.Labels["autopilot.ibm.com/gpuhealth"] = "EVICT"
 		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
@@ -87,7 +87,6 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(len(unhealthyNodes)).Should(Equal(1))
 		Expect(unhealthyNodes).Should(HaveKey(node1Name.Name))
 		Expect(unhealthyNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
-		Expect(unhealthyNodes[node1Name.Name]["nvidia.com/gpu"].String()).Should(Equal("4"))
 
 		By("Repeated reconcile does not change map")
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
@@ -97,10 +96,9 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(len(unhealthyNodes)).Should(Equal(1))
 		Expect(unhealthyNodes).Should(HaveKey(node1Name.Name))
 		Expect(unhealthyNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
-		Expect(unhealthyNodes[node1Name.Name]["nvidia.com/gpu"].String()).Should(Equal("4"))
 
-		By("Removing the autopilot label updates unhealthyNodes")
-		node.Labels["autopilot.ibm.com/gpuhealth"] = "OK"
+		By("Removing the EVICT label updates unhealthyNodes")
+		node.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
 		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
@@ -122,7 +120,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 
 		// remove 4 gpus, lending limit should be 2
 		node1 := getNode(node1Name.Name)
-		node1.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
+		node1.Labels["autopilot.ibm.com/gpuhealth"] = "EVICT"
 		Expect(k8sClient.Update(ctx, node1)).Should(Succeed())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
@@ -159,6 +157,16 @@ var _ = Describe("NodeMonitor Controller", func() {
 
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
 		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).Should(BeNil())
+
+		// cordon node1, lending limit should be 2
+		node1 = getNode(node1Name.Name)
+		node1.Spec.Unschedulable = true
+		Expect(k8sClient.Update(ctx, node1)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit.Value()).Should(Equal(int64(2)))
 
 		Expect(k8sClient.Delete(ctx, queue)).To(Succeed())
 	})

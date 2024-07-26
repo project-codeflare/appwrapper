@@ -166,15 +166,20 @@ Autopilot configuration used by the controller is:
 ```yaml
 autopilot:
   injectAntiAffinities: true
-  migrateImpactedWorkloads: true
-  resourceUnhealthyConfig:
+  monitorNodes: true
+  resourceTaints:
     nvidia.com/gpu:
-      autopilot.ibm.com/gpuhealth: ERR
+    - key: autopilot.ibm.com/gpuhealth
+      value: ERR
+      effect: NoSchedule
+    - key: autopilot.ibm.com/gpuhealth
+      value: EVICT
+      effect: NoExecute
 ```
 
-The `resourceUnhealthyConfig` is a map from resource names to labels. For this example
+The `resourceTaints` is a map from resource names to taints. For this example
 configuration, for exactly those Pods that have a non-zero resource request for
-`nvidia.com/gpu`, the AppWrapper controller will automatically inject the stanze below
+`nvidia.com/gpu`, the AppWrapper controller will automatically inject the stanza below
 into the `affinity` portion of their Spec.
 ```yaml
       nodeAffinity:
@@ -185,4 +190,5 @@ into the `affinity` portion of their Spec.
               operator: NotIn
               values:
               - ERR
+              - EVICT
 ```
