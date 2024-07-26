@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/kueue/apis/config/v1beta1"
 )
 
@@ -48,9 +49,9 @@ type KueueJobReconcillerConfig struct {
 }
 
 type AutopilotConfig struct {
-	InjectAntiAffinities     bool                         `json:"injectAntiAffinities,omitempty"`
-	MigrateImpactedWorkloads bool                         `json:"migrateImpactedWorkloads,omitempty"`
-	ResourceUnhealthyConfig  map[string]map[string]string `json:"resourceUnhealthyConfig,omitempty"`
+	InjectAntiAffinities     bool                  `json:"injectAntiAffinities,omitempty"`
+	MigrateImpactedWorkloads bool                  `json:"migrateImpactedWorkloads,omitempty"`
+	ResourceTaints           map[string][]v1.Taint `json:"resourceTaints,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -103,8 +104,10 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 		Autopilot: &AutopilotConfig{
 			InjectAntiAffinities:     true,
 			MigrateImpactedWorkloads: true,
-			ResourceUnhealthyConfig: map[string]map[string]string{
-				"nvidia.com/gpu": {"autopilot.ibm.com/gpuhealth": "ERR"},
+			ResourceTaints: map[string][]v1.Taint{
+				"nvidia.com/gpu": {
+					{Key: "autopilot.ibm.com/gpuhealth", Value: "ERR", Effect: v1.TaintEffectNoSchedule},
+					{Key: "autopilot.ibm.com/gpuhealth", Value: "EVICT", Effect: v1.TaintEffectNoExecute}},
 			},
 		},
 		UserRBACAdmissionCheck: true,

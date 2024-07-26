@@ -18,13 +18,13 @@ package appwrapper
 
 import (
 	"context"
-	"reflect"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/utils/ptr"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -43,26 +43,32 @@ type NodeHealthMonitor struct {
 }
 
 var (
-	// unhealthyNodes is a mapping from Node names to a set of resource quantities that Autopilot has labeled as unhealthy on that Node
-	unhealthyNodes      = make(map[string]map[string]*resource.Quantity)
+	// unhealthyNodes is a mapping from Node names to a set of resources that Autopilot has labeled as unhealthy on that Node
+	unhealthyNodes      = make(map[string]sets.Set[string])
 	unhealthyNodesMutex sync.RWMutex
+
+	// unschedulableNodes is a mapping from Node names to resource quantities than Autopilot has labeled as unschedulable on that Node
+	unschedulableNodes = make(map[string]map[string]*resource.Quantity)
 )
 
 // permission to watch nodes
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
 //+kubebuilder:rbac:groups=kueue.x-k8s.io,resources=clusterqueues,verbs=get;list;watch;update;patch
 
+//gocyclo:ignore
 func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	node := &v1.Node{}
 	if err := r.Get(ctx, req.NamespacedName, node); err != nil {
 		return ctrl.Result{}, nil
 	}
 
-	flaggedResources := make(map[string]*resource.Quantity)
+	flaggedResources := make(sets.Set[string])
 	for key, value := range node.GetLabels() {
-		for resourceName, apLabels := range r.Config.Autopilot.ResourceUnhealthyConfig {
-			if apValue, ok := apLabels[key]; ok && apValue == value {
-				flaggedResources[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+		for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
+			for _, taint := range taints {
+				if key == taint.Key && value == taint.Value && taint.Effect == v1.TaintEffectNoExecute {
+					flaggedResources.Insert(resourceName)
+				}
 			}
 		}
 	}
@@ -73,7 +79,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if len(flaggedResources) == 0 {
 			delete(unhealthyNodes, node.GetName())
 			nodeChanged = true
-		} else if !reflect.DeepEqual(priorEntry, flaggedResources) {
+		} else if !priorEntry.Equal(flaggedResources) {
 			unhealthyNodes[node.GetName()] = flaggedResources
 			nodeChanged = true
 		}
@@ -106,15 +112,33 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
-	// compute unhealthy resource totals
-	missingQuantities := map[string]*resource.Quantity{}
-	for _, quantities := range unhealthyNodes {
+	// update unschedulable resource quantities for this node
+	flaggedQuantities := make(map[string]*resource.Quantity)
+	for key, value := range node.GetLabels() {
+		for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
+			for _, taint := range taints {
+				if key == taint.Key && value == taint.Value {
+					flaggedQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+				}
+			}
+		}
+	}
+
+	if len(flaggedQuantities) > 0 {
+		unschedulableNodes[node.GetName()] = flaggedQuantities
+	} else {
+		delete(unschedulableNodes, node.GetName())
+	}
+
+	// compute unschedulable resource totals
+	unschedulableQuantities := map[string]*resource.Quantity{}
+	for _, quantities := range unschedulableNodes {
 		for resourceName, quantity := range quantities {
 			if !quantity.IsZero() {
-				if missingQuantities[resourceName] == nil {
-					missingQuantities[resourceName] = ptr.To(*quantity)
+				if unschedulableQuantities[resourceName] == nil {
+					unschedulableQuantities[resourceName] = ptr.To(*quantity)
 				} else {
-					missingQuantities[resourceName].Add(*quantity)
+					unschedulableQuantities[resourceName].Add(*quantity)
 				}
 			}
 		}
@@ -125,10 +149,10 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	limitsChanged := false
 	for i, quota := range resources {
 		var lendingLimit *resource.Quantity
-		if missingQuantity := missingQuantities[quota.Name.String()]; missingQuantity != nil {
-			if quota.NominalQuota.Cmp(*missingQuantity) > 0 {
+		if unschedulableQuantity := unschedulableQuantities[quota.Name.String()]; unschedulableQuantity != nil {
+			if quota.NominalQuota.Cmp(*unschedulableQuantity) > 0 {
 				lendingLimit = ptr.To(quota.NominalQuota)
-				lendingLimit.Sub(*missingQuantity)
+				lendingLimit.Sub(*unschedulableQuantity)
 			} else {
 				lendingLimit = resource.NewQuantity(0, resource.DecimalSI)
 			}
@@ -145,7 +169,11 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	var err error
 	if limitsChanged {
 		err = r.Update(ctx, cq)
+		if err == nil {
+			log.FromContext(ctx).Info("Updated lending limits", "Resources", resources)
+		}
 	}
+
 	return ctrl.Result{}, err
 }
 

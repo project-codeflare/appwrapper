@@ -321,7 +321,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 				err := updateNode(ctx, nodeName, func(n *v1.Node) { delete(n.Labels, "autopilot.ibm.com/gpuhealth") })
 				Expect(err).ShouldNot(HaveOccurred())
 			})
-			err = updateNode(ctx, nodeName, func(n *v1.Node) { n.Labels["autopilot.ibm.com/gpuhealth"] = "ERR" })
+			err = updateNode(ctx, nodeName, func(n *v1.Node) { n.Labels["autopilot.ibm.com/gpuhealth"] = "EVICT" })
 			Expect(err).ShouldNot(HaveOccurred())
 			By("workload is reset")
 			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
