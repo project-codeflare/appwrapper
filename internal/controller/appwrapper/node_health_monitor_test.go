@@ -158,6 +158,16 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
 		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit).Should(BeNil())
 
+		// cordon node1, lending limit should be 2
+		node1 = getNode(node1Name.Name)
+		node1.Spec.Unschedulable = true
+		Expect(k8sClient.Update(ctx, node1)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: slackQueueName}, queue)).Should(Succeed())
+		Expect(queue.Spec.ResourceGroups[0].Flavors[0].Resources[0].LendingLimit.Value()).Should(Equal(int64(2)))
+
 		Expect(k8sClient.Delete(ctx, queue)).To(Succeed())
 	})
 })

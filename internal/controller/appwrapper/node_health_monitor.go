@@ -114,11 +114,18 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 
 	// update unschedulable resource quantities for this node
 	flaggedQuantities := make(map[string]*resource.Quantity)
-	for key, value := range node.GetLabels() {
-		for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
-			for _, taint := range taints {
-				if key == taint.Key && value == taint.Value {
-					flaggedQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+	if node.Spec.Unschedulable {
+		// flag all configured resources if the node is cordoned
+		for resourceName := range r.Config.Autopilot.ResourceTaints {
+			flaggedQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+		}
+	} else {
+		for key, value := range node.GetLabels() {
+			for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
+				for _, taint := range taints {
+					if key == taint.Key && value == taint.Value {
+						flaggedQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+					}
 				}
 			}
 		}
