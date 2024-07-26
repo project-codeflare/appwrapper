@@ -166,7 +166,7 @@ Autopilot configuration used by the controller is:
 ```yaml
 autopilot:
   injectAntiAffinities: true
-  migrateImpactedWorkloads: true
+  monitorNodes: true
   resourceTaints:
     nvidia.com/gpu:
     - key: autopilot.ibm.com/gpuhealth
