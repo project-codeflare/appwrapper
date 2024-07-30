@@ -252,7 +252,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 		}
 
-		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAntiAffinities && !r.isAutopilotExempt(ctx, aw) {
+		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAntiAffinities {
 			toAdd := map[string][]string{}
 			for resource, taints := range r.Config.Autopilot.ResourceTaints {
 				if hasResourceRequest(spec, resource) {
