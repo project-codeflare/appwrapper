@@ -127,13 +127,6 @@ begins. Since the AppWrapper continues to consume quota during this delayed dele
 this annotation should be used sparingly and only when interactive debugging of
 the failed workload is being actively pursued.
 
-An AppWrapper can be annotated as `autopilotExempt` to disable the
-injection of Autopilot Node anti-affinities into its Pods and the
-automatic migration of its Pods away from Nodes with Autopilot tagged
-unhealthy resources. This annotation should only be used for workloads
-that will be closely monitored by other means to identify and recover from
-unhealthy Nodes in the cluster.
-
 All child resources for an AppWrapper that successfully completed will be automatically
 deleted after a `SuccessTTL` after the AppWrapper entered the `Succeeded` state.
 
@@ -154,7 +147,6 @@ can be used to customize them.
 | DeletionOnFailureGracePeriod |     0 Seconds | workload.codeflare.dev.appwrapper/deletionOnFailureGracePeriodDuration |
 | ForcefulDeletionGracePeriod  |    10 Minutes | workload.codeflare.dev.appwrapper/forcefulDeletionGracePeriodDuration  |
 | SuccessTTL                   |        7 Days | workload.codeflare.dev.appwrapper/successTTLDuration                   |
-| AutopilotExempt              |         false | workload.codeflare.dev.appwrapper/autopilotExempt                      |
 | GracePeriodMaximum           |      24 Hours | Not Applicable                                                         |
 
 The `GracePeriodMaximum` imposes a system-wide upper limit on all other grace periods to
