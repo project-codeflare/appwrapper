@@ -39,8 +39,8 @@ func (l logSink) Info(level int, msg string, keysAndValues ...any) {
 }
 
 func (l logSink) Error(err error, msg string, keysAndValues ...any) {
-	// replace StatusReasonConflict and StatusReasonAlreadyExists errors with debug messages
-	if errors.IsConflict(err) || errors.IsAlreadyExists(err) {
+	// replace StatusReasonConflict errors with debug messages
+	if errors.IsConflict(err) {
 		l.sink.Info(1, msg, append(keysAndValues, "error", err.Error())...)
 	} else {
 		l.sink.Error(err, msg, keysAndValues...)
