@@ -48,6 +48,7 @@ import (
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/controller"
+	"github.com/project-codeflare/appwrapper/pkg/logger"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -77,7 +78,7 @@ func main() {
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
 
-	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+	ctrl.SetLogger(logger.FilteredLogger(zap.New(zap.UseFlagOptions(&opts))))
 	setupLog.Info("Build info", "version", BuildVersion, "date", BuildDate)
 
 	namespace, err := getNamespace()
