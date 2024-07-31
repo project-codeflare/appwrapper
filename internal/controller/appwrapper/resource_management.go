@@ -252,12 +252,12 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 		}
 
-		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAntiAffinities && !r.isAutopilotExempt(ctx, aw) {
-			toAdd := map[string]string{}
-			for resource, labels := range r.Config.Autopilot.ResourceUnhealthyConfig {
+		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAntiAffinities {
+			toAdd := map[string][]string{}
+			for resource, taints := range r.Config.Autopilot.ResourceTaints {
 				if hasResourceRequest(spec, resource) {
-					for k, v := range labels {
-						toAdd[k] = v
+					for _, taint := range taints {
+						toAdd[taint.Key] = append(toAdd[taint.Key], taint.Value)
 					}
 				}
 			}
@@ -265,7 +265,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 				nodeSelectors := []v1.NodeSelectorTerm{}
 				for k, v := range toAdd {
 					nodeSelectors = append(nodeSelectors, v1.NodeSelectorTerm{
-						MatchExpressions: []v1.NodeSelectorRequirement{{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: []string{v}}},
+						MatchExpressions: []v1.NodeSelectorRequirement{{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: v}},
 					})
 				}
 				if err := addNodeSelectorsToAffinity(spec, nodeSelectors); err != nil {

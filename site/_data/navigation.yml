@@ -32,3 +32,5 @@ side:
     url: /arch-controller/
   - title: Fault Tolerance
     url: /arch-fault-tolerance/
+  - title: Node Monitoring
+    url: /arch-node-monitoring/

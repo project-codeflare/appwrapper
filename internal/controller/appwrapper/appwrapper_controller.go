@@ -303,7 +303,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			now := time.Now()
 			deadline := whenDetected.Add(gracePeriod)
 			if now.Before(deadline) {
-				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+				return requeueAfter(deadline.Sub(now), r.Status().Update(ctx, aw))
 			} else {
 				r.Recorder.Eventf(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "FoundFailedPods: %v failed pods", podStatus.failed)
 				return r.resetOrFail(ctx, aw, podStatus.terminalFailure, 1)
@@ -332,7 +332,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "SufficientPodsReady",
 				Message: fmt.Sprintf("%v pods running; %v pods succeeded", podStatus.running, podStatus.succeeded),
 			})
-			return ctrl.Result{RequeueAfter: time.Minute}, r.Status().Update(ctx, aw)
+			return requeueAfter(time.Minute, r.Status().Update(ctx, aw))
 		}
 
 		// Not ready yet; either continue to wait or giveup if the warmup period has expired
@@ -346,7 +346,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			graceDuration = r.admissionGraceDuration(ctx, aw)
 		}
 		if time.Now().Before(whenDeployed.Add(graceDuration)) {
-			return ctrl.Result{RequeueAfter: 5 * time.Second}, r.Status().Update(ctx, aw)
+			return requeueAfter(5*time.Second, r.Status().Update(ctx, aw))
 		} else {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
@@ -405,7 +405,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		now := time.Now()
 		deadline := whenReset.Add(pauseDuration)
 		if now.Before(deadline) {
-			return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+			return requeueAfter(deadline.Sub(now), r.Status().Update(ctx, aw))
 		}
 
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -435,7 +435,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			now := time.Now()
 			deadline := whenDelayed.Add(deletionDelay)
 			if now.Before(deadline) {
-				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+				return requeueAfter(deadline.Sub(now), r.Status().Update(ctx, aw))
 			}
 		}
 
@@ -469,7 +469,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			now := time.Now()
 			deadline := whenSucceeded.Add(deletionDelay)
 			if now.Before(deadline) {
-				return ctrl.Result{RequeueAfter: deadline.Sub(now)}, r.Status().Update(ctx, aw)
+				return requeueAfter(deadline.Sub(now), r.Status().Update(ctx, aw))
 			}
 
 			if !r.deleteComponents(ctx, aw) {
@@ -521,7 +521,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		return nil, err
 	}
 	summary := &podStatusSummary{expected: pc}
-	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MigrateImpactedWorkloads && !r.isAutopilotExempt(ctx, aw)
+	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MonitorNodes
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -866,17 +866,6 @@ func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *workloa
 	return ans
 }
 
-func (r *AppWrapperReconciler) isAutopilotExempt(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
-	if v, ok := aw.Annotations[workloadv1beta2.AutopilotExemptAnnotation]; ok {
-		if isExempt, err := strconv.ParseBool(v); err == nil {
-			return isExempt
-		} else {
-			log.FromContext(ctx).Error(err, "Malformed autopilotExempt annotation; treating as false", "annotation", v)
-		}
-	}
-	return false
-}
-
 func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
 	if meta.IsStatusConditionTrue(aw.Status.Conditions, string(condition)) {
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
@@ -906,4 +895,13 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Named("AppWrapper").
 		Complete(r)
+}
+
+// requeueAfter requeues the request after the specified duration
+func requeueAfter(duration time.Duration, err error) (ctrl.Result, error) {
+	if err != nil {
+		// eliminate "Warning: Reconciler returned both a non-zero result and a non-nil error."
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: duration}, nil
 }

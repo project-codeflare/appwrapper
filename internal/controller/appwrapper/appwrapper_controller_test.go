@@ -61,6 +61,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		awConfig.FaultTolerance.FailureGracePeriod = 0 * time.Second
 		awConfig.FaultTolerance.RetryPausePeriod = 0 * time.Second
 		awConfig.FaultTolerance.RetryLimit = 0
+		awConfig.FaultTolerance.SuccessTTL = 0 * time.Second
 		awReconciler = &AppWrapperReconciler{
 			Client:   k8sClient,
 			Recorder: &record.FakeRecorder{},
@@ -172,7 +173,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("Happy Path Lifecycle", func() {
-		advanceToResuming(pod(100), pod(100))
+		advanceToResuming(pod(100, 1), pod(100, 0))
 		beginRunning()
 		fullyRunning()
 
@@ -211,14 +212,22 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		_, _, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeTrue())
+
+		By("Resources are Removed after TTL expires")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+		aw = getAppWrapper(awName)
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
 	})
 
 	It("Running Workloads can be Suspended", func() {
-		advanceToResuming(pod(100), pod(100))
+		advanceToResuming(pod(100, 0), pod(100, 1))
 		beginRunning()
 		fullyRunning()
 
-		By("Inoking Suspend and RestorePodSetsInfo")
+		By("Invoking Suspend and RestorePodSetsInfo")
 		aw := getAppWrapper(awName)
 		(*workload.AppWrapper)(aw).Suspend()
 		Expect((*workload.AppWrapper)(aw).RestorePodSetsInfo(utilslices.Map(kueuePodSets, podset.FromPodSet))).To(BeTrue())
@@ -253,7 +262,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("A Pod Failure leads to a failed AppWrapper", func() {
-		advanceToResuming(pod(100), pod(100))
+		advanceToResuming(pod(100, 0), pod(100, 0))
 		beginRunning()
 		fullyRunning()
 
@@ -291,7 +300,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("Failure during resource creation leads to a failed AppWrapper", func() {
-		advanceToResuming(pod(100), malformedPod(100))
+		advanceToResuming(pod(100, 0), malformedPod(100))
 
 		By("Reconciling: Resuming -> Failed")
 		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})

@@ -26,3 +26,6 @@ go.work
 *.swp
 *.swo
 *~
+
+# CRDs for unit tests
+dep-crds

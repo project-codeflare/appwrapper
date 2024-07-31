@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/yaml"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
@@ -59,6 +60,13 @@ func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.App
 	err := k8sClient.Get(ctx, typeNamespacedName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
+}
+
+func getNode(name string) *v1.Node {
+	node := &v1.Node{}
+	err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, node)
+	Expect(err).NotTo(HaveOccurred())
+	return node
 }
 
 // envTest doesn't have a Pod controller; so simulate it
@@ -97,12 +105,17 @@ spec:
     command: ["sh", "-c", "sleep 10"]
     resources:
       requests:
-        cpu: %v`
+        cpu: %v
+        nvidia.com/gpu: %v
+      limits:
+        nvidia.com/gpu: %v`
 
-func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func pod(milliCPU int64, numGPU int64) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(podYAML,
 		randName("pod"),
-		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
+		resource.NewQuantity(numGPU, resource.DecimalSI),
+		resource.NewQuantity(numGPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
@@ -136,5 +149,18 @@ func malformedPod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	return workloadv1beta2.AppWrapperComponent{
 		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
+func slackQueue(queueName string, nominalQuota resource.Quantity) *kueue.ClusterQueue {
+	return &kueue.ClusterQueue{
+		TypeMeta:   metav1.TypeMeta{APIVersion: kueue.GroupVersion.String(), Kind: "ClusterQueue"},
+		ObjectMeta: metav1.ObjectMeta{Name: queueName},
+		Spec: kueue.ClusterQueueSpec{
+			ResourceGroups: []kueue.ResourceGroup{{
+				CoveredResources: []v1.ResourceName{v1.ResourceName("nvidia.com/gpu")},
+				Flavors: []kueue.FlavorQuotas{{
+					Name:      "default-flavor",
+					Resources: []kueue.ResourceQuota{{Name: v1.ResourceName("nvidia.com/gpu"), NominalQuota: nominalQuota}}}}}}},
 	}
 }

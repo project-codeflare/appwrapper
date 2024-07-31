@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -303,6 +304,30 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			}
 			Expect(getClient(ctx).Delete(ctx, toDelete)).Should(Succeed())
 			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+		})
+	})
+
+	Describe("Autopilot Job Migration", Label("slow"), Label("Kueue", "Standalone"), func() {
+		It("A running job is migrated away from an unhealthy node", func() {
+			aw := createAppWrapper(ctx, autopilotjob(200, 1))
+			appwrappers = append(appwrappers, aw)
+			awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+			By("workload is running")
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			By("node is labeled by autopilot")
+			nodeName, err := getNodeForAppwrapper(ctx, awName)
+			Expect(err).ShouldNot(HaveOccurred())
+			DeferCleanup(func() {
+				err := updateNode(ctx, nodeName, func(n *v1.Node) { delete(n.Labels, "autopilot.ibm.com/gpuhealth") })
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+			err = updateNode(ctx, nodeName, func(n *v1.Node) { n.Labels["autopilot.ibm.com/gpuhealth"] = "EVICT" })
+			Expect(err).ShouldNot(HaveOccurred())
+			By("workload is reset")
+			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
+			By("workload is running again")
+			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 	})
 
