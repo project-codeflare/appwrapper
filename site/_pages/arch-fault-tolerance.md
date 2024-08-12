@@ -93,10 +93,10 @@ following conditions are true:
    + It takes longer than the `WarmupGracePeriod` for the expected
      number of Pods to reach the `Running` state.
    + If a non-zero number of `Running` Pods are using resources
-     that Autopilot has tagged as unhealthy.
-   + A top-level resource is missing.
+     that Autopilot has tagged as `NoExecute`.
    + The status information of a batch/v1 Job or PyTorchJob indicates
      that it has failed.
+   + A top-level wrapped resource is externally deleted.
 
 If a workload is determined to be unhealthy by one of the first three
 Pod-level conditions above, the AppWrapper controller first waits for
@@ -119,6 +119,8 @@ an AppWrapper is suspended (ie, Kueue decides to preempt the AppWrapper),
 the AppWrapper controller will respect this request by proceeding to delete
 the resources. Workload resets that are initiated in response to Autopilot
 are subject to the `RetryLimit` but do not increment the `retryCount`.
+External deletion of a top-level wrapped resource will cause the AppWrapper to
+directly enter the `Failed` state independent of the `RetryLimit`.
 
 To support debugging `Failed` workloads, an annotation can be added to an
 AppWrapper that adds a `DeletionOnFailureGracePeriod` between the time the
