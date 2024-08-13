@@ -279,6 +279,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		return err, true
 	}
 
+	orig := copyForStatusPatch(aw)
 	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) == nil {
 		aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
 		aw.Status.ComponentStatus[componentIdx].Kind = obj.GetKind()
@@ -288,7 +289,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			Status: metav1.ConditionUnknown,
 			Reason: "ComponentCreationInitiated",
 		})
-		if err := r.Status().Update(ctx, aw); err != nil {
+		if err := r.Status().Patch(ctx, aw, client.MergeFrom(orig)); err != nil {
 			return err, false
 		}
 	}
@@ -309,19 +310,21 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		}
 	}
 
+	orig = copyForStatusPatch(aw)
 	aw.Status.ComponentStatus[componentIdx].Name = obj.GetName() // Update name to support usage of GenerateName
 	meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
 		Type:   string(workloadv1beta2.ResourcesDeployed),
 		Status: metav1.ConditionTrue,
 		Reason: "ComponentCreatedSuccessfully",
 	})
-	if err := r.Status().Update(ctx, aw); err != nil {
+	if err := r.Status().Patch(ctx, aw, client.MergeFrom(orig)); err != nil {
 		return err, false
 	}
 
 	return nil, false
 }
 
+// createComponents incrementally patches aw.Status -- MUST NOT CARRY STATUS PATCHES ACROSS INVOCATIONS
 func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
 	for componentIdx := range aw.Spec.Components {
 		if !meta.IsStatusConditionTrue(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) {
