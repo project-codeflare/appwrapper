@@ -154,11 +154,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	switch aw.Status.Phase {
 
-	case workloadv1beta2.AppWrapperEmpty: // initial state, inject finalizer
-		if controllerutil.AddFinalizer(aw, AppWrapperFinalizer) {
+	case workloadv1beta2.AppWrapperEmpty: // initial state
+		if !controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
+			// Belt and Suspenders: should never get here because finalizer is injected by Webhook
+			controllerutil.AddFinalizer(aw, AppWrapperFinalizer)
 			if err := r.Update(ctx, aw); err != nil {
 				return ctrl.Result{}, err
 			}
+			log.FromContext(ctx).Info("Finalizer Added By Operator!")
 		}
 
 		orig := copyForStatusPatch(aw)
