@@ -156,12 +156,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case workloadv1beta2.AppWrapperEmpty: // initial state
 		if !controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
-			// Belt and Suspenders: should never get here because finalizer is injected by Webhook
+			// When deployed normally (with webhook enabled); this block is expected to be unreachable.
+			// However, we need it to support `make run` (local dev of controller without the webhook).
 			controllerutil.AddFinalizer(aw, AppWrapperFinalizer)
 			if err := r.Update(ctx, aw); err != nil {
 				return ctrl.Result{}, err
 			}
-			log.FromContext(ctx).Info("Finalizer Added By Operator!")
+			log.FromContext(ctx).Info("Finalizer Added")
 		}
 
 		orig := copyForStatusPatch(aw)
