@@ -40,8 +40,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/kueue/pkg/controller/jobframework"
+	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
@@ -156,13 +159,20 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case workloadv1beta2.AppWrapperEmpty: // initial state
 		if !controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
-			// When deployed normally (with webhook enabled); this block is expected to be unreachable.
-			// However, we need it to support `make run` (local dev of controller without the webhook).
+			// The AppWrapperFinalizer is added by our webhook, so if we get here it means that we are
+			// running in dev mode (`make run`) which disables the webhook. To make dev mode as
+			// useful as possible, replicate as much of AppWrapperWebhook.Default() as we can without having the admission.Request.
+			if r.Config.EnableKueueIntegrations {
+				if r.Config.DefaultQueueName != "" {
+					aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{"kueue.x-k8s.io/queue-name": r.Config.DefaultQueueName})
+				}
+				jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), r.Config.KueueJobReconciller.ManageJobsWithoutQueueName)
+			}
 			controllerutil.AddFinalizer(aw, AppWrapperFinalizer)
 			if err := r.Update(ctx, aw); err != nil {
 				return ctrl.Result{}, err
 			}
-			log.FromContext(ctx).Info("Finalizer Added")
+			log.FromContext(ctx).Info("No webhook: applied default initializations")
 		}
 
 		orig := copyForStatusPatch(aw)
