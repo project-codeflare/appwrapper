@@ -46,6 +46,9 @@ jobs:
     - name: Create and configure cluster
       run: ./hack/create-test-cluster.sh
 
+    - name: Deploy Kueue
+      run: ./hack/deploy-kueue.sh
+
     - name: Install CRDs
       run: |
         make install -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
