@@ -41,3 +41,7 @@ patches:
     - op: add
       path: /spec/template/spec/containers/0/args/-
       value: "--feature-gates=LendingLimit=true"
+# DEBUG support; uncomment this patch to boost Kueue log levels
+#    - op: add
+#      path: /spec/template/spec/containers/0/args/-
+#      value: "--zap-log-level=5"
