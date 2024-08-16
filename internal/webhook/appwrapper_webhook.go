@@ -77,7 +77,7 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 		if w.Config.DefaultQueueName != "" {
 			aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.Config.DefaultQueueName})
 		}
-		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), true)
+		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.KueueJobReconciller.ManageJobsWithoutQueueName)
 	}
 
 	// inject labels with user name and id
