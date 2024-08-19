@@ -357,16 +357,16 @@ var _ = Describe("AppWrapper E2E Test", func() {
 				}
 				nonRunningAWs = toCheckAWS
 				if len(toCheckAWS) == 0 {
-					fmt.Fprintf(GinkgoWriter, "\tAll AppWrappers Running at time %s\n", t.Format(time.RFC3339))
+					_, _ = fmt.Fprintf(GinkgoWriter, "\tAll AppWrappers Running at time %s\n", t.Format(time.RFC3339))
 					return true, nil
 				}
-				fmt.Fprintf(GinkgoWriter, "\tThere are %d non-Running AppWrappers at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
+				_, _ = fmt.Fprintf(GinkgoWriter, "\tThere are %d non-Running AppWrappers at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				return false, nil
 			})
 			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d non-Running AppWrappers, err = %v\n", len(nonRunningAWs), err)
+				_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d non-Running AppWrappers, err = %v\n", len(nonRunningAWs), err)
 				for _, uaw := range nonRunningAWs {
-					fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Running AW '%s/%s'\n", uaw.Namespace, uaw.Name)
+					_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Running AW '%s/%s'\n", uaw.Namespace, uaw.Name)
 				}
 			}
 			Expect(err).Should(Succeed(), "All AppWrappers should have ready Pods")
@@ -383,16 +383,16 @@ var _ = Describe("AppWrapper E2E Test", func() {
 				}
 				nonReadyAWs = toCheckAWS
 				if len(toCheckAWS) == 0 {
-					fmt.Fprintf(GinkgoWriter, "\tAll pods ready at time %s\n", t.Format(time.RFC3339))
+					_, _ = fmt.Fprintf(GinkgoWriter, "\tAll pods ready at time %s\n", t.Format(time.RFC3339))
 					return true, nil
 				}
-				fmt.Fprintf(GinkgoWriter, "\tThere are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
+				_, _ = fmt.Fprintf(GinkgoWriter, "\tThere are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				return false, nil
 			})
 			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d app wrappers without ready pods, err = %v\n", len(nonReadyAWs), err)
+				_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d app wrappers without ready pods, err = %v\n", len(nonReadyAWs), err)
 				for _, uaw := range nonReadyAWs {
-					fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Ready AW '%s/%s'\n", uaw.Namespace, uaw.Name)
+					_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Ready AW '%s/%s'\n", uaw.Namespace, uaw.Name)
 				}
 			}
 			Expect(err).Should(Succeed(), "All AppWrappers should have ready Pods")

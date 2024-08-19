@@ -65,10 +65,10 @@ const limitedUserID = "8da0fcfe-6d7f-4f44-b433-d91d22cc1b8c"
 const defaultQueueName = "default-queue"
 const userProvidedQueueName = "user-queue"
 
-func TestControllers(t *testing.T) {
+func TestWebhooks(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecs(t, "Workload Controller Unit Tests")
+	RunSpecs(t, "Webhook Unit Tests")
 }
 
 var _ = BeforeSuite(func() {
