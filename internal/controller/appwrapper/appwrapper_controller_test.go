@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -173,7 +174,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("Happy Path Lifecycle", func() {
-		advanceToResuming(pod(100, 1), pod(100, 0))
+		advanceToResuming(pod(100, 1, true), pod(100, 0, false))
 		beginRunning()
 		fullyRunning()
 
@@ -223,7 +224,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("Running Workloads can be Suspended", func() {
-		advanceToResuming(pod(100, 0), pod(100, 1))
+		advanceToResuming(pod(100, 0, false), pod(100, 1, true))
 		beginRunning()
 		fullyRunning()
 
@@ -262,7 +263,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("A Pod Failure leads to a failed AppWrapper", func() {
-		advanceToResuming(pod(100, 0), pod(100, 0))
+		advanceToResuming(pod(100, 0, false), pod(100, 0, true))
 		beginRunning()
 		fullyRunning()
 
@@ -300,7 +301,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	})
 
 	It("Failure during resource creation leads to a failed AppWrapper", func() {
-		advanceToResuming(pod(100, 0), malformedPod(100))
+		advanceToResuming(pod(100, 0, false), malformedPod(100))
 
 		By("Reconciling: Resuming -> Failed")
 		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
@@ -316,6 +317,121 @@ var _ = Describe("AppWrapper Controller", func() {
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.pending).Should(Equal(int32(1)))
+	})
+})
+
+var _ = Describe("AppWrapper Annotations", func() {
+	var awReconciler *AppWrapperReconciler
+
+	BeforeEach(func() {
+		awReconciler = &AppWrapperReconciler{
+			Client:   k8sClient,
+			Recorder: &record.FakeRecorder{},
+			Scheme:   k8sClient.Scheme(),
+			Config:   config.NewAppWrapperConfig(),
+		}
+	})
+
+	It("Unannotated appwrappers use defaults", func() {
+		aw := &workloadv1beta2.AppWrapper{}
+		Expect(awReconciler.admissionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.AdmissionGracePeriod))
+		Expect(awReconciler.warmupGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.WarmupGracePeriod))
+		Expect(awReconciler.failureGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.FailureGracePeriod))
+		Expect(awReconciler.retryLimit(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.RetryLimit))
+		Expect(awReconciler.retryPauseDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.RetryPausePeriod))
+		Expect(awReconciler.forcefulDeletionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.ForcefulDeletionGracePeriod))
+		Expect(awReconciler.deletionOnFailureGraceDuration(ctx, aw)).Should(Equal(0 * time.Second))
+		Expect(awReconciler.timeToLiveAfterSucceededDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.SuccessTTL))
+	})
+
+	It("Valid annotations override defaults", func() {
+		allowed := 10 * time.Second
+		aw := &workloadv1beta2.AppWrapper{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: allowed.String(),
+					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    allowed.String(),
+					workloadv1beta2.FailureGracePeriodDurationAnnotation:   allowed.String(),
+					workloadv1beta2.RetryPausePeriodDurationAnnotation:     allowed.String(),
+					workloadv1beta2.RetryLimitAnnotation:                   "101",
+					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  allowed.String(),
+					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: allowed.String(),
+					workloadv1beta2.SuccessTTLAnnotation:                   allowed.String(),
+				},
+			},
+		}
+		Expect(awReconciler.admissionGraceDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.warmupGraceDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.failureGraceDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.retryLimit(ctx, aw)).Should(Equal(int32(101)))
+		Expect(awReconciler.retryPauseDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.forcefulDeletionGraceDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.deletionOnFailureGraceDuration(ctx, aw)).Should(Equal(allowed))
+		Expect(awReconciler.timeToLiveAfterSucceededDuration(ctx, aw)).Should(Equal(allowed))
+	})
+
+	It("Malformed annotations use defaults", func() {
+		malformed := "222badTime"
+		aw := &workloadv1beta2.AppWrapper{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: malformed,
+					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    malformed,
+					workloadv1beta2.FailureGracePeriodDurationAnnotation:   malformed,
+					workloadv1beta2.RetryPausePeriodDurationAnnotation:     malformed,
+					workloadv1beta2.RetryLimitAnnotation:                   "abc",
+					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  malformed,
+					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: malformed,
+					workloadv1beta2.SuccessTTLAnnotation:                   malformed,
+				},
+			},
+		}
+		Expect(awReconciler.admissionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.AdmissionGracePeriod))
+		Expect(awReconciler.warmupGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.WarmupGracePeriod))
+		Expect(awReconciler.failureGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.FailureGracePeriod))
+		Expect(awReconciler.retryLimit(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.RetryLimit))
+		Expect(awReconciler.retryPauseDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.RetryPausePeriod))
+		Expect(awReconciler.forcefulDeletionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.ForcefulDeletionGracePeriod))
+		Expect(awReconciler.deletionOnFailureGraceDuration(ctx, aw)).Should(Equal(0 * time.Second))
+		Expect(awReconciler.timeToLiveAfterSucceededDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.SuccessTTL))
+	})
+
+	It("Out of bounds annotations are clipped", func() {
+		negative := -10 * time.Minute
+		tooLong := 2 * awReconciler.Config.FaultTolerance.GracePeriodMaximum
+		aw := &workloadv1beta2.AppWrapper{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: negative.String(),
+					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    tooLong.String(),
+					workloadv1beta2.FailureGracePeriodDurationAnnotation:   tooLong.String(),
+					workloadv1beta2.RetryPausePeriodDurationAnnotation:     negative.String(),
+					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  tooLong.String(),
+					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: tooLong.String(),
+					workloadv1beta2.SuccessTTLAnnotation:                   (awReconciler.Config.FaultTolerance.SuccessTTL + 10*time.Second).String(),
+				},
+			},
+		}
+		Expect(awReconciler.admissionGraceDuration(ctx, aw)).Should(Equal(0 * time.Second))
+		Expect(awReconciler.warmupGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.GracePeriodMaximum))
+		Expect(awReconciler.failureGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.GracePeriodMaximum))
+		Expect(awReconciler.retryPauseDuration(ctx, aw)).Should(Equal(0 * time.Second))
+		Expect(awReconciler.forcefulDeletionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.GracePeriodMaximum))
+		Expect(awReconciler.deletionOnFailureGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.GracePeriodMaximum))
+		Expect(awReconciler.timeToLiveAfterSucceededDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.SuccessTTL))
+	})
+
+	It("Parsing of terminal exits codes", func() {
+		aw := &workloadv1beta2.AppWrapper{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					workloadv1beta2.TerminalExitCodesAnnotation:  "3,10,abc,42",
+					workloadv1beta2.RetryableExitCodesAnnotation: "x,10,20",
+				},
+			},
+		}
+		Expect(awReconciler.terminalExitCodes(ctx, aw)).Should(Equal([]int{3, 10, 42}))
+		Expect(awReconciler.retryableExitCodes(ctx, aw)).Should(Equal([]int{10, 20}))
 	})
 
 })

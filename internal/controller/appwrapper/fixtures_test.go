@@ -110,7 +110,7 @@ spec:
       limits:
         nvidia.com/gpu: %v`
 
-func pod(milliCPU int64, numGPU int64) workloadv1beta2.AppWrapperComponent {
+func pod(milliCPU int64, numGPU int64, declarePodSets bool) workloadv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(podYAML,
 		randName("pod"),
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI),
@@ -119,10 +119,13 @@ func pod(milliCPU int64, numGPU int64) workloadv1beta2.AppWrapperComponent {
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
-		Template:        runtime.RawExtension{Raw: jsonBytes},
+	awc := &workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
+	if declarePodSets {
+		awc.DeclaredPodSets = []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}}
+	}
+	return *awc
 }
 
 const malformedPodYAML = `
