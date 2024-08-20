@@ -344,7 +344,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "10s"
 			aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation] = "10s"
 			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "1"
-			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "0s"
+			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
 			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
