@@ -175,15 +175,19 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// update lending limits
-	var err error
 	if limitsChanged {
-		err = r.Update(ctx, cq)
+		err := r.Update(ctx, cq)
 		if err == nil {
 			log.FromContext(ctx).Info("Updated lending limits", "Resources", resources)
+			return ctrl.Result{}, nil
+		} else if errors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		} else {
+			return ctrl.Result{}, err
 		}
 	}
 
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
