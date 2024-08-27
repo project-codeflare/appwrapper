@@ -117,7 +117,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if node.Spec.Unschedulable {
 		// flag all non-pod resources covered by cq if the node is cordoned
 		for _, resourceName := range cq.Spec.ResourceGroups[0].Flavors[0].Resources {
-			if string(resourceName.Name) != "pod" {
+			if string(resourceName.Name) != "pods" {
 				flaggedQuantities[string(resourceName.Name)] = node.Status.Capacity.Name(resourceName.Name, resource.DecimalSI)
 			}
 		}
