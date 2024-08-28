@@ -33,6 +33,7 @@ import (
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -40,6 +41,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awc "github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -75,7 +77,7 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 		if w.Config.DefaultQueueName != "" {
 			aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.Config.DefaultQueueName})
 		}
-		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), true)
+		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.KueueJobReconciller.ManageJobsWithoutQueueName)
 	}
 
 	// inject labels with user name and id
@@ -86,6 +88,9 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	userInfo := request.UserInfo
 	username := utils.SanitizeLabel(userInfo.Username)
 	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
+
+	// inject finalizer now (avoid reconcilier errors between the AppWrapper and WorkloadControllers when it is admitted by a ClusterQueue almost immediately)
+	controllerutil.AddFinalizer(aw, awc.AppWrapperFinalizer)
 
 	return nil
 }

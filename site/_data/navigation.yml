@@ -5,6 +5,8 @@ main:
   url: /quick-start/
 - title: "Samples"
   url: /samples/
+- title: "GitHub"
+  url: https://github.com/project-codeflare/appwrapper
 - title: "API Reference"
   url: /api/workload.codeflare.dev/v1beta2/
 

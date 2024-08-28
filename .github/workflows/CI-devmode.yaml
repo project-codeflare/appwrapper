@@ -1,0 +1,57 @@
+name: CI-devmode
+on:
+  push:
+    branches: [main, rhoai-2.10]
+    paths-ignore:
+    - 'site/**'
+  pull_request:
+    branches: [main, rhoai-2.10]
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set latest tag and branch name
+      run: |
+        echo "GIT_BRANCH=gha-ci" >> $GITHUB_ENV
+        echo "TAG=$GITHUB_RUN_ID" >> $GITHUB_ENV
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: './go.mod'
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Run pre-commit checks
+      run: |
+        pip install pre-commit
+        pre-commit run --show-diff-on-failure --color=always --all-files
+
+    - name: Build
+      run: make build
+
+    - name: Run Unit Tests
+      run: make test
+
+    - name: Create and configure cluster
+      run: ./hack/create-test-cluster.sh
+
+    - name: Deploy Kueue
+      run: ./hack/deploy-kueue.sh
+
+    - name: Install CRDs
+      run: |
+        make install -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
+
+    - name: Run E2E tests using dev mode controller
+      run: ./hack/run-dev-mode-tests.sh

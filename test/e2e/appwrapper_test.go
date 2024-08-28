@@ -280,17 +280,21 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperSucceeded))
 		})
 
-		It("A failed Batch Job yields a failed AppWrapper", func() {
+		It("A failed Batch Job will be Reset up to retryLimit and then Failed", func() {
 			aw := toAppWrapper(failingBatchjob(500))
 			if aw.Annotations == nil {
 				aw.Annotations = make(map[string]string)
 			}
 			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "0s"
-			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "0"
+			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "2"
+			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
 			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
+			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
+			Expect(aw.Status.Retries).Should(Equal(int32(2)))
 		})
 
 		It("Deleting a Running Component yields a failed AppWrapper", func() {
@@ -331,6 +335,26 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		})
 	})
 
+	Describe("Detection of Startup Failures", Label("slow"), Label("Kueue", "Standalone"), func() {
+		It("Job with stuck init is detected and Failed", func() {
+			aw := toAppWrapper(stuckInitBatchjob(100))
+			if aw.Annotations == nil {
+				aw.Annotations = make(map[string]string)
+			}
+			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "10s"
+			aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation] = "10s"
+			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "1"
+			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
+			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
+			appwrappers = append(appwrappers, aw)
+			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
+			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
+			Expect(aw.Status.Retries).Should(Equal(int32(1)))
+		})
+	})
+
 	Describe("Load Testing", Label("slow"), Label("Kueue", "Standalone"), func() {
 		It("Create 50 AppWrappers", func() {
 			const (
@@ -357,16 +381,16 @@ var _ = Describe("AppWrapper E2E Test", func() {
 				}
 				nonRunningAWs = toCheckAWS
 				if len(toCheckAWS) == 0 {
-					fmt.Fprintf(GinkgoWriter, "\tAll AppWrappers Running at time %s\n", t.Format(time.RFC3339))
+					_, _ = fmt.Fprintf(GinkgoWriter, "\tAll AppWrappers Running at time %s\n", t.Format(time.RFC3339))
 					return true, nil
 				}
-				fmt.Fprintf(GinkgoWriter, "\tThere are %d non-Running AppWrappers at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
+				_, _ = fmt.Fprintf(GinkgoWriter, "\tThere are %d non-Running AppWrappers at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				return false, nil
 			})
 			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d non-Running AppWrappers, err = %v\n", len(nonRunningAWs), err)
+				_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d non-Running AppWrappers, err = %v\n", len(nonRunningAWs), err)
 				for _, uaw := range nonRunningAWs {
-					fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Running AW '%s/%s'\n", uaw.Namespace, uaw.Name)
+					_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Running AW '%s/%s'\n", uaw.Namespace, uaw.Name)
 				}
 			}
 			Expect(err).Should(Succeed(), "All AppWrappers should have ready Pods")
@@ -383,16 +407,16 @@ var _ = Describe("AppWrapper E2E Test", func() {
 				}
 				nonReadyAWs = toCheckAWS
 				if len(toCheckAWS) == 0 {
-					fmt.Fprintf(GinkgoWriter, "\tAll pods ready at time %s\n", t.Format(time.RFC3339))
+					_, _ = fmt.Fprintf(GinkgoWriter, "\tAll pods ready at time %s\n", t.Format(time.RFC3339))
 					return true, nil
 				}
-				fmt.Fprintf(GinkgoWriter, "\tThere are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
+				_, _ = fmt.Fprintf(GinkgoWriter, "\tThere are %d app wrappers without ready pods at time %s\n", len(toCheckAWS), t.Format(time.RFC3339))
 				return false, nil
 			})
 			if err != nil {
-				fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d app wrappers without ready pods, err = %v\n", len(nonReadyAWs), err)
+				_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - There are %d app wrappers without ready pods, err = %v\n", len(nonReadyAWs), err)
 				for _, uaw := range nonReadyAWs {
-					fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Ready AW '%s/%s'\n", uaw.Namespace, uaw.Name)
+					_, _ = fmt.Fprintf(GinkgoWriter, "Load Testing - Create 50 AppWrappers - Non-Ready AW '%s/%s'\n", uaw.Namespace, uaw.Name)
 				}
 			}
 			Expect(err).Should(Succeed(), "All AppWrappers should have ready Pods")

@@ -115,9 +115,11 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	// update unschedulable resource quantities for this node
 	flaggedQuantities := make(map[string]*resource.Quantity)
 	if node.Spec.Unschedulable {
-		// flag all configured resources if the node is cordoned
-		for resourceName := range r.Config.Autopilot.ResourceTaints {
-			flaggedQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+		// flag all non-pod resources covered by cq if the node is cordoned
+		for _, resourceName := range cq.Spec.ResourceGroups[0].Flavors[0].Resources {
+			if string(resourceName.Name) != "pods" {
+				flaggedQuantities[string(resourceName.Name)] = node.Status.Capacity.Name(resourceName.Name, resource.DecimalSI)
+			}
 		}
 	} else {
 		for key, value := range node.GetLabels() {
@@ -173,15 +175,19 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// update lending limits
-	var err error
 	if limitsChanged {
-		err = r.Update(ctx, cq)
+		err := r.Update(ctx, cq)
 		if err == nil {
 			log.FromContext(ctx).Info("Updated lending limits", "Resources", resources)
+			return ctrl.Result{}, nil
+		} else if errors.IsConflict(err) {
+			return ctrl.Result{Requeue: true}, nil
+		} else {
+			return ctrl.Result{}, err
 		}
 	}
 
-	return ctrl.Result{}, err
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

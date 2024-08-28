@@ -61,9 +61,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.23.0)
-    echo "Downloading and installing kind v0.23.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.23.0/kind-linux-${arch} && \
+    # Download kind binary (0.24.0)
+    echo "Downloading and installing kind v0.24.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.24.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
