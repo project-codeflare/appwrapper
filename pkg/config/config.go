@@ -107,6 +107,7 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			ResourceTaints: map[string][]v1.Taint{
 				"nvidia.com/gpu": {
 					{Key: "autopilot.ibm.com/gpuhealth", Value: "ERR", Effect: v1.TaintEffectNoSchedule},
+					{Key: "autopilot.ibm.com/gpuhealth", Value: "TESTING", Effect: v1.TaintEffectNoSchedule},
 					{Key: "autopilot.ibm.com/gpuhealth", Value: "EVICT", Effect: v1.TaintEffectNoExecute}},
 			},
 		},
