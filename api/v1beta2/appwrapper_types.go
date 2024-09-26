@@ -182,6 +182,7 @@ const (
 //+kubebuilder:printcolumn:name="Quota Reserved",type="string",JSONPath=".status.conditions[?(@.type==\"QuotaReserved\")].status"
 //+kubebuilder:printcolumn:name="Resources Deployed",type="string",JSONPath=".status.conditions[?(@.type==\"ResourcesDeployed\")].status"
 //+kubebuilder:printcolumn:name="Unhealthy",type="string",JSONPath=".status.conditions[?(@.type==\"Unhealthy\")].status"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // AppWrapper is the Schema for the appwrappers API
 type AppWrapper struct {
