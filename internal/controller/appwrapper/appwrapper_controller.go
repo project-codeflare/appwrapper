@@ -106,6 +106,11 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, nil
 	}
 
+	// stop reconciliation if managed by another controller
+	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != workloadv1beta2.AppWrapperControllerName {
+		return ctrl.Result{}, nil
+	}
+
 	// handle deletion first
 	if !aw.DeletionTimestamp.IsZero() {
 		if controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
