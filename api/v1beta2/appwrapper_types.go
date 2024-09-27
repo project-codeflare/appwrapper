@@ -30,6 +30,9 @@ type AppWrapperSpec struct {
 	// Suspend suspends the AppWrapper when set to true
 	//+optional
 	Suspend bool `json:"suspend,omitempty"`
+
+	// ManagedBy is used to indicate the controller or entity that manages the AppWrapper.
+	ManagedBy *string `json:"managedBy,omitempty"`
 }
 
 // AppWrapperComponent describes a single wrapped Kubernetes resource
@@ -175,6 +178,8 @@ const (
 	TerminalExitCodesAnnotation            = "workload.codeflare.dev.appwrapper/terminalExitCodes"
 	RetryableExitCodesAnnotation           = "workload.codeflare.dev.appwrapper/retryableExitCodes"
 )
+
+const AppWrapperControllerName = "workload.codeflare.dev/appwrapper-controller"
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
