@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: appwrapper-ksm
+  namespace: kube-system
+data:
+  appwrapper_ksm.yaml: |
+    kind: CustomResourceStateMetrics
+    spec:
+      resources:
+      - groupVersionKind:
+          group: workload.codeflare.dev
+          kind: "AppWrapper"
+          version: "v1beta2"
+        commonLabels:
+          crd_type: appwrapper
+        labelsFromPath:
+          namespace: [metadata, namespace]
+        metrics:
+        - name: "status_phase"
+          help: "AppWrapper status_phase"
+          each:
+            type: StateSet
+            stateSet:
+              labelName: phase
+              path: [status, phase]
+              list: [Suspended, Resuming, Running, Resetting, Suspending, Succeeded, Failed, Terminating]
+        - name: "retry_count"
+          help: "AppWrapper status_retries"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, retries]
+        - name: "status_conditions"
+          help: "AppWrapper status_conditions"
+          each:
+            type: Gauge
+            gauge:
+              path: [status, conditions]
+              labelsFromPath:
+                type: ["type"]
+              valueFrom: ["status"]
