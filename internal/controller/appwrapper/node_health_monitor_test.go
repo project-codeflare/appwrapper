@@ -74,7 +74,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Healthy cluster has no unhealthy nodes")
-		Expect(len(unhealthyNodes)).Should(Equal(0))
+		Expect(len(noExecuteNodes)).Should(Equal(0))
 
 		By("A node labeled EVICT is detected as unhealthy")
 		node := getNode(node1Name.Name)
@@ -84,25 +84,25 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(unhealthyNodes)).Should(Equal(1))
-		Expect(unhealthyNodes).Should(HaveKey(node1Name.Name))
-		Expect(unhealthyNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
+		Expect(len(noExecuteNodes)).Should(Equal(1))
+		Expect(noExecuteNodes).Should(HaveKey(node1Name.Name))
+		Expect(noExecuteNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
 
 		By("Repeated reconcile does not change map")
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(unhealthyNodes)).Should(Equal(1))
-		Expect(unhealthyNodes).Should(HaveKey(node1Name.Name))
-		Expect(unhealthyNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
+		Expect(len(noExecuteNodes)).Should(Equal(1))
+		Expect(noExecuteNodes).Should(HaveKey(node1Name.Name))
+		Expect(noExecuteNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
 
 		By("Removing the EVICT label updates unhealthyNodes")
 		node.Labels["autopilot.ibm.com/gpuhealth"] = "ERR"
 		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(unhealthyNodes)).Should(Equal(0))
+		Expect(len(noExecuteNodes)).Should(Equal(0))
 	})
 
 	It("ClusterQueue Lending Adjustment", func() {
