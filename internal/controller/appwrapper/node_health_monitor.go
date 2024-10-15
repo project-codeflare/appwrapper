@@ -18,20 +18,20 @@ package appwrapper
 
 import (
 	"context"
+	"maps"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/types"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/utils/ptr"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 
 	"github.com/project-codeflare/appwrapper/pkg/config"
 )
@@ -44,51 +44,82 @@ import (
 type NodeHealthMonitor struct {
 	client.Client
 	Config *config.AppWrapperConfig
+	Events chan event.GenericEvent // event channel for NodeHealthMonitor to trigger SlackClusterQueueMonitor
 }
 
 var (
-	// noExecuteNodes is a mapping from Node names to resources with an Autopilot NoExeucte taint
-	noExecuteNodes      = make(map[string]sets.Set[string])
-	noExecuteNodesMutex sync.RWMutex
+	// nodeInfoMutex syncnornized writes by NodeHealthMonitor with reads from AppWrapperReconciler and SlackClusterQueueMonitor
+	nodeInfoMutex sync.RWMutex
 
-	// noScheduleNodes is a mapping from Node names to resource quantities that are unschedulable.
+	// noExecuteNodes is a mapping from Node names to resources with an Autopilot NoExecute taint
+	noExecuteNodes = make(map[string]sets.Set[string])
+
+	// noScheduleNodes is a mapping from Node names to ResourceLists of unschedulable resources.
 	// A resource may be unscheduable either because:
 	//  (a) the Node is cordoned (node.Spec.Unschedulable is true) or
-	//  (b) Autopilot has labeled the with either a NoExecute or NoSchedule taint.
-	noScheduleNodes = make(map[string]map[string]*resource.Quantity)
+	//  (b) Autopilot has labeled the Node with a NoExecute or NoSchedule taint for the resource.
+	noScheduleNodes = make(map[string]v1.ResourceList)
+)
+
+const (
+	dispatchEventName = "*trigger*"
 )
 
 // permission to watch nodes
 //+kubebuilder:rbac:groups="",resources=nodes,verbs=get;list;watch
-//+kubebuilder:rbac:groups=kueue.x-k8s.io,resources=clusterqueues,verbs=get;list;watch;update;patch
 
 func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	node := &v1.Node{}
 	if err := r.Get(ctx, req.NamespacedName, node); err != nil {
-		return ctrl.Result{}, nil
-	}
-
-	r.updateNoExecuteNodes(ctx, node)
-
-	// If there is a slack ClusterQueue, update its lending limits
-
-	if r.Config.SlackQueueName == "" {
-		return ctrl.Result{}, nil
-	}
-
-	cq := &kueue.ClusterQueue{}
-	if err := r.Get(ctx, types.NamespacedName{Name: r.Config.SlackQueueName}, cq); err != nil {
 		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil // give up if slack quota is not defined
+			r.updateForNodeDeletion(ctx, req.Name)
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	r.updateNoScheduleNodes(ctx, cq, node)
+	if node.DeletionTimestamp.IsZero() {
+		r.updateNoExecuteNodes(ctx, node)
+		r.updateNoScheduleNodes(ctx, node)
+	} else {
+		r.updateForNodeDeletion(ctx, req.Name)
+	}
 
-	return r.updateLendingLimits(ctx, cq)
+	return ctrl.Result{}, nil
 }
 
+func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
+	if r.Config.SlackQueueName != "" {
+		select {
+		// Trigger dispatch by means of "*/*" request
+		case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: dispatchEventName}}}:
+		default:
+			// do not block if event is already in channel
+		}
+	}
+}
+
+// update for the deletion of nodeName
+func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName string) {
+	if _, ok := noExecuteNodes[nodeName]; ok {
+		nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+		delete(noExecuteNodes, nodeName)
+		nodeInfoMutex.Unlock() // END CRITICAL SECTION
+		r.triggerSlackCQMonitor()
+		log.FromContext(ctx).Info("Updated NoExecute information due to Node deletion",
+			"Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
+	}
+	if _, ok := noScheduleNodes[nodeName]; ok {
+		nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+		delete(noScheduleNodes, nodeName)
+		nodeInfoMutex.Unlock() // END CRITICAL SECTION
+		r.triggerSlackCQMonitor()
+		log.FromContext(ctx).Info("Updated NoSchedule information due to Node deletion",
+			"Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
+	}
+}
+
+// update noExecuteNodes entry for node
 func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.Node) {
 	noExecuteResources := make(sets.Set[string])
 	for key, value := range node.GetLabels() {
@@ -102,7 +133,7 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 	}
 
 	noExecuteNodesChanged := false
-	noExecuteNodesMutex.Lock() // BEGIN CRITICAL SECTION
+	nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
 	if priorEntry, ok := noExecuteNodes[node.GetName()]; ok {
 		if len(noExecuteResources) == 0 {
 			delete(noExecuteNodes, node.GetName())
@@ -115,95 +146,56 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 		noExecuteNodes[node.GetName()] = noExecuteResources
 		noExecuteNodesChanged = true
 	}
-	noExecuteNodesMutex.Unlock() // END CRITICAL SECTION
+	nodeInfoMutex.Unlock() // END CRITICAL SECTION
 
-	// Safe to log outside the mutex because because this method is the only writer of noExecuteNodes
-	// and the controller runtime is configured to not allow concurrent execution of this controller.
 	if noExecuteNodesChanged {
-		log.FromContext(ctx).Info("Updated node NoExecute information", "Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
+		r.triggerSlackCQMonitor()
+		log.FromContext(ctx).Info("Updated NoExecute information", "Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
 	}
 }
 
-func (r *NodeHealthMonitor) updateNoScheduleNodes(_ context.Context, cq *kueue.ClusterQueue, node *v1.Node) {
-	// update unschedulable resource quantities for this node
-	noScheduleQuantities := make(map[string]*resource.Quantity)
+// update noScheduleNodes entry for node
+func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.Node) {
+	var noScheduleResources v1.ResourceList
 	if node.Spec.Unschedulable {
-		// add all non-pod resources covered by cq if the node is cordoned
-		for _, resourceName := range cq.Spec.ResourceGroups[0].Flavors[0].Resources {
-			if string(resourceName.Name) != "pods" {
-				noScheduleQuantities[string(resourceName.Name)] = node.Status.Capacity.Name(resourceName.Name, resource.DecimalSI)
-			}
-		}
+		noScheduleResources = node.Status.Capacity.DeepCopy()
+		delete(noScheduleResources, v1.ResourcePods)
 	} else {
+		noScheduleResources = make(v1.ResourceList)
 		for key, value := range node.GetLabels() {
 			for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
 				for _, taint := range taints {
 					if key == taint.Key && value == taint.Value {
-						noScheduleQuantities[resourceName] = node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+						quantity := node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+						if !quantity.IsZero() {
+							noScheduleResources[v1.ResourceName(resourceName)] = *quantity
+						}
 					}
 				}
 			}
 		}
 	}
 
-	if len(noScheduleQuantities) > 0 {
-		noScheduleNodes[node.GetName()] = noScheduleQuantities
-	} else {
-		delete(noScheduleNodes, node.GetName())
-	}
-}
-
-func (r *NodeHealthMonitor) updateLendingLimits(ctx context.Context, cq *kueue.ClusterQueue) (ctrl.Result, error) {
-
-	// compute unschedulable resource totals
-	unschedulableQuantities := map[string]*resource.Quantity{}
-	for _, quantities := range noScheduleNodes {
-		for resourceName, quantity := range quantities {
-			if !quantity.IsZero() {
-				if unschedulableQuantities[resourceName] == nil {
-					unschedulableQuantities[resourceName] = ptr.To(*quantity)
-				} else {
-					unschedulableQuantities[resourceName].Add(*quantity)
-				}
-			}
+	noScheduleNodesChanged := false
+	nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+	if priorEntry, ok := noScheduleNodes[node.GetName()]; ok {
+		if len(noScheduleResources) == 0 {
+			delete(noScheduleNodes, node.GetName())
+			noScheduleNodesChanged = true
+		} else if !maps.Equal(priorEntry, noScheduleResources) {
+			noScheduleNodes[node.GetName()] = noScheduleResources
+			noScheduleNodesChanged = true
 		}
+	} else if len(noScheduleResources) > 0 {
+		noScheduleNodes[node.GetName()] = noScheduleResources
+		noScheduleNodesChanged = true
 	}
+	nodeInfoMutex.Unlock() // END CRITICAL SECTION
 
-	// enforce lending limits on 1st flavor of 1st resource group
-	resources := cq.Spec.ResourceGroups[0].Flavors[0].Resources
-	limitsChanged := false
-	for i, quota := range resources {
-		var lendingLimit *resource.Quantity
-		if unschedulableQuantity := unschedulableQuantities[quota.Name.String()]; unschedulableQuantity != nil {
-			if quota.NominalQuota.Cmp(*unschedulableQuantity) > 0 {
-				lendingLimit = ptr.To(quota.NominalQuota)
-				lendingLimit.Sub(*unschedulableQuantity)
-			} else {
-				lendingLimit = resource.NewQuantity(0, resource.DecimalSI)
-			}
-		}
-		if quota.LendingLimit == nil && lendingLimit != nil ||
-			quota.LendingLimit != nil && lendingLimit == nil ||
-			quota.LendingLimit != nil && lendingLimit != nil && quota.LendingLimit.Cmp(*lendingLimit) != 0 {
-			limitsChanged = true
-			resources[i].LendingLimit = lendingLimit
-		}
+	if noScheduleNodesChanged {
+		r.triggerSlackCQMonitor()
+		log.FromContext(ctx).Info("Updated NoSchedule information", "Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
 	}
-
-	// update lending limits
-	if limitsChanged {
-		err := r.Update(ctx, cq)
-		if err == nil {
-			log.FromContext(ctx).Info("Updated lending limits", "Resources", resources)
-			return ctrl.Result{}, nil
-		} else if errors.IsConflict(err) {
-			return ctrl.Result{Requeue: true}, nil
-		} else {
-			return ctrl.Result{}, err
-		}
-	}
-
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
