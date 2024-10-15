@@ -48,14 +48,14 @@ type NodeHealthMonitor struct {
 }
 
 var (
-	// nodeInfoMutex syncnornized writes by NodeHealthMonitor with reads from AppWrapperReconciler and SlackClusterQueueMonitor
+	// nodeInfoMutex synchronizes writes by NodeHealthMonitor with reads from AppWrapperReconciler and SlackClusterQueueMonitor
 	nodeInfoMutex sync.RWMutex
 
 	// noExecuteNodes is a mapping from Node names to resources with an Autopilot NoExecute taint
 	noExecuteNodes = make(map[string]sets.Set[string])
 
 	// noScheduleNodes is a mapping from Node names to ResourceLists of unschedulable resources.
-	// A resource may be unscheduable either because:
+	// A resource may be unschedulable either because:
 	//  (a) the Node is cordoned (node.Spec.Unschedulable is true) or
 	//  (b) Autopilot has labeled the Node with a NoExecute or NoSchedule taint for the resource.
 	noScheduleNodes = make(map[string]v1.ResourceList)
@@ -91,7 +91,6 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
 	if r.Config.SlackQueueName != "" {
 		select {
-		// Trigger dispatch by means of "*/*" request
 		case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: dispatchEventName}}}:
 		default:
 			// do not block if event is already in channel
@@ -99,7 +98,7 @@ func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
 	}
 }
 
-// update for the deletion of nodeName
+// update noExecuteNodes and noScheduleNodes for the deletion of nodeName
 func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName string) {
 	if _, ok := noExecuteNodes[nodeName]; ok {
 		nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
