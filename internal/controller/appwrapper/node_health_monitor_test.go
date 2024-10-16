@@ -30,9 +30,9 @@ import (
 
 var _ = Describe("NodeMonitor Controller", func() {
 	var slackQueueName = "fake-queue"
+	var dispatch = types.NamespacedName{Name: slackQueueName}
 	var node1Name = types.NamespacedName{Name: "fake-node-1"}
 	var node2Name = types.NamespacedName{Name: "fake-node-2"}
-	var dispatch = types.NamespacedName{Name: dispatchEventName}
 	var nodeMonitor *NodeHealthMonitor
 	var cqMonitor *SlackClusterQueueMonitor
 	nodeGPUs := v1.ResourceList{v1.ResourceName("nvidia.com/gpu"): resource.MustParse("4")}

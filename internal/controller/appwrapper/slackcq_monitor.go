@@ -48,7 +48,7 @@ type SlackClusterQueueMonitor struct {
 //+kubebuilder:rbac:groups=kueue.x-k8s.io,resources=clusterqueues,verbs=get;list;watch;update;patch
 
 func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	if !(req.Name == dispatchEventName || req.Name == r.Config.SlackQueueName) {
+	if req.Name != r.Config.SlackQueueName {
 		return ctrl.Result{}, nil
 	}
 
@@ -62,7 +62,7 @@ func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// Compute the total quantities of unschedulable resources
 	unschedulableQuantities := map[v1.ResourceName]*resource.Quantity{}
-	nodeInfoMutex.RLock() // BEGIN CRITICAL SECTION
+	noScheduleNodesMutex.RLock() // BEGIN CRITICAL SECTION
 	for _, quantities := range noScheduleNodes {
 		for resourceName, quantity := range quantities {
 			if !quantity.IsZero() {
@@ -74,7 +74,7 @@ func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Reque
 			}
 		}
 	}
-	nodeInfoMutex.RUnlock() // END CRITICAL SECTION
+	noScheduleNodesMutex.RUnlock() // END CRITICAL SECTION
 
 	// enforce lending limits on 1st flavor of 1st resource group
 	resources := cq.Spec.ResourceGroups[0].Flavors[0].Resources

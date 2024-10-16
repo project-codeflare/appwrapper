@@ -559,7 +559,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 			if pod.DeletionTimestamp.IsZero() {
 				summary.running += 1
 				if checkNoExecuteNodes {
-					nodeInfoMutex.RLock() // BEGIN CRITICAL SECTION
+					noExecuteNodesMutex.RLock() // BEGIN CRITICAL SECTION
 					if len(noExecuteNodes) > 0 {
 						if resources, ok := noExecuteNodes[pod.Spec.NodeName]; ok {
 							for badResource := range resources {
@@ -584,7 +584,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 							}
 						}
 					}
-					nodeInfoMutex.RUnlock() // END CRITICAL SECTION
+					noExecuteNodesMutex.RUnlock() // END CRITICAL SECTION
 				}
 			}
 		case v1.PodSucceeded:

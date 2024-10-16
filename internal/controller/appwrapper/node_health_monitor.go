@@ -38,7 +38,7 @@ import (
 
 // NodeHealthMonitor watches Nodes and maintains mappings of Nodes that have either
 // been marked as Unschedulable or that have been labeled to indicate that
-// they have resources that Autopilot has tainted as NoSchedule or NoExeucte.
+// they have resources that Autopilot has tainted as NoSchedule or NoExecute.
 // This information is used to automate the maintenance of the lendingLimit of
 // a designated slack ClusterQueue and to migrate running workloads away from NoExecute resources.
 type NodeHealthMonitor struct {
@@ -48,21 +48,18 @@ type NodeHealthMonitor struct {
 }
 
 var (
-	// nodeInfoMutex synchronizes writes by NodeHealthMonitor with reads from AppWrapperReconciler and SlackClusterQueueMonitor
-	nodeInfoMutex sync.RWMutex
-
 	// noExecuteNodes is a mapping from Node names to resources with an Autopilot NoExecute taint
 	noExecuteNodes = make(map[string]sets.Set[string])
+	// noExecuteNodesMutex synchronizes access to noExecuteNodes
+	noExecuteNodesMutex sync.RWMutex
 
 	// noScheduleNodes is a mapping from Node names to ResourceLists of unschedulable resources.
 	// A resource may be unschedulable either because:
 	//  (a) the Node is cordoned (node.Spec.Unschedulable is true) or
 	//  (b) Autopilot has labeled the Node with a NoExecute or NoSchedule taint for the resource.
 	noScheduleNodes = make(map[string]v1.ResourceList)
-)
-
-const (
-	dispatchEventName = "*trigger*"
+	// noScheduleNodesMutex synchronizes access to noScheduleNodes
+	noScheduleNodesMutex sync.RWMutex
 )
 
 // permission to watch nodes
@@ -91,7 +88,7 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
 	if r.Config.SlackQueueName != "" {
 		select {
-		case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: dispatchEventName}}}:
+		case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: r.Config.SlackQueueName}}}:
 		default:
 			// do not block if event is already in channel
 		}
@@ -101,20 +98,20 @@ func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
 // update noExecuteNodes and noScheduleNodes for the deletion of nodeName
 func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName string) {
 	if _, ok := noExecuteNodes[nodeName]; ok {
-		nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+		noExecuteNodesMutex.Lock() // BEGIN CRITICAL SECTION
 		delete(noExecuteNodes, nodeName)
-		nodeInfoMutex.Unlock() // END CRITICAL SECTION
-		r.triggerSlackCQMonitor()
+		noExecuteNodesMutex.Unlock() // END CRITICAL SECTION
 		log.FromContext(ctx).Info("Updated NoExecute information due to Node deletion",
 			"Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
+		r.triggerSlackCQMonitor()
 	}
 	if _, ok := noScheduleNodes[nodeName]; ok {
-		nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+		noScheduleNodesMutex.Lock() // BEGIN CRITICAL SECTION
 		delete(noScheduleNodes, nodeName)
-		nodeInfoMutex.Unlock() // END CRITICAL SECTION
-		r.triggerSlackCQMonitor()
+		noScheduleNodesMutex.Unlock() // END CRITICAL SECTION
 		log.FromContext(ctx).Info("Updated NoSchedule information due to Node deletion",
 			"Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
+		r.triggerSlackCQMonitor()
 	}
 }
 
@@ -132,7 +129,7 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 	}
 
 	noExecuteNodesChanged := false
-	nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+	noExecuteNodesMutex.Lock() // BEGIN CRITICAL SECTION
 	if priorEntry, ok := noExecuteNodes[node.GetName()]; ok {
 		if len(noExecuteResources) == 0 {
 			delete(noExecuteNodes, node.GetName())
@@ -145,11 +142,11 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 		noExecuteNodes[node.GetName()] = noExecuteResources
 		noExecuteNodesChanged = true
 	}
-	nodeInfoMutex.Unlock() // END CRITICAL SECTION
+	noExecuteNodesMutex.Unlock() // END CRITICAL SECTION
 
 	if noExecuteNodesChanged {
-		r.triggerSlackCQMonitor()
 		log.FromContext(ctx).Info("Updated NoExecute information", "Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
+		r.triggerSlackCQMonitor()
 	}
 }
 
@@ -176,7 +173,7 @@ func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.
 	}
 
 	noScheduleNodesChanged := false
-	nodeInfoMutex.Lock() // BEGIN CRITICAL SECTION
+	noScheduleNodesMutex.Lock() // BEGIN CRITICAL SECTION
 	if priorEntry, ok := noScheduleNodes[node.GetName()]; ok {
 		if len(noScheduleResources) == 0 {
 			delete(noScheduleNodes, node.GetName())
@@ -189,11 +186,11 @@ func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.
 		noScheduleNodes[node.GetName()] = noScheduleResources
 		noScheduleNodesChanged = true
 	}
-	nodeInfoMutex.Unlock() // END CRITICAL SECTION
+	noScheduleNodesMutex.Unlock() // END CRITICAL SECTION
 
 	if noScheduleNodesChanged {
-		r.triggerSlackCQMonitor()
 		log.FromContext(ctx).Info("Updated NoSchedule information", "Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
+		r.triggerSlackCQMonitor()
 	}
 }
 
