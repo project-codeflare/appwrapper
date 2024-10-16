@@ -78,7 +78,7 @@ func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Reque
 
 	// enforce lending limits on 1st flavor of 1st resource group
 	resources := cq.Spec.ResourceGroups[0].Flavors[0].Resources
-	limitsChanged := false
+	delta := map[v1.ResourceName]*resource.Quantity{}
 	for i, quota := range resources {
 		var lendingLimit *resource.Quantity
 		if unschedulableQuantity := unschedulableQuantities[quota.Name]; unschedulableQuantity != nil {
@@ -89,19 +89,28 @@ func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Reque
 				lendingLimit = resource.NewQuantity(0, resource.DecimalSI)
 			}
 		}
-		if quota.LendingLimit == nil && lendingLimit != nil ||
-			quota.LendingLimit != nil && lendingLimit == nil ||
-			quota.LendingLimit != nil && lendingLimit != nil && quota.LendingLimit.Cmp(*lendingLimit) != 0 {
-			limitsChanged = true
+		if quota.LendingLimit == nil && lendingLimit != nil {
+			delta[quota.Name] = ptr.To(quota.NominalQuota)
+			delta[quota.Name].Sub(*lendingLimit)
+			delta[quota.Name].Neg()
+			resources[i].LendingLimit = lendingLimit
+		} else if quota.LendingLimit != nil && lendingLimit == nil {
+			delta[quota.Name] = ptr.To(quota.NominalQuota)
+			delta[quota.Name].Sub(*quota.LendingLimit)
+			resources[i].LendingLimit = lendingLimit
+		} else if quota.LendingLimit != nil && lendingLimit != nil && quota.LendingLimit.Cmp(*lendingLimit) != 0 {
+			delta[quota.Name] = ptr.To(*quota.LendingLimit)
+			delta[quota.Name].Sub(*lendingLimit)
+			delta[quota.Name].Neg()
 			resources[i].LendingLimit = lendingLimit
 		}
 	}
 
 	// update lending limits
-	if limitsChanged {
+	if len(delta) > 0 {
 		err := r.Update(ctx, cq)
 		if err == nil {
-			log.FromContext(ctx).Info("Updated lending limits", "Resources", resources)
+			log.FromContext(ctx).Info("Updated lending limits", "Changed by", delta, "Updated Resources", resources)
 			return ctrl.Result{}, nil
 		} else if errors.IsConflict(err) {
 			return ctrl.Result{Requeue: true}, nil
