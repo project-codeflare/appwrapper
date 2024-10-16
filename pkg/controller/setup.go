@@ -24,6 +24,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
@@ -51,11 +52,22 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 	}
 
 	if awConfig.Autopilot != nil && awConfig.Autopilot.MonitorNodes {
+		conduit := make(chan event.GenericEvent, 1)
 		if err := (&appwrapper.NodeHealthMonitor{
 			Client: mgr.GetClient(),
 			Config: awConfig,
+			Events: conduit,
 		}).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("node health monitor: %w", err)
+		}
+		if awConfig.SlackQueueName != "" {
+			if err := (&appwrapper.SlackClusterQueueMonitor{
+				Client: mgr.GetClient(),
+				Config: awConfig,
+				Events: conduit,
+			}).SetupWithManager(mgr); err != nil {
+				return fmt.Errorf("slack cluster queue monitor: %w", err)
+			}
 		}
 	}
 
