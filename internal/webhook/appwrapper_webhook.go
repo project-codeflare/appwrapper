@@ -89,6 +89,11 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	username := utils.SanitizeLabel(userInfo.Username)
 	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
 
+	// do not inject finalizer if managed by another controller
+	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != workloadv1beta2.AppWrapperControllerName {
+		return nil
+	}
+
 	// inject finalizer now (avoid reconcilier errors between the AppWrapper and WorkloadControllers when it is admitted by a ClusterQueue almost immediately)
 	controllerutil.AddFinalizer(aw, awc.AppWrapperFinalizer)
 
@@ -273,6 +278,11 @@ func (w *AppWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 	}
 	if old.Labels[AppWrapperUserIDLabel] != new.Labels[AppWrapperUserIDLabel] {
 		allErrors = append(allErrors, field.Forbidden(field.NewPath("metadata").Child("labels").Key(AppWrapperUserIDLabel), msg))
+	}
+
+	// ensure managedBy field is immutable
+	if old.Spec.ManagedBy != new.Spec.ManagedBy {
+		allErrors = append(allErrors, field.Forbidden(field.NewPath("spec").Child("managedBy"), msg))
 	}
 
 	return allErrors

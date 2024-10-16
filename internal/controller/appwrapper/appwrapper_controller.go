@@ -70,7 +70,7 @@ type podStatusSummary struct {
 	succeeded       int32
 	failed          int32
 	terminalFailure bool
-	unhealthyNodes  sets.Set[string]
+	noExecuteNodes  sets.Set[string]
 }
 
 type componentStatusSummary struct {
@@ -103,6 +103,11 @@ type componentStatusSummary struct {
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	aw := &workloadv1beta2.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, aw); err != nil {
+		return ctrl.Result{}, nil
+	}
+
+	// stop reconciliation if managed by another controller
+	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != workloadv1beta2.AppWrapperControllerName {
 		return ctrl.Result{}, nil
 	}
 
@@ -329,13 +334,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
-		// Initiate migration of workloads that are using resources that Autopilot has flagged as unhealthy
-		detailMsg = fmt.Sprintf("Workload contains pods using unhealthy resources on Nodes: %v", podStatus.unhealthyNodes)
-		if len(podStatus.unhealthyNodes) > 0 {
+		// Initiate migration of workloads that are using resources that Autopilot has flagged as NoExecute
+		detailMsg = fmt.Sprintf("Workload contains pods using NoExecute resources on Nodes: %v", podStatus.noExecuteNodes)
+		if len(podStatus.noExecuteNodes) > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
-				Reason:  "AutopilotUnhealthy",
+				Reason:  "AutopilotNoExecute",
 				Message: detailMsg,
 			})
 			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), detailMsg)
@@ -544,7 +549,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		return nil, err
 	}
 	summary := &podStatusSummary{expected: pc}
-	checkUnhealthyNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MonitorNodes
+	checkNoExecuteNodes := r.Config.Autopilot != nil && r.Config.Autopilot.MonitorNodes
 
 	for _, pod := range pods.Items {
 		switch pod.Status.Phase {
@@ -553,33 +558,33 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 		case v1.PodRunning:
 			if pod.DeletionTimestamp.IsZero() {
 				summary.running += 1
-				if checkUnhealthyNodes {
-					unhealthyNodesMutex.RLock() // BEGIN CRITICAL SECTION
-					if len(unhealthyNodes) > 0 {
-						if resources, ok := unhealthyNodes[pod.Spec.NodeName]; ok {
+				if checkNoExecuteNodes {
+					noExecuteNodesMutex.RLock() // BEGIN CRITICAL SECTION
+					if len(noExecuteNodes) > 0 {
+						if resources, ok := noExecuteNodes[pod.Spec.NodeName]; ok {
 							for badResource := range resources {
 								for _, container := range pod.Spec.Containers {
 									if limit, ok := container.Resources.Limits[v1.ResourceName(badResource)]; ok {
 										if !limit.IsZero() {
-											if summary.unhealthyNodes == nil {
-												summary.unhealthyNodes = make(sets.Set[string])
+											if summary.noExecuteNodes == nil {
+												summary.noExecuteNodes = make(sets.Set[string])
 											}
-											summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+											summary.noExecuteNodes.Insert(pod.Spec.NodeName)
 										}
 									}
 									if request, ok := container.Resources.Requests[v1.ResourceName(badResource)]; ok {
 										if !request.IsZero() {
-											if summary.unhealthyNodes == nil {
-												summary.unhealthyNodes = make(sets.Set[string])
+											if summary.noExecuteNodes == nil {
+												summary.noExecuteNodes = make(sets.Set[string])
 											}
-											summary.unhealthyNodes.Insert(pod.Spec.NodeName)
+											summary.noExecuteNodes.Insert(pod.Spec.NodeName)
 										}
 									}
 								}
 							}
 						}
 					}
-					unhealthyNodesMutex.RUnlock() // END CRITICAL SECTION
+					noExecuteNodesMutex.RUnlock() // END CRITICAL SECTION
 				}
 			}
 		case v1.PodSucceeded:
