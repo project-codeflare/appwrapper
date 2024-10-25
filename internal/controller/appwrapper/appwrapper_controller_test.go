@@ -23,6 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
@@ -63,6 +64,8 @@ var _ = Describe("AppWrapper Controller", func() {
 		awConfig.FaultTolerance.RetryPausePeriod = 0 * time.Second
 		awConfig.FaultTolerance.RetryLimit = 0
 		awConfig.FaultTolerance.SuccessTTL = 0 * time.Second
+		awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"] = append(awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"], v1.Taint{Key: "extra", Value: "test", Effect: v1.TaintEffectNoExecute})
+
 		awReconciler = &AppWrapperReconciler{
 			Client:   k8sClient,
 			Recorder: &record.FakeRecorder{},
@@ -154,6 +157,42 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(podStatus.running).Should(Equal(pc))
 		_, _, finished := (*workload.AppWrapper)(aw).Finished()
 		Expect(finished).Should(BeFalse())
+	}
+
+	validateMarkers := func(p *v1.Pod) {
+		for k, v := range markerPodSet.Annotations {
+			Expect(p.Annotations).Should(HaveKeyWithValue(k, v))
+		}
+		for k, v := range markerPodSet.Labels {
+			Expect(p.Labels).Should(HaveKeyWithValue(k, v))
+		}
+		for _, v := range markerPodSet.Tolerations {
+			Expect(p.Spec.Tolerations).Should(ContainElement(v))
+		}
+		for k, v := range markerPodSet.NodeSelector {
+			Expect(p.Spec.NodeSelector).Should(HaveKeyWithValue(k, v))
+		}
+	}
+
+	validateAutopilot := func(p *v1.Pod) {
+		if p.Spec.Containers[0].Resources.Requests.Name("nvidia.com/gpu", resource.DecimalSI).IsZero() {
+			Expect(p.Spec.Affinity).Should(BeNil())
+		} else {
+			Expect(p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution).ShouldNot(BeNil())
+			Expect(p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms).Should(HaveLen(1))
+			mes := p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
+			for _, taint := range awReconciler.Config.Autopilot.ResourceTaints["nvidia.com/gpu"] {
+				found := false
+				for _, me := range mes {
+					if me.Key == taint.Key {
+						Expect(me.Operator).Should(Equal(v1.NodeSelectorOpNotIn))
+						Expect(me.Values).Should(ContainElement(taint.Value))
+						found = true
+					}
+				}
+				Expect(found).Should(BeTrue())
+			}
+		}
 	}
 
 	AfterEach(func() {
@@ -318,6 +357,54 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.pending).Should(Equal(int32(1)))
 	})
+
+	It("Validating PodSet Injection invariants on minimal pods", func() {
+		advanceToResuming(pod(100, 0, false), pod(100, 1, true))
+		beginRunning()
+		aw := getAppWrapper(awName)
+		pods := getPods(aw)
+		Expect(pods).Should(HaveLen(2))
+
+		By("Validate expected markers and Autopilot anti-affinities were injected")
+		for _, p := range pods {
+			Expect(p.Labels).Should(HaveKeyWithValue(AppWrapperLabel, awName.Name))
+			validateMarkers(&p)
+			validateAutopilot(&p)
+		}
+	})
+
+	It("Validating PodSet Injection invariants on complex pods", func() {
+		advanceToResuming(complexPodYaml(), complexPodYaml())
+		beginRunning()
+		aw := getAppWrapper(awName)
+		pods := getPods(aw)
+		Expect(pods).Should(HaveLen(2))
+
+		By("Validate expected markers and Autopilot anti-affinities were injected")
+		for _, p := range pods {
+			Expect(p.Labels).Should(HaveKeyWithValue(AppWrapperLabel, awName.Name))
+			validateMarkers(&p)
+			validateAutopilot(&p)
+		}
+
+		By("Validate complex pod elements were not removed")
+		for _, p := range pods {
+			Expect(p.Labels).Should(HaveKeyWithValue("myComplexLabel", "myComplexValue"))
+			Expect(p.Annotations).Should(HaveKeyWithValue("myComplexAnnotation", "myComplexValue"))
+			Expect(p.Spec.NodeSelector).Should(HaveKeyWithValue("myComplexSelector", "myComplexValue"))
+			Expect(p.Spec.Tolerations).Should(ContainElement(v1.Toleration{Key: "myComplexKey", Value: "myComplexValue", Operator: v1.TolerationOpEqual, Effect: v1.TaintEffectNoSchedule}))
+			mes := p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
+			found := false
+			for _, me := range mes {
+				if me.Key == "kubernetes.io/hostname" {
+					Expect(me.Operator).Should(Equal(v1.NodeSelectorOpNotIn))
+					Expect(me.Values).Should(ContainElement("badHost1"))
+					found = true
+				}
+			}
+			Expect(found).Should(BeTrue())
+		}
+	})
 })
 
 var _ = Describe("AppWrapper Annotations", func() {
@@ -433,5 +520,4 @@ var _ = Describe("AppWrapper Annotations", func() {
 		Expect(awReconciler.terminalExitCodes(ctx, aw)).Should(Equal([]int{3, 10, 42}))
 		Expect(awReconciler.retryableExitCodes(ctx, aw)).Should(Equal([]int{10, 20}))
 	})
-
 })
