@@ -69,6 +69,19 @@ func getNode(name string) *v1.Node {
 	return node
 }
 
+func getPods(aw *workloadv1beta2.AppWrapper) []v1.Pod {
+	result := []v1.Pod{}
+	podList := &v1.PodList{}
+	err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
+	Expect(err).NotTo(HaveOccurred())
+	for _, pod := range podList.Items {
+		if awn, found := pod.Labels[AppWrapperLabel]; found && awn == aw.Name {
+			result = append(result, pod)
+		}
+	}
+	return result
+}
+
 // envTest doesn't have a Pod controller; so simulate it
 func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange int32) error {
 	podList := &v1.PodList{}
@@ -124,6 +137,54 @@ func pod(milliCPU int64, numGPU int64, declarePodSets bool) workloadv1beta2.AppW
 	}
 	if declarePodSets {
 		awc.DeclaredPodSets = []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}}
+	}
+	return *awc
+}
+
+const complexPodYAML = `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: %v
+  labels:
+    myComplexLabel: myComplexValue
+  annotations:
+    myComplexAnnotation: myComplexValue
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    myComplexSelector: myComplexValue
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/hostname
+            operator: NotIn
+            values:
+            - badHost1
+  tolerations:
+  - key: myComplexKey
+    value: myComplexValue
+    operator: Equal
+    effect: NoSchedule
+  containers:
+  - name: busybox
+    image: quay.io/project-codeflare/busybox:1.36
+    command: ["sh", "-c", "sleep 10"]
+    resources:
+      requests:
+        cpu: 100m
+        nvidia.com/gpu: 1
+      limits:
+        nvidia.com/gpu: 1`
+
+func complexPodYaml() workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(complexPodYAML, randName("pod"))
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	awc := &workloadv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 	return *awc
 }
