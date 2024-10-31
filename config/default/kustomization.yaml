@@ -35,3 +35,7 @@ patches:
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
 # crd/kustomization.yaml
 - path: manager_webhook_patch.yaml
+
+# Add aggregate labels to rbacs
+- path: editor_role_patch.yaml
+- path: viewer_role_patch.yaml
