@@ -9,7 +9,7 @@ metadata:
     app.kubernetes.io/created-by: appwrapper
     app.kubernetes.io/part-of: appwrapper
     app.kubernetes.io/managed-by: kustomize
-  name: appwrapper-viewer-role
+  name: viewer-role
 rules:
 - apiGroups:
   - workload.codeflare.dev
