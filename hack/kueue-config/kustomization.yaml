@@ -4,7 +4,7 @@ kind: Kustomization
 namespace: kueue-system
 
 resources:
-- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.8.1"
+- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.8.2"
 
 configMapGenerator:
 - name: manager-config
@@ -16,7 +16,7 @@ configMapGenerator:
 images:
 - name: gcr.io/k8s-staging-kueue/kueue
   newName: registry.k8s.io/kueue/kueue
-  newTag: v0.8.1
+  newTag: v0.8.2
 
 patches:
 - target:
