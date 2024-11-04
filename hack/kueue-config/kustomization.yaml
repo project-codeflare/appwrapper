@@ -14,7 +14,7 @@ configMapGenerator:
   - controller_manager_config.yaml
 
 images:
-- name: gcr.io/k8s-staging-kueue/kueue
+- name: us-central1-docker.pkg.dev/k8s-staging-images/kueue/kueue
   newName: registry.k8s.io/kueue/kueue
   newTag: v0.8.2
 
