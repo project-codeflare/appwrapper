@@ -16,7 +16,7 @@ require (
 	k8s.io/utils v0.0.0-20240502163921-fe8a2dddb1d0
 	sigs.k8s.io/controller-runtime v0.17.5
 	sigs.k8s.io/controller-tools v0.14.0
-	sigs.k8s.io/kueue v0.8.1
+	sigs.k8s.io/kueue v0.8.2
 	sigs.k8s.io/kustomize/kustomize/v5 v5.3.0
 	sigs.k8s.io/yaml v1.4.0
 )
