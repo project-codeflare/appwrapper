@@ -108,7 +108,7 @@ func hasResourceRequest(spec map[string]interface{}, resource string) bool {
 	return false
 }
 
-func addNodeSelectorsToAffinity(spec map[string]interface{}, selectorTerms []v1.NodeSelectorTerm) error {
+func addNodeSelectorsToAffinity(spec map[string]interface{}, exprsToAdd []v1.NodeSelectorRequirement) error {
 	if _, ok := spec["affinity"]; !ok {
 		spec["affinity"] = map[string]interface{}{}
 	}
@@ -131,24 +131,37 @@ func addNodeSelectorsToAffinity(spec map[string]interface{}, selectorTerms []v1.
 		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution is not a map")
 	}
 	if _, ok := nodeSelector["nodeSelectorTerms"]; !ok {
-		nodeSelector["nodeSelectorTerms"] = []interface{}{}
+		nodeSelector["nodeSelectorTerms"] = []interface{}{map[string]interface{}{}}
 	}
 	existingTerms, ok := nodeSelector["nodeSelectorTerms"].([]interface{})
 	if !ok {
 		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms is not an array")
 	}
-	for _, termToAdd := range selectorTerms {
-		bytes, err := json.Marshal(termToAdd)
-		if err != nil {
-			return fmt.Errorf("marshalling selectorTerm %v: %w", termToAdd, err)
+	for idx, term := range existingTerms {
+		selTerm, ok := term.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v] is not an map", idx)
 		}
-		var obj interface{}
-		if err = json.Unmarshal(bytes, &obj); err != nil {
-			return fmt.Errorf("unmarshalling selectorTerm %v: %w", termToAdd, err)
+		if _, ok := selTerm["matchExpressions"]; !ok {
+			selTerm["matchExpressions"] = []interface{}{}
 		}
-		existingTerms = append(existingTerms, obj)
+		matchExpressions, ok := selTerm["matchExpressions"].([]interface{})
+		if !ok {
+			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v].matchExpressions is not an map", idx)
+		}
+		for _, expr := range exprsToAdd {
+			bytes, err := json.Marshal(expr)
+			if err != nil {
+				return fmt.Errorf("marshalling selectorTerm %v: %w", expr, err)
+			}
+			var obj interface{}
+			if err = json.Unmarshal(bytes, &obj); err != nil {
+				return fmt.Errorf("unmarshalling selectorTerm %v: %w", expr, err)
+			}
+			matchExpressions = append(matchExpressions, obj)
+		}
+		selTerm["matchExpressions"] = matchExpressions
 	}
-	nodeSelector["nodeSelectorTerms"] = existingTerms
 
 	return nil
 }
@@ -262,13 +275,11 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 				}
 			}
 			if len(toAdd) > 0 {
-				nodeSelectors := []v1.NodeSelectorTerm{}
+				matchExpressions := []v1.NodeSelectorRequirement{}
 				for k, v := range toAdd {
-					nodeSelectors = append(nodeSelectors, v1.NodeSelectorTerm{
-						MatchExpressions: []v1.NodeSelectorRequirement{{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: v}},
-					})
+					matchExpressions = append(matchExpressions, v1.NodeSelectorRequirement{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: v})
 				}
-				if err := addNodeSelectorsToAffinity(spec, nodeSelectors); err != nil {
+				if err := addNodeSelectorsToAffinity(spec, matchExpressions); err != nil {
 					log.FromContext(ctx).Error(err, "failed to inject Autopilot affinities")
 				}
 			}
