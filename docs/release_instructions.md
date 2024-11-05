@@ -24,5 +24,5 @@ will:
    go.mod.
 
 5. Update the kustomization.yaml files in MLBatch to refer to the new release:
-  + setup.k8s-v1.25/appwrapper/kustomization.yaml
+  + setup.k8s-v1.27/appwrapper/kustomization.yaml
   + setup.k8s-v1.30/appwrapper/kustomization.yaml
