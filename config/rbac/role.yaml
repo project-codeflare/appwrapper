@@ -47,14 +47,6 @@ rules:
   - admissionregistration.k8s.io
   resources:
   - mutatingwebhookconfigurations
-  verbs:
-  - get
-  - list
-  - update
-  - watch
-- apiGroups:
-  - admissionregistration.k8s.io
-  resources:
   - validatingwebhookconfigurations
   verbs:
   - get
@@ -124,13 +116,6 @@ rules:
   - kueue.x-k8s.io
   resources:
   - resourceflavors
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - kueue.x-k8s.io
-  resources:
   - workloadpriorityclasses
   verbs:
   - get
@@ -185,17 +170,6 @@ rules:
   - watch
 - apiGroups:
   - scheduling.sigs.k8s.io
-  resources:
-  - podgroups
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - scheduling.x-k8s.io
   resources:
   - podgroups
