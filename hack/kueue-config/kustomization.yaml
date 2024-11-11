@@ -37,9 +37,6 @@ patches:
   patch: |
     - op: add
       path: /spec/template/spec/containers/0/args/-
-      value: "--feature-gates=LendingLimit=true"
-    - op: add
-      path: /spec/template/spec/containers/0/args/-
       value: "--feature-gates=VisibilityOnDemand=false"
 # DEBUG support; uncomment this patch to boost Kueue log levels
 #    - op: add
