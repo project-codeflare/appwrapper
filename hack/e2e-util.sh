@@ -14,8 +14,9 @@
 
 export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
-export CLUSTER_CONTEXT="--name test"
+export CLUSTER_CONTEXT=${CLUSTER_CONTEXT:-"--name test"}
 export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
+export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.27"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
@@ -61,9 +62,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.24.0)
-    echo "Downloading and installing kind v0.24.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.24.0/kind-linux-${arch} && \
+    # Download kind binary (0.25.0)
+    echo "Downloading and installing kind v0.25.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.25.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -154,15 +155,68 @@ function pull_images {
 }
 
 function kind_up_cluster {
-  echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT}]"
-  kind create cluster ${CLUSTER_CONTEXT} ${KIND_OPT} --wait ${WAIT_TIME}
+  # Determine node image tag based on kind version and desired kubernetes version
+  KIND_ACTUAL_VERSION=$(kind version | awk '/ /{print $2}')
+  case $KIND_ACTUAL_VERSION in
+    v0.25.0)
+      case $KIND_K8S_VERSION in
+        1.27)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.27.16@sha256:2d21a61643eafc439905e18705b8186f3296384750a835ad7a005dceb9546d20"}
+          ;;
+        1.29)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.29.10@sha256:3b2d8c31753e6c8069d4fc4517264cd20e86fd36220671fb7d0a5855103aa84b"}
+          ;;
+        1.30)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.30.6@sha256:b6d08db72079ba5ae1f4a88a09025c0a904af3b52387643c285442afb05ab994"}
+          ;;
+        1.31)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.31.2@sha256:18fbefc20a7113353c7b75b5c869d7145a6abd6269154825872dc59c1329912e"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
+
+    v0.24.0)
+      case $KIND_K8S_VERSION in
+        1.27)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.27.16@sha256:3fd82731af34efe19cd54ea5c25e882985bafa2c9baefe14f8deab1737d9fabe"}
+          ;;
+        1.29)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.29.8@sha256:d46b7aa29567e93b27f7531d258c372e829d7224b25e3fc6ffdefed12476d3aa"}
+          ;;
+        1.30)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.30.4@sha256:976ea815844d5fa93be213437e3ff5754cd599b040946b5cca43ca45c2047114"}
+          ;;
+        1.31)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.31.0@sha256:53df588e04085fd41ae12de0c3fe4c72f7013bba32a20e7325357a1ac94ba865"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
+
+    *)
+      echo "Unexpected kind version: $KIND_ACTUAL_VERSION"
+      exit 1
+      ;;
+  esac
+
+  echo "Running kind: [kind create cluster ${CLUSTER_CONTEXT} --image kindest/node:${KIND_NODE_TAG} ${KIND_OPT}]"
+  kind create cluster ${CLUSTER_CONTEXT} --image kindest/node:${KIND_NODE_TAG} ${KIND_OPT} --wait ${WAIT_TIME}
   if [ $? -ne 0 ]
   then
     echo "Failed to start kind cluster"
     exit 1
   fi
   CLUSTER_STARTED="true"
+}
 
+function kind_load_images {
   for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
