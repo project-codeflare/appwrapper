@@ -12,17 +12,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Create and configure a kind cluster for running the e2e tests
-# Does NOT install mcad
+# Create and optionally configure a kind cluster for running the e2e tests
 
 export ROOT_DIR="$(dirname "$(dirname "$(readlink -fn "$0")")")"
 CLUSTER_STARTED="false"
+CONFIGURE_CLUSTER=${CONFIGURE_CLUSTER:-"true"}
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 
-update_test_host
-check_prerequisites
-pull_images
+if [[ "$CONFIGURE_CLUSTER" == "true" ]]
+then
+    update_test_host
+    check_prerequisites
+    pull_images
+fi
+
 kind_up_cluster
 add_virtual_GPUs
-configure_cluster
+
+if [[ "$CONFIGURE_CLUSTER" == "true" ]]
+then
+    kind_load_images
+    configure_cluster
+fi
