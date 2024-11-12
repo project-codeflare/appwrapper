@@ -1,14 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-namespace: kueue-system
-
 resources:
 - "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.8.3"
 
 configMapGenerator:
 - name: manager-config
-  namespace: kueue-system
   behavior: replace
   files:
   - controller_manager_config.yaml
