@@ -21,6 +21,9 @@ require (
 	sigs.k8s.io/yaml v1.4.0
 )
 
+// These replace directives deal with the backlevel ODH kueue version
+replace sigs.k8s.io/kueue v0.8.3 => github.com/opendatahub-io/kueue v0.7.0-odh-2
+
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
