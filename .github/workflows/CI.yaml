@@ -1,11 +1,11 @@
 name: CI
 on:
   push:
-    branches: [main, rhoai-2.10]
+    branches: [main, rhoai-2.10, codeflare-releases]
     paths-ignore:
     - 'site/**'
   pull_request:
-    branches: [main, rhoai-2.10]
+    branches: [main, rhoai-2.10, codeflare-releases]
 
 jobs:
   CI:
