@@ -11,7 +11,7 @@ kind: AppWrapper
 metadata:
   name: sample-job
   labels:
-    kueue.x-k8s.io/queue-name: user-queue
+    kueue.x-k8s.io/queue-name: default-queue
 spec:
   components:
   - template:
