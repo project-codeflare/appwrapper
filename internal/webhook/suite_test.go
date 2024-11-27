@@ -62,8 +62,8 @@ var cancel context.CancelFunc
 
 const limitedUserName = "limited-user"
 const limitedUserID = "8da0fcfe-6d7f-4f44-b433-d91d22cc1b8c"
-const defaultQueueName = "default-queue"
-const userProvidedQueueName = "user-queue"
+const defaultQueueName = "system-default-queue"
+const userProvidedQueueName = "user-provided-queue"
 
 func TestWebhooks(t *testing.T) {
 	RegisterFailHandler(Fail)

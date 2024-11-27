@@ -44,7 +44,7 @@ You can verify Kueue is configured as expected with:
 ```sh
 % kubectl get localqueues,clusterqueues -o wide
 NAME                                   CLUSTERQUEUE    PENDING WORKLOADS   ADMITTED WORKLOADS
-localqueue.kueue.x-k8s.io/user-queue   cluster-queue   0                   0
+localqueue.kueue.x-k8s.io/default-queue   cluster-queue   0                   0
 
 NAME                                        COHORT   STRATEGY         PENDING WORKLOADS   ADMITTED WORKLOADS
 clusterqueue.kueue.x-k8s.io/cluster-queue            BestEffortFIFO   0                   0
