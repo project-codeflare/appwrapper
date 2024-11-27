@@ -3,7 +3,7 @@ kind: AppWrapper
 metadata:
   name: sample-failing-job
   labels:
-    kueue.x-k8s.io/queue-name: user-queue
+    kueue.x-k8s.io/queue-name: default-queue
   annotations:
     workload.codeflare.dev.appwrapper/failureGracePeriodDuration: 10s
     workload.codeflare.dev.appwrapper/retryPausePeriodDuration: 10s
