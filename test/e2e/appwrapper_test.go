@@ -297,8 +297,13 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			Expect(aw.Status.Retries).Should(Equal(int32(2)))
 		})
 
-		It("Deleting a Running Component yields a failed AppWrapper", func() {
-			aw := createAppWrapper(ctx, pytorchjob(2, 500))
+		It("Deleting a Running Component yields a failed AppWrapper", Label("slow"), func() {
+			aw := toAppWrapper(pytorchjob(2, 500))
+			if aw.Annotations == nil {
+				aw.Annotations = make(map[string]string)
+			}
+			aw.Annotations[workloadv1beta2.AdmissionGracePeriodDurationAnnotation] = "5s"
+			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
 			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
