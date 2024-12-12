@@ -143,7 +143,11 @@ func ValidateAppWrapperConfig(config *AppWrapperConfig) error {
 			config.FaultTolerance.AdmissionGracePeriod, config.FaultTolerance.GracePeriodMaximum)
 	}
 	if config.FaultTolerance.WarmupGracePeriod > config.FaultTolerance.GracePeriodMaximum {
-		return fmt.Errorf("WarmupGracePeriod %v exceeds GracePeriodCeiling %v",
+		return fmt.Errorf("AdmissionGracePeriod %v exceeds GracePeriodCeiling %v",
+			config.FaultTolerance.WarmupGracePeriod, config.FaultTolerance.GracePeriodMaximum)
+	}
+	if config.FaultTolerance.AdmissionGracePeriod > config.FaultTolerance.WarmupGracePeriod {
+		return fmt.Errorf("AdmissionGracePeriod %v exceeds AdmissionGracePeriod %v",
 			config.FaultTolerance.WarmupGracePeriod, config.FaultTolerance.GracePeriodMaximum)
 	}
 	if config.FaultTolerance.SuccessTTL <= 0 {

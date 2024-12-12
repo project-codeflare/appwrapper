@@ -56,6 +56,9 @@ var _ = Describe("AppWrapper Config", func() {
 		bad = &FaultToleranceConfig{WarmupGracePeriod: 10 * time.Second, GracePeriodMaximum: 1 * time.Second}
 		Expect(ValidateAppWrapperConfig(&AppWrapperConfig{FaultTolerance: bad})).ShouldNot(Succeed())
 
+		bad = &FaultToleranceConfig{AdmissionGracePeriod: 10 * time.Second, WarmupGracePeriod: 1 * time.Second}
+		Expect(ValidateAppWrapperConfig(&AppWrapperConfig{FaultTolerance: bad})).ShouldNot(Succeed())
+
 		bad = &FaultToleranceConfig{SuccessTTL: -1 * time.Second}
 		Expect(ValidateAppWrapperConfig(&AppWrapperConfig{FaultTolerance: bad})).ShouldNot(Succeed())
 	})
