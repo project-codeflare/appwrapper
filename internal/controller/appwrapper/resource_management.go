@@ -317,6 +317,18 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			}
 			// fall through.  This is not actually an error. The object already exists and the correct appwrapper owns it.
 		} else {
+			// resource not actually created; patch status to reflect that
+			orig := copyForStatusPatch(aw)
+			meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
+				Type:   string(workloadv1beta2.ResourcesDeployed),
+				Status: metav1.ConditionFalse,
+				Reason: "ComponentCreationErrored",
+			})
+			if patchErr := r.Status().Patch(ctx, aw, client.MergeFrom(orig)); patchErr != nil {
+				// ugh.  Patch failed, so retry the create so we can get to a consistient state
+				return patchErr, false
+			}
+			// return actual error
 			return err, meta.IsNoMatchError(err) || apierrors.IsInvalid(err) // fatal
 		}
 	}
