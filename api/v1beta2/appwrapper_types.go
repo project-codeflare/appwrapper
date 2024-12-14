@@ -179,7 +179,10 @@ const (
 	RetryableExitCodesAnnotation           = "workload.codeflare.dev.appwrapper/retryableExitCodes"
 )
 
-const AppWrapperControllerName = "workload.codeflare.dev/appwrapper-controller"
+const (
+	AppWrapperControllerName = "workload.codeflare.dev/appwrapper-controller"
+	AppWrapperLabel          = "workload.codeflare.dev/appwrapper"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status

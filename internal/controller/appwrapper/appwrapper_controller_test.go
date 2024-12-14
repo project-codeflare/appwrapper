@@ -367,7 +367,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		By("Validate expected markers and Autopilot anti-affinities were injected")
 		for _, p := range pods {
-			Expect(p.Labels).Should(HaveKeyWithValue(AppWrapperLabel, awName.Name))
+			Expect(p.Labels).Should(HaveKeyWithValue(workloadv1beta2.AppWrapperLabel, awName.Name))
 			validateMarkers(&p)
 			validateAutopilot(&p)
 		}
@@ -382,7 +382,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		By("Validate expected markers and Autopilot anti-affinities were injected")
 		for _, p := range pods {
-			Expect(p.Labels).Should(HaveKeyWithValue(AppWrapperLabel, awName.Name))
+			Expect(p.Labels).Should(HaveKeyWithValue(workloadv1beta2.AppWrapperLabel, awName.Name))
 			validateMarkers(&p)
 			validateAutopilot(&p)
 		}

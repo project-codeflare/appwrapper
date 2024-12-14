@@ -50,9 +50,7 @@ import (
 )
 
 const (
-	AppWrapperLabel     = "workload.codeflare.dev/appwrapper"
 	AppWrapperFinalizer = "workload.codeflare.dev/finalizer"
-	childJobQueueName   = "workload.codeflare.dev.admitted"
 )
 
 // AppWrapperReconciler reconciles an appwrapper
@@ -546,7 +544,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(aw.Namespace),
-		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
+		client.MatchingLabels{workloadv1beta2.AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
 	pc, err := utils.ExpectedPodCount(aw)
@@ -913,7 +911,7 @@ func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.Ap
 // podMapFunc maps pods to appwrappers and generates reconcile.Requests for those whose Status.Phase is PodSucceeded
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
-	if name, ok := pod.Labels[AppWrapperLabel]; ok {
+	if name, ok := pod.Labels[workloadv1beta2.AppWrapperLabel]; ok {
 		if pod.Status.Phase == v1.PodSucceeded {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: name}}}
 		}
