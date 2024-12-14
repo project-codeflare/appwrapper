@@ -75,7 +75,7 @@ func getPods(aw *workloadv1beta2.AppWrapper) []v1.Pod {
 	err := k8sClient.List(ctx, podList, &client.ListOptions{Namespace: aw.Namespace})
 	Expect(err).NotTo(HaveOccurred())
 	for _, pod := range podList.Items {
-		if awn, found := pod.Labels[AppWrapperLabel]; found && awn == aw.Name {
+		if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == aw.Name {
 			result = append(result, pod)
 		}
 	}
@@ -93,7 +93,7 @@ func setPodStatus(aw *workloadv1beta2.AppWrapper, phase v1.PodPhase, numToChange
 		if numToChange <= 0 {
 			return nil
 		}
-		if awn, found := pod.Labels[AppWrapperLabel]; found && awn == aw.Name {
+		if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == aw.Name {
 			pod.Status.Phase = phase
 			err = k8sClient.Status().Update(ctx, &pod)
 			if err != nil {
