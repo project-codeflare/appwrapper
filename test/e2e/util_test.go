@@ -41,7 +41,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
@@ -216,7 +215,7 @@ func getNodeForAppwrapper(ctx context.Context, awName types.NamespacedName) (str
 		return "", err
 	}
 	for _, pod := range podList.Items {
-		if awn, found := pod.Labels[appwrapper.AppWrapperLabel]; found && awn == awName.Name {
+		if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName.Name {
 			return pod.Spec.NodeName, nil
 		}
 	}
@@ -249,7 +248,7 @@ func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimum
 
 		matchingPodCount := int32(0)
 		for _, pod := range podList.Items {
-			if awn, found := pod.Labels[appwrapper.AppWrapperLabel]; found && awn == awName {
+			if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName {
 				for _, p := range phase {
 					if pod.Status.Phase == p {
 						matchingPodCount++
@@ -272,7 +271,7 @@ func noPodsExist(awNamespace string, awName string) wait.ConditionWithContextFun
 		}
 
 		for _, podFromPodList := range podList.Items {
-			if awn, found := podFromPodList.Labels[appwrapper.AppWrapperLabel]; found && awn == awName {
+			if awn, found := podFromPodList.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName {
 				return false, nil
 			}
 		}
