@@ -197,7 +197,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return err, true
 	}
-	awLabels := map[string]string{AppWrapperLabel: aw.Name}
+	awLabels := map[string]string{workloadv1beta2.AppWrapperLabel: aw.Name}
 	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), awLabels))
 
 	for podSetsIdx, podSet := range componentStatus.PodSets {
@@ -411,7 +411,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	if err := r.List(ctx, pods,
 		client.UnsafeDisableDeepCopy,
 		client.InNamespace(aw.Namespace),
-		client.MatchingLabels{AppWrapperLabel: aw.Name}); err != nil {
+		client.MatchingLabels{workloadv1beta2.AppWrapperLabel: aw.Name}); err != nil {
 		log.FromContext(ctx).Error(err, "Pod list error")
 	}
 
