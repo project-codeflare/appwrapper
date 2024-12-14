@@ -266,26 +266,21 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		// Detect externally deleted components and transition to Failed with no GracePeriod or retry
+		detailMsg := fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected)
 		if compStatus.deployed != compStatus.expected {
-			// There may be a lag before created resources become visible in the cache; don't react too quickly.
-			whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
-			graceDuration := r.admissionGraceDuration(ctx, aw)
-			if time.Now().After(whenDeployed.Add(graceDuration)) {
-				detailMsg := fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected)
-				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-					Type:    string(workloadv1beta2.Unhealthy),
-					Status:  metav1.ConditionTrue,
-					Reason:  "MissingComponent",
-					Message: detailMsg,
-				})
-				r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
-				return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperFailed)
-			}
+			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
+				Type:    string(workloadv1beta2.Unhealthy),
+				Status:  metav1.ConditionTrue,
+				Reason:  "MissingComponent",
+				Message: detailMsg,
+			})
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
+			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperFailed)
 		}
 
 		// If a component's controller has put it into a failed state, we do not need
 		// to allow a grace period.  The situation will not self-correct.
-		detailMsg := fmt.Sprintf("Found %v failed components", compStatus.failed)
+		detailMsg = fmt.Sprintf("Found %v failed components", compStatus.failed)
 		if compStatus.failed > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(workloadv1beta2.Unhealthy),
