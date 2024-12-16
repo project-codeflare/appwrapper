@@ -51,27 +51,32 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			aw := createAppWrapper(ctx, pod(250), pod(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		})
 		It("Deployments", func() {
 			aw := createAppWrapper(ctx, deployment(2, 200))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		})
 		It("StatefulSets", func() {
 			aw := createAppWrapper(ctx, statefulset(2, 200))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		})
 		It("Batch Jobs", func() {
 			aw := createAppWrapper(ctx, batchjob(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		})
 
 		It("Mixed Basic Resources", func() {
 			aw := createAppWrapper(ctx, pod(100), deployment(2, 100), statefulset(2, 100), service(), batchjob(100))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
+			Consistently(AppWrapperPhase(ctx, aw), 10*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
 		})
 	})
 
