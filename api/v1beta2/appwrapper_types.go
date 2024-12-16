@@ -186,6 +186,7 @@ const (
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:shortName={aw}
 //+kubebuilder:printcolumn:name="Status",type="string",JSONPath=`.status.phase`
 //+kubebuilder:printcolumn:name="Quota Reserved",type="string",JSONPath=".status.conditions[?(@.type==\"QuotaReserved\")].status"
 //+kubebuilder:printcolumn:name="Resources Deployed",type="string",JSONPath=".status.conditions[?(@.type==\"ResourcesDeployed\")].status"
