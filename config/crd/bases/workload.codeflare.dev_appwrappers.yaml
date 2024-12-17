@@ -11,6 +11,8 @@ spec:
     kind: AppWrapper
     listKind: AppWrapperList
     plural: appwrappers
+    shortNames:
+    - aw
     singular: appwrapper
   scope: Namespaced
   versions:
