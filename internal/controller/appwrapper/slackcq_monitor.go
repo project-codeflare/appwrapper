@@ -126,7 +126,7 @@ func (r *SlackClusterQueueMonitor) Reconcile(ctx context.Context, req ctrl.Reque
 func (r *SlackClusterQueueMonitor) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		Watches(&kueue.ClusterQueue{}, &handler.EnqueueRequestForObject{}).
-		WatchesRawSource(&source.Channel{Source: r.Events}, &handler.EnqueueRequestForObject{}).
+		WatchesRawSource(source.Channel(r.Events, &handler.EnqueueRequestForObject{})).
 		Named("SlackClusterQueueMonitor").
 		Complete(r)
 }

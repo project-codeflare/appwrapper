@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.8.3"
+- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.9.2"
 
 configMapGenerator:
 - name: manager-config
@@ -13,7 +13,7 @@ configMapGenerator:
 images:
 - name: us-central1-docker.pkg.dev/k8s-staging-images/kueue/kueue
   newName: registry.k8s.io/kueue/kueue
-  newTag: v0.8.3
+  newTag: v0.9.2
 
 patches:
 - target:
@@ -37,7 +37,7 @@ patches:
   patch: |
     - op: add
       path: /spec/template/spec/containers/0/args/-
-      value: "--feature-gates=LendingLimit=true"
+      value: "--feature-gates=VisibilityOnDemand=false"
 # DEBUG support; uncomment this patch to boost Kueue log levels
 #    - op: add
 #      path: /spec/template/spec/containers/0/args/-
