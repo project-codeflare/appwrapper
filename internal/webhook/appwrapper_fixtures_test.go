@@ -208,8 +208,6 @@ const rayClusterYAML = `
 apiVersion: ray.io/v1
 kind: RayCluster
 metadata:
-  labels:
-    controller-tools.k8s.io: '1.0'
   name: %v
 spec:
   autoscalerOptions:
