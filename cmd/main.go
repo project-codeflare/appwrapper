@@ -42,6 +42,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/yaml"
@@ -126,9 +127,10 @@ func main() {
 	mgr, err := ctrl.NewManager(k8sConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
-			BindAddress:   cfg.ControllerManager.Metrics.BindAddress,
-			SecureServing: cfg.ControllerManager.Metrics.SecureServing,
-			TLSOpts:       tlsOpts,
+			BindAddress:    cfg.ControllerManager.Metrics.BindAddress,
+			SecureServing:  true,
+			TLSOpts:        tlsOpts,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
 			TLSOpts: tlsOpts,
