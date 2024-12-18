@@ -85,9 +85,7 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 
 // SetupWebhooks creates and configures the AppWrapper controller's Webhooks
 func SetupWebhooks(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	if err := (&webhook.AppWrapperWebhook{
-		Config: awConfig,
-	}).SetupWebhookWithManager(mgr); err != nil {
+	if err := webhook.SetupAppWrapperWebhook(mgr, awConfig); err != nil {
 		return fmt.Errorf("webhook: %w", err)
 	}
 	return nil

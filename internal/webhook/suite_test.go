@@ -161,7 +161,7 @@ var _ = BeforeSuite(func() {
 
 	conf := config.NewAppWrapperConfig()
 	conf.DefaultQueueName = defaultQueueName // add default queue name
-	err = (&AppWrapperWebhook{Config: conf}).SetupWebhookWithManager(mgr)
+	err = SetupAppWrapperWebhook(mgr, conf)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:webhook

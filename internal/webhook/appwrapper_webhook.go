@@ -33,6 +33,7 @@ import (
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -56,6 +57,7 @@ const (
 type AppWrapperWebhook struct {
 	Config                *config.AppWrapperConfig
 	SubjectAccessReviewer authClientv1.SubjectAccessReviewInterface
+	client                client.Client
 	DiscoveryClient       *discovery.DiscoveryClient
 	kindToResourceCache   map[string]string
 }
@@ -77,7 +79,14 @@ func (w *AppWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 		if w.Config.DefaultQueueName != "" {
 			aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.Config.DefaultQueueName})
 		}
-		jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), w.Config.KueueJobReconciller.ManageJobsWithoutQueueName)
+		nsSelector, err := metav1.LabelSelectorAsSelector(w.Config.KueueJobReconciller.ManageJobsNamespaceSelector)
+		if err != nil {
+			return err
+		}
+		err = jobframework.ApplyDefaultForSuspend(ctx, (*wlc.AppWrapper)(aw), w.client, w.Config.KueueJobReconciller.ManageJobsWithoutQueueName, nsSelector)
+		if err != nil {
+			return err
+		}
 	}
 
 	// inject labels with user name and id
@@ -305,14 +314,19 @@ func (w *AppWrapperWebhook) lookupResource(gvk *schema.GroupVersionKind) string 
 	return "*"
 }
 
-func (wh *AppWrapperWebhook) SetupWebhookWithManager(mgr ctrl.Manager) error {
+func SetupAppWrapperWebhook(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
 	kubeClient, err := kubernetes.NewForConfig(mgr.GetConfig())
 	if err != nil {
 		return err
 	}
-	wh.SubjectAccessReviewer = kubeClient.AuthorizationV1().SubjectAccessReviews()
-	wh.DiscoveryClient = kubeClient.DiscoveryClient
-	wh.kindToResourceCache = make(map[string]string)
+	wh := &AppWrapperWebhook{
+		Config:                awConfig,
+		client:                mgr.GetClient(),
+		DiscoveryClient:       kubeClient.DiscoveryClient,
+		SubjectAccessReviewer: kubeClient.AuthorizationV1().SubjectAccessReviews(),
+		kindToResourceCache:   make(map[string]string),
+	}
+
 	return ctrl.NewWebhookManagedBy(mgr).
 		For(&workloadv1beta2.AppWrapper{}).
 		WithDefaulter(wh).
