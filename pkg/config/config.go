@@ -21,6 +21,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/kueue/apis/config/v1beta1"
 )
 
@@ -43,9 +44,10 @@ type AppWrapperConfig struct {
 }
 
 type KueueJobReconcillerConfig struct {
-	ManageJobsWithoutQueueName bool                      `json:"manageJobsWithoutQueueName,omitempty"`
-	WaitForPodsReady           *v1beta1.WaitForPodsReady `json:"waitForPodsReady,omitempty"`
-	LabelKeysToCopy            []string                  `json:"labelKeysToCopy,omitempty"`
+	ManageJobsWithoutQueueName  bool                      `json:"manageJobsWithoutQueueName,omitempty"`
+	ManageJobsNamespaceSelector *metav1.LabelSelector     `json:"manageJobsNamespaceSelector,omitempty"`
+	WaitForPodsReady            *v1beta1.WaitForPodsReady `json:"waitForPodsReady,omitempty"`
+	LabelKeysToCopy             []string                  `json:"labelKeysToCopy,omitempty"`
 }
 
 type AutopilotConfig struct {
@@ -98,8 +100,17 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 		EnableKueueIntegrations: true,
 		KueueJobReconciller: &KueueJobReconcillerConfig{
 			ManageJobsWithoutQueueName: true,
-			WaitForPodsReady:           &v1beta1.WaitForPodsReady{Enable: true},
-			LabelKeysToCopy:            []string{},
+			ManageJobsNamespaceSelector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "kubernetes.io/metadata.name",
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values:   []string{"kube-system", "kueue-system", "appwrapper-system"},
+					},
+				},
+			},
+			WaitForPodsReady: &v1beta1.WaitForPodsReady{Enable: true},
+			LabelKeysToCopy:  []string{},
 		},
 		Autopilot: &AutopilotConfig{
 			InjectAntiAffinities: true,

@@ -16,6 +16,7 @@ controller:
     Pod: 5
     Workload.kueue.x-k8s.io: 5
     LocalQueue.kueue.x-k8s.io: 1
+    Cohort.kueue.x-k8s.io: 1
     ClusterQueue.kueue.x-k8s.io: 1
     ResourceFlavor.kueue.x-k8s.io: 1
 clientConnection:
@@ -32,6 +33,9 @@ clientConnection:
 #    backoffBaseSeconds: 60
 #    backoffMaxSeconds: 3600
 manageJobsWithoutQueueName: true
+#managedJobsNamespaceSelector:
+#  matchLabels:
+#    kueue-managed: "true"
 #internalCertManagement:
 #  enable: false
 #  webhookServiceName: ""
@@ -49,6 +53,8 @@ integrations:
   - "kubeflow.org/tfjob"
   - "kubeflow.org/xgboostjob"
   #  - "pod"
+  #  - "deployment" # requires enabling pod integration
+  #  - "statefulset" # requires enabling pod integration
   externalFrameworks:
   - "AppWrapper.v1beta2.workload.codeflare.dev"
 #  podOptions:
@@ -62,3 +68,9 @@ integrations:
 #  preemptionStrategies: [LessThanOrEqualToFinalShare, LessThanInitialShare]
 #resources:
 #  excludeResourcePrefixes: []
+#  transformations:
+#  - input: nvidia.com/mig-4g.5gb
+#    strategy: Replace | Retain
+#    outputs:
+#      example.com/accelerator-memory: 5Gi
+#      example.com/accelerator-gpc: 4

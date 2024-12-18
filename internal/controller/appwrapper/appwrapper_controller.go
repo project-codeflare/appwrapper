@@ -169,7 +169,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				if r.Config.DefaultQueueName != "" {
 					aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{"kueue.x-k8s.io/queue-name": r.Config.DefaultQueueName})
 				}
-				jobframework.ApplyDefaultForSuspend((*wlc.AppWrapper)(aw), r.Config.KueueJobReconciller.ManageJobsWithoutQueueName)
+				nsSelector, err := metav1.LabelSelectorAsSelector(r.Config.KueueJobReconciller.ManageJobsNamespaceSelector)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
+				err = jobframework.ApplyDefaultForSuspend(ctx, (*wlc.AppWrapper)(aw), r.Client, r.Config.KueueJobReconciller.ManageJobsWithoutQueueName, nsSelector)
+				if err != nil {
+					return ctrl.Result{}, err
+				}
 			}
 			controllerutil.AddFinalizer(aw, AppWrapperFinalizer)
 			if err := r.Update(ctx, aw); err != nil {
