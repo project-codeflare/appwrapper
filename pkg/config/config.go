@@ -86,8 +86,7 @@ type ControllerManagerConfig struct {
 }
 
 type MetricsConfiguration struct {
-	BindAddress   string `json:"bindAddress,omitempty"`
-	SecureServing bool   `json:"secureServing,omitempty"`
+	BindAddress string `json:"bindAddress,omitempty"`
 }
 
 type HealthConfiguration struct {
@@ -186,8 +185,7 @@ func NewCertManagementConfig(namespace string) *CertManagementConfig {
 func NewControllerManagerConfig() *ControllerManagerConfig {
 	return &ControllerManagerConfig{
 		Metrics: MetricsConfiguration{
-			BindAddress:   ":8080",
-			SecureServing: false,
+			BindAddress: ":8443",
 		},
 		Health: HealthConfiguration{
 			BindAddress: ":8081",
