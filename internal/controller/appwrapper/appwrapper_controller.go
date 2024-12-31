@@ -45,6 +45,7 @@ import (
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
+	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
@@ -528,6 +529,7 @@ func (r *AppWrapperReconciler) transitionToPhase(ctx context.Context, orig *work
 		return err
 	}
 	log.FromContext(ctx).Info(string(phase), "phase", phase)
+	metrics.AppWrapperPhaseCounter.WithLabelValues(orig.Namespace, string(phase)).Inc()
 	return nil
 }
 

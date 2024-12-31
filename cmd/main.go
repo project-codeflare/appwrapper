@@ -50,6 +50,7 @@ import (
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/controller"
 	"github.com/project-codeflare/appwrapper/pkg/logger"
@@ -124,6 +125,8 @@ func main() {
 		tlsOpts = append(tlsOpts, disableHTTP2)
 	}
 
+	metrics.Register()
+
 	mgr, err := ctrl.NewManager(k8sConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
@@ -134,6 +137,7 @@ func main() {
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
 			TLSOpts: tlsOpts,
+			Port:    9443,
 		}),
 		HealthProbeBindAddress: cfg.ControllerManager.Health.BindAddress,
 		LeaderElection:         cfg.ControllerManager.LeaderElection,
