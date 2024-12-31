@@ -3,8 +3,7 @@ kind: Service
 metadata:
   labels:
     control-plane: controller-manager
-    app.kubernetes.io/name: output-dir
-    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: appwrapper
   name: controller-manager-metrics-service
   namespace: system
 spec:

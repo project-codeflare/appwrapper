@@ -8,21 +8,24 @@ namespace: appwrapper-system
 # field above.
 namePrefix: appwrapper-
 
-# Labels to add to all resources and selectors.
-#labels:
-#- includeSelectors: true
-#  pairs:
-#    someName: someValue
+labels:
+- pairs:
+    app.kubernetes.io/name: appwrapper
+    app.kubernetes.io/component: controller
+  includeTemplates: true
+- pairs:
+    control-plane: controller-manager
+  includeSelectors: true
 
 resources:
 - config.yaml
 - ../crd
 - ../rbac
 - ../manager
+- ../internalcert
 # [WEBHOOK] To enable webhook, uncomment all the sections with [WEBHOOK] prefix including the one in
 # crd/kustomization.yaml
 - ../webhook
-- ../internalcert
 # [PROMETHEUS] To enable prometheus monitor, uncomment all sections with 'PROMETHEUS'.
 #- ../prometheus
 # [METRICS] Expose the controller manager metrics service.
