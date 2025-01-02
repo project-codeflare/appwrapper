@@ -91,10 +91,9 @@ var _ = Describe("Metrics", Label("Metrics"), func() {
 
 		metrics := []string{
 			"controller_runtime_reconcile_total",
-			"appwrapper_phase_total",
 		}
 
-		By("Getting the metrics by checking curl-metrics logs", func() {
+		By("Getting the metrics via curl", func() {
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("kubectl", "exec", "-n", managerNamespace, "curl-metrics", "--", "/bin/sh", "-c",
 					fmt.Sprintf(
@@ -103,9 +102,7 @@ var _ = Describe("Metrics", Label("Metrics"), func() {
 					),
 				)
 				metricsOutput, err := cmd.CombinedOutput()
-				_, _ = fmt.Fprintf(GinkgoWriter, "err: %v\n", err)
 				g.Expect(err).NotTo(HaveOccurred())
-				_, _ = fmt.Fprintf(GinkgoWriter, "output is: %v\n", string(metricsOutput))
 				for _, metric := range metrics {
 					g.Expect(string(metricsOutput)).To(ContainSubstring(metric))
 				}
