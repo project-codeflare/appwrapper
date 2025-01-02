@@ -17,10 +17,7 @@ limitations under the License.
 package workload
 
 import (
-	"fmt"
-
 	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -75,72 +72,24 @@ func (aw *AppWrapper) GVK() schema.GroupVersionKind {
 }
 
 func (aw *AppWrapper) PodSets() []kueue.PodSet {
-	podSets := []kueue.PodSet{}
-	if err := utils.EnsureComponentStatusInitialized((*workloadv1beta2.AppWrapper)(aw)); err != nil {
-		// Kueue will raise an error on zero length PodSet.  Unfortunately, the Kueue API prevents propagating the actual error
-		return podSets
-	}
-	for idx := range aw.Status.ComponentStatus {
-		if len(aw.Status.ComponentStatus[idx].PodSets) > 0 {
-			obj := &unstructured.Unstructured{}
-			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
-				// Should be unreachable; Template.Raw validated by AppWrapper AdmissionController
-				return []kueue.PodSet{} // Kueue will raise an error on zero length PodSet.
-			}
-			for psIdx, podSet := range aw.Status.ComponentStatus[idx].PodSets {
-				replicas := utils.Replicas(podSet)
-				if template, err := utils.GetPodTemplateSpec(obj, podSet.Path); err == nil {
-					podSets = append(podSets, kueue.PodSet{
-						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, idx, psIdx),
-						Template: *template,
-						Count:    replicas,
-					})
-				}
-			}
-		}
+	podSets, err := utils.GetPodSets((*workloadv1beta2.AppWrapper)(aw))
+	if err != nil {
+		// Kueue will raise an error on zero length PodSet; the Kueue GenericJob API prevents propagating the actual error.
+		return []kueue.PodSet{}
 	}
 	return podSets
 }
 
-// RunWithPodSetsInfo records the assigned PodSetInfos for each component and sets aw.spec.Suspend to false
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
-	if err := utils.EnsureComponentStatusInitialized((*workloadv1beta2.AppWrapper)(aw)); err != nil {
+	if err := utils.SetPodSetInfos((*workloadv1beta2.AppWrapper)(aw), podSetsInfo); err != nil {
 		return err
 	}
-	podSetsInfoIndex := 0
-	for idx := range aw.Spec.Components {
-		if len(aw.Spec.Components[idx].PodSetInfos) != len(aw.Status.ComponentStatus[idx].PodSets) {
-			aw.Spec.Components[idx].PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, len(aw.Status.ComponentStatus[idx].PodSets))
-		}
-		for podSetIdx := range aw.Status.ComponentStatus[idx].PodSets {
-			podSetsInfoIndex += 1
-			if podSetsInfoIndex > len(podSetsInfo) {
-				continue // we will return an error below...continuing to get an accurate count for the error message
-			}
-			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
-				Annotations:  podSetsInfo[podSetsInfoIndex-1].Annotations,
-				Labels:       podSetsInfo[podSetsInfoIndex-1].Labels,
-				NodeSelector: podSetsInfo[podSetsInfoIndex-1].NodeSelector,
-				Tolerations:  podSetsInfo[podSetsInfoIndex-1].Tolerations,
-			}
-		}
-	}
-
-	if podSetsInfoIndex != len(podSetsInfo) {
-		return podset.BadPodSetsInfoLenError(podSetsInfoIndex, len(podSetsInfo))
-	}
-
 	aw.Spec.Suspend = false
-
 	return nil
 }
 
-// RestorePodSetsInfo clears the PodSetInfos saved by RunWithPodSetsInfo
 func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
-	for idx := range aw.Spec.Components {
-		aw.Spec.Components[idx].PodSetInfos = nil
-	}
-	return true
+	return utils.ClearPodSetInfos((*workloadv1beta2.AppWrapper)(aw))
 }
 
 func (aw *AppWrapper) Finished() (message string, success, finished bool) {

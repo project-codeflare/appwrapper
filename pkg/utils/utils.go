@@ -35,6 +35,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
 
+	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
+	"sigs.k8s.io/kueue/pkg/podset"
+
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
@@ -325,6 +328,72 @@ func EnsureComponentStatusInitialized(aw *workloadv1beta2.AppWrapper) error {
 	}
 	aw.Status.ComponentStatus = compStatus
 	return nil
+}
+
+// GetPodSets constructs the kueue.PodSets for an AppWrapper
+func GetPodSets(aw *workloadv1beta2.AppWrapper) ([]kueue.PodSet, error) {
+	podSets := []kueue.PodSet{}
+	if err := EnsureComponentStatusInitialized(aw); err != nil {
+		return nil, err
+	}
+	for idx := range aw.Status.ComponentStatus {
+		if len(aw.Status.ComponentStatus[idx].PodSets) > 0 {
+			obj := &unstructured.Unstructured{}
+			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
+				// Should be unreachable; Template.Raw validated by AppWrapper AdmissionController
+				return nil, err
+			}
+			for psIdx, podSet := range aw.Status.ComponentStatus[idx].PodSets {
+				replicas := Replicas(podSet)
+				if template, err := GetPodTemplateSpec(obj, podSet.Path); err == nil {
+					podSets = append(podSets, kueue.PodSet{
+						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, idx, psIdx),
+						Template: *template,
+						Count:    replicas,
+					})
+				}
+			}
+		}
+	}
+	return podSets, nil
+}
+
+// SetPodSetInfos propagates podSetsInfo into the PodSetInfos of aw.Spec.Components
+func SetPodSetInfos(aw *workloadv1beta2.AppWrapper, podSetsInfo []podset.PodSetInfo) error {
+	if err := EnsureComponentStatusInitialized(aw); err != nil {
+		return err
+	}
+	podSetsInfoIndex := 0
+	for idx := range aw.Spec.Components {
+		if len(aw.Spec.Components[idx].PodSetInfos) != len(aw.Status.ComponentStatus[idx].PodSets) {
+			aw.Spec.Components[idx].PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, len(aw.Status.ComponentStatus[idx].PodSets))
+		}
+		for podSetIdx := range aw.Status.ComponentStatus[idx].PodSets {
+			podSetsInfoIndex += 1
+			if podSetsInfoIndex > len(podSetsInfo) {
+				continue // we will return an error below...continuing to get an accurate count for the error message
+			}
+			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
+				Annotations:  podSetsInfo[podSetsInfoIndex-1].Annotations,
+				Labels:       podSetsInfo[podSetsInfoIndex-1].Labels,
+				NodeSelector: podSetsInfo[podSetsInfoIndex-1].NodeSelector,
+				Tolerations:  podSetsInfo[podSetsInfoIndex-1].Tolerations,
+			}
+		}
+	}
+
+	if podSetsInfoIndex != len(podSetsInfo) {
+		return podset.BadPodSetsInfoLenError(podSetsInfoIndex, len(podSetsInfo))
+	}
+	return nil
+}
+
+// ClearPodSetInfos clears the PodSetInfos saved by SetPodSetInfos
+func ClearPodSetInfos(aw *workloadv1beta2.AppWrapper) bool {
+	for idx := range aw.Spec.Components {
+		aw.Spec.Components[idx].PodSetInfos = nil
+	}
+	return true
 }
 
 // inferReplicas parses the value at the given path within obj as an int or return 1 or error
