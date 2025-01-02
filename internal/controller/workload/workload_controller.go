@@ -84,7 +84,8 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 		if len(aw.Status.ComponentStatus[idx].PodSets) > 0 {
 			obj := &unstructured.Unstructured{}
 			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
-				continue // Should be unreachable; Template.Raw validated by our AdmissionController
+				// Should be unreachable; Template.Raw validated by AppWrapper AdmissionController
+				return []kueue.PodSet{} // Kueue will raise an error on zero length PodSet.
 			}
 			for psIdx, podSet := range aw.Status.ComponentStatus[idx].PodSets {
 				replicas := utils.Replicas(podSet)
@@ -103,6 +104,9 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 
 // RunWithPodSetsInfo records the assigned PodSetInfos for each component and sets aw.spec.Suspend to false
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
+	if err := utils.EnsureComponentStatusInitialized((*workloadv1beta2.AppWrapper)(aw)); err != nil {
+		return err
+	}
 	podSetsInfoIndex := 0
 	for idx := range aw.Spec.Components {
 		if len(aw.Spec.Components[idx].PodSetInfos) != len(aw.Status.ComponentStatus[idx].PodSets) {
@@ -114,10 +118,10 @@ func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error 
 				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
 			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
-				Annotations:  podSetsInfo[podSetIdx].Annotations,
-				Labels:       podSetsInfo[podSetIdx].Labels,
-				NodeSelector: podSetsInfo[podSetIdx].NodeSelector,
-				Tolerations:  podSetsInfo[podSetIdx].Tolerations,
+				Annotations:  podSetsInfo[podSetsInfoIndex-1].Annotations,
+				Labels:       podSetsInfo[podSetsInfoIndex-1].Labels,
+				NodeSelector: podSetsInfo[podSetsInfoIndex-1].NodeSelector,
+				Tolerations:  podSetsInfo[podSetsInfoIndex-1].Tolerations,
 			}
 		}
 	}
