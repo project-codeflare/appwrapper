@@ -42,6 +42,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/yaml"
@@ -49,6 +50,7 @@ import (
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/controller"
 	"github.com/project-codeflare/appwrapper/pkg/logger"
@@ -123,15 +125,19 @@ func main() {
 		tlsOpts = append(tlsOpts, disableHTTP2)
 	}
 
+	metrics.Register()
+
 	mgr, err := ctrl.NewManager(k8sConfig, ctrl.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
-			BindAddress:   cfg.ControllerManager.Metrics.BindAddress,
-			SecureServing: cfg.ControllerManager.Metrics.SecureServing,
-			TLSOpts:       tlsOpts,
+			BindAddress:    cfg.ControllerManager.Metrics.BindAddress,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
+			SecureServing:  true,
+			TLSOpts:        tlsOpts,
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
 			TLSOpts: tlsOpts,
+			Port:    9443,
 		}),
 		HealthProbeBindAddress: cfg.ControllerManager.Health.BindAddress,
 		LeaderElection:         cfg.ControllerManager.LeaderElection,

@@ -19,7 +19,7 @@ export GORACE=1
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"false"}
 export CLUSTER_STARTED="true"
 export KUTTL_TEST_SUITES=("")
-export LABEL_FILTER=${LABEL_FILTER:-"Kueue,Webhook"}
+export LABEL_FILTER=${LABEL_FILTER:-"Kueue,Webhook,Metrics"}
 
 source ${ROOT_DIR}/hack/e2e-util.sh
 

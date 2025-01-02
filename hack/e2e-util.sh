@@ -33,6 +33,7 @@ export IMAGE_KUBERAY_OPERATOR="quay.io/kuberay/operator:v1.1.1"
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
+export IMAGE_CURL="quay.io/curl/curl:8.11.1"
 
 function update_test_host {
 
@@ -141,7 +142,7 @@ function check_prerequisites {
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -237,7 +238,7 @@ function kind_up_cluster {
 }
 
 function kind_load_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
