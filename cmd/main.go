@@ -131,9 +131,9 @@ func main() {
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress:    cfg.ControllerManager.Metrics.BindAddress,
+			FilterProvider: filters.WithAuthenticationAndAuthorization,
 			SecureServing:  true,
 			TLSOpts:        tlsOpts,
-			FilterProvider: filters.WithAuthenticationAndAuthorization,
 		},
 		WebhookServer: webhook.NewServer(webhook.Options{
 			TLSOpts: tlsOpts,
