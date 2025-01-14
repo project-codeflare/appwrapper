@@ -43,10 +43,11 @@ var _ = Describe("AppWrapper Controller", func() {
 	var awReconciler *AppWrapperReconciler
 	var awName types.NamespacedName
 	markerPodSet := podset.PodSetInfo{
-		Labels:       map[string]string{"testkey1": "value1"},
-		Annotations:  map[string]string{"test2": "test2"},
-		NodeSelector: map[string]string{"nodeName": "myNode"},
-		Tolerations:  []v1.Toleration{{Key: "aKey", Operator: "Exists", Effect: "NoSchedule"}},
+		Labels:          map[string]string{"testkey1": "value1"},
+		Annotations:     map[string]string{"test2": "test2"},
+		NodeSelector:    map[string]string{"nodeName": "myNode"},
+		Tolerations:     []v1.Toleration{{Key: "aKey", Operator: "Exists", Effect: "NoSchedule"}},
+		SchedulingGates: []v1.PodSchedulingGate{{Name: "aGate"}},
 	}
 	var kueuePodSets []kueue.PodSet
 
@@ -171,6 +172,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		}
 		for k, v := range markerPodSet.NodeSelector {
 			Expect(p.Spec.NodeSelector).Should(HaveKeyWithValue(k, v))
+		}
+		for _, v := range markerPodSet.SchedulingGates {
+			Expect(p.Spec.SchedulingGates).Should(ContainElement(v))
 		}
 	}
 
@@ -393,6 +397,7 @@ var _ = Describe("AppWrapper Controller", func() {
 			Expect(p.Annotations).Should(HaveKeyWithValue("myComplexAnnotation", "myComplexValue"))
 			Expect(p.Spec.NodeSelector).Should(HaveKeyWithValue("myComplexSelector", "myComplexValue"))
 			Expect(p.Spec.Tolerations).Should(ContainElement(v1.Toleration{Key: "myComplexKey", Value: "myComplexValue", Operator: v1.TolerationOpEqual, Effect: v1.TaintEffectNoSchedule}))
+			Expect(p.Spec.SchedulingGates).Should(ContainElement(v1.PodSchedulingGate{Name: "myComplexGate"}))
 			mes := p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
 			found := false
 			for _, me := range mes {

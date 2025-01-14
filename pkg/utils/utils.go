@@ -374,10 +374,11 @@ func SetPodSetInfos(aw *workloadv1beta2.AppWrapper, podSetsInfo []podset.PodSetI
 				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
 			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = workloadv1beta2.AppWrapperPodSetInfo{
-				Annotations:  podSetsInfo[podSetsInfoIndex-1].Annotations,
-				Labels:       podSetsInfo[podSetsInfoIndex-1].Labels,
-				NodeSelector: podSetsInfo[podSetsInfoIndex-1].NodeSelector,
-				Tolerations:  podSetsInfo[podSetsInfoIndex-1].Tolerations,
+				Annotations:     podSetsInfo[podSetsInfoIndex-1].Annotations,
+				Labels:          podSetsInfo[podSetsInfoIndex-1].Labels,
+				NodeSelector:    podSetsInfo[podSetsInfoIndex-1].NodeSelector,
+				Tolerations:     podSetsInfo[podSetsInfoIndex-1].Tolerations,
+				SchedulingGates: podSetsInfo[podSetsInfoIndex-1].SchedulingGates,
 			}
 		}
 	}
