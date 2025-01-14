@@ -258,6 +258,31 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			spec["tolerations"] = tolerations
 		}
 
+		// SchedulingGates
+		if len(toInject.SchedulingGates) > 0 {
+			if _, ok := spec["schedulingGates"]; !ok {
+				spec["schedulingGates"] = []interface{}{}
+			}
+			schedulingGates := spec["schedulingGates"].([]interface{})
+			for _, addition := range toInject.SchedulingGates {
+				duplicate := false
+				for _, existing := range schedulingGates {
+					if imap, ok := existing.(map[string]interface{}); ok {
+						if iName, ok := imap["name"]; ok {
+							if sName, ok := iName.(string); ok && sName == addition.Name {
+								duplicate = true
+								break
+							}
+						}
+					}
+				}
+				if !duplicate {
+					schedulingGates = append(schedulingGates, map[string]interface{}{"name": addition.Name})
+				}
+			}
+			spec["schedulingGates"] = schedulingGates
+		}
+
 		// Scheduler Name
 		if r.Config.SchedulerName != "" {
 			if existing, _ := spec["schedulerName"].(string); existing == "" {

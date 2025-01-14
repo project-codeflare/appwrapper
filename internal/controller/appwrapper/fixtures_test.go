@@ -163,6 +163,8 @@ spec:
             operator: NotIn
             values:
             - badHost1
+  schedulingGates:
+  - name: myComplexGate
   tolerations:
   - key: myComplexKey
     value: myComplexValue
