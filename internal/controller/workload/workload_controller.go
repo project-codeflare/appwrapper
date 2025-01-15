@@ -77,6 +77,10 @@ func (aw *AppWrapper) PodSets() []kueue.PodSet {
 		// Kueue will raise an error on zero length PodSet; the Kueue GenericJob API prevents propagating the actual error.
 		return []kueue.PodSet{}
 	}
+	for psIndex := range podSets {
+		podSets[psIndex].TopologyRequest = jobframework.PodSetTopologyRequest(&podSets[psIndex].Template.ObjectMeta, nil, nil, nil)
+	}
+
 	return podSets
 }
 
