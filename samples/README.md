@@ -24,5 +24,6 @@ will validate that any explicitly provided `podSet` entries match the definition
    + kubeflow.org/v1 PyTorchJob
    + ray.io/v1 RayCluster
    + ray.io/v1 RayJob
+
 In all the examples, if the Kind supports automatic inference the `podSets`
 are elided.
