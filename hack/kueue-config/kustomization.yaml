@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.10.0"
+- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.10.1"
 
 configMapGenerator:
 - name: manager-config
@@ -13,7 +13,7 @@ configMapGenerator:
 images:
 - name: us-central1-docker.pkg.dev/k8s-staging-images/kueue/kueue
   newName: registry.k8s.io/kueue/kueue
-  newTag: v0.10.0
+  newTag: v0.10.1
 
 patches:
 - target:
