@@ -35,7 +35,6 @@ import (
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -43,7 +42,6 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	awc "github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -104,14 +102,6 @@ func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	userInfo := request.UserInfo
 	username := utils.SanitizeLabel(userInfo.Username)
 	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
-
-	// do not inject finalizer if managed by another controller
-	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != workloadv1beta2.AppWrapperControllerName {
-		return nil
-	}
-
-	// inject finalizer now (avoid reconcilier errors between the AppWrapper and WorkloadControllers when it is admitted by a ClusterQueue almost immediately)
-	controllerutil.AddFinalizer(aw, awc.AppWrapperFinalizer)
 
 	return nil
 }

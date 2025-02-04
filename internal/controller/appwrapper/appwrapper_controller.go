@@ -40,11 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -162,30 +159,6 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	switch aw.Status.Phase {
 
 	case workloadv1beta2.AppWrapperEmpty: // initial state
-		if !controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
-			// The AppWrapperFinalizer is added by our webhook, so if we get here it means that we are
-			// running in dev mode (`make run`) which disables the webhook. To make dev mode as
-			// useful as possible, replicate as much of AppWrapperWebhook.Default() as we can without having the admission.Request.
-			if r.Config.EnableKueueIntegrations {
-				if r.Config.DefaultQueueName != "" {
-					aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{"kueue.x-k8s.io/queue-name": r.Config.DefaultQueueName})
-				}
-				nsSelector, err := metav1.LabelSelectorAsSelector(r.Config.KueueJobReconciller.ManageJobsNamespaceSelector)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-				err = jobframework.ApplyDefaultForSuspend(ctx, (*wlc.AppWrapper)(aw), r.Client, r.Config.KueueJobReconciller.ManageJobsWithoutQueueName, nsSelector)
-				if err != nil {
-					return ctrl.Result{}, err
-				}
-			}
-			controllerutil.AddFinalizer(aw, AppWrapperFinalizer)
-			if err := r.Update(ctx, aw); err != nil {
-				return ctrl.Result{}, err
-			}
-			log.FromContext(ctx).Info("No webhook: applied default initializations")
-		}
-
 		orig := copyForStatusPatch(aw)
 		if err := utils.EnsureComponentStatusInitialized(aw); err != nil {
 			return ctrl.Result{}, err
@@ -196,6 +169,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case workloadv1beta2.AppWrapperSuspended: // no components deployed
 		if aw.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
+		}
+
+		// ensure our finalizer is present before we deploy any resources
+		if controllerutil.AddFinalizer(aw, AppWrapperFinalizer) {
+			if err := r.Update(ctx, aw); err != nil {
+				return ctrl.Result{}, err
+			}
+			log.FromContext(ctx).Info("Finalizer Added")
 		}
 
 		// begin deployment
