@@ -35,7 +35,7 @@ run () {
 }
 
 NAMESPACE=dev go run ./cmd/main.go &
-run $! go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m --label-filter=Kueue ./test/e2e
+run $! go run github.com/onsi/ginkgo/v2/ginkgo -v -fail-fast --procs 1 -timeout 130m --label-filter=Standalone ./test/e2e
 
 RC=$?
 if [ ${RC} -eq 0 ]
