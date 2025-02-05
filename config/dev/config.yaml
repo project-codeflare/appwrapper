@@ -5,7 +5,7 @@ metadata:
 data:
   config.yaml: |
     appwrapper:
-      enableKueueIntegrations: true
+      enableKueueIntegrations: false
     controllerManager:
       health:
         bindAddress: "localhost:0"

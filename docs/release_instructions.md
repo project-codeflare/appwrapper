@@ -16,8 +16,7 @@ will:
    + create a [GitHub release](https://github.com/project-codeflare/appwrapper/releases) that contains the install.yaml
 
 4. Update the kustomization.yaml files in MLBatch to refer to the new release:
-  + setup.k8s-v1.27/appwrapper/kustomization.yaml
-  + setup.k8s-v1.30/appwrapper/kustomization.yaml
+  + setup.k8s/appwrapper/kustomization.yaml
 
 4. To workaround back level go versions in ODH, we also maintain a
    codeflare-releases branch.  After making a release, merge main
