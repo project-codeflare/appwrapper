@@ -31,6 +31,7 @@ import (
 	discovery "k8s.io/client-go/discovery"
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
+	"k8s.io/utils/ptr"
 	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -287,7 +288,7 @@ func (w *appWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWra
 	}
 
 	// ensure managedBy field is immutable
-	if old.Spec.ManagedBy != new.Spec.ManagedBy {
+	if !ptr.Equal(old.Spec.ManagedBy, new.Spec.ManagedBy) {
 		allErrors = append(allErrors, field.Forbidden(field.NewPath("spec").Child("managedBy"), msg))
 	}
 
