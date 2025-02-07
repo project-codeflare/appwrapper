@@ -69,11 +69,21 @@ func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTem
 	// Metadata
 	dst := &v1.PodTemplateSpec{}
 	if metadata, ok := candidatePTS["metadata"].(map[string]interface{}); ok {
-		if labels, ok := metadata["labels"].(map[string]string); ok {
-			dst.Labels = labels
+		if labels, ok := metadata["labels"].(map[string]interface{}); ok {
+			dst.Labels = make(map[string]string)
+			for k, v := range labels {
+				if str, ok := v.(string); ok {
+					dst.Labels[k] = str
+				}
+			}
 		}
-		if annotations, ok := metadata["annotations"].(map[string]string); ok {
-			dst.Annotations = annotations
+		if annotations, ok := metadata["annotations"].(map[string]interface{}); ok {
+			dst.Annotations = make(map[string]string)
+			for k, v := range annotations {
+				if str, ok := v.(string); ok {
+					dst.Annotations[k] = str
+				}
+			}
 		}
 	}
 
