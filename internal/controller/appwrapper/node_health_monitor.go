@@ -161,10 +161,12 @@ func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.
 		for key, value := range node.GetLabels() {
 			for resourceName, taints := range r.Config.Autopilot.ResourceTaints {
 				for _, taint := range taints {
-					if key == taint.Key && value == taint.Value {
-						quantity := node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
-						if !quantity.IsZero() {
-							noScheduleResources[v1.ResourceName(resourceName)] = *quantity
+					if taint.Effect == v1.TaintEffectNoExecute || taint.Effect == v1.TaintEffectNoSchedule {
+						if key == taint.Key && value == taint.Value {
+							quantity := node.Status.Capacity.Name(v1.ResourceName(resourceName), resource.DecimalSI)
+							if !quantity.IsZero() {
+								noScheduleResources[v1.ResourceName(resourceName)] = *quantity
+							}
 						}
 					}
 				}

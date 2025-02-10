@@ -66,6 +66,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		awConfig.FaultTolerance.RetryLimit = 0
 		awConfig.FaultTolerance.SuccessTTL = 0 * time.Second
 		awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"] = append(awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"], v1.Taint{Key: "extra", Value: "test", Effect: v1.TaintEffectNoExecute})
+		awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"] = append(awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"], v1.Taint{Key: "extra2", Value: "test2", Effect: v1.TaintEffectPreferNoSchedule})
 
 		awReconciler = &AppWrapperReconciler{
 			Client:   k8sClient,
@@ -187,11 +188,23 @@ var _ = Describe("AppWrapper Controller", func() {
 			mes := p.Spec.Affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions
 			for _, taint := range awReconciler.Config.Autopilot.ResourceTaints["nvidia.com/gpu"] {
 				found := false
-				for _, me := range mes {
-					if me.Key == taint.Key {
-						Expect(me.Operator).Should(Equal(v1.NodeSelectorOpNotIn))
-						Expect(me.Values).Should(ContainElement(taint.Value))
-						found = true
+				if taint.Effect == v1.TaintEffectNoExecute || taint.Effect == v1.TaintEffectNoSchedule {
+					for _, me := range mes {
+						if me.Key == taint.Key {
+							Expect(me.Operator).Should(Equal(v1.NodeSelectorOpNotIn))
+							Expect(me.Values).Should(ContainElement(taint.Value))
+							found = true
+						}
+					}
+				} else {
+					for _, st := range p.Spec.Affinity.NodeAffinity.PreferredDuringSchedulingIgnoredDuringExecution {
+						for _, me := range st.Preference.MatchExpressions {
+							if me.Key == taint.Key {
+								Expect(me.Operator).Should(Equal(v1.NodeSelectorOpNotIn))
+								Expect(me.Values).Should(ContainElement(taint.Value))
+								found = true
+							}
+						}
 					}
 				}
 				Expect(found).Should(BeTrue())

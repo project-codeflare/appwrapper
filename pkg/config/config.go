@@ -22,6 +22,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/kueue/apis/config/v1beta1"
 )
 
@@ -51,9 +52,10 @@ type KueueJobReconcillerConfig struct {
 }
 
 type AutopilotConfig struct {
-	InjectAntiAffinities bool                  `json:"injectAntiAffinities,omitempty"`
-	MonitorNodes         bool                  `json:"monitorNodes,omitempty"`
-	ResourceTaints       map[string][]v1.Taint `json:"resourceTaints,omitempty"`
+	InjectAntiAffinities   bool                  `json:"injectAntiAffinities,omitempty"`
+	MonitorNodes           bool                  `json:"monitorNodes,omitempty"`
+	ResourceTaints         map[string][]v1.Taint `json:"resourceTaints,omitempty"`
+	PreferNoScheduleWeight *int32                `json:"preferNoScheduleWeight,omitempty"`
 }
 
 type FaultToleranceConfig struct {
@@ -116,10 +118,11 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			MonitorNodes:         true,
 			ResourceTaints: map[string][]v1.Taint{
 				"nvidia.com/gpu": {
-					{Key: "autopilot.ibm.com/gpuhealth", Value: "ERR", Effect: v1.TaintEffectNoSchedule},
+					{Key: "autopilot.ibm.com/gpuhealth", Value: "WARN", Effect: v1.TaintEffectPreferNoSchedule},
 					{Key: "autopilot.ibm.com/gpuhealth", Value: "TESTING", Effect: v1.TaintEffectNoSchedule},
 					{Key: "autopilot.ibm.com/gpuhealth", Value: "EVICT", Effect: v1.TaintEffectNoExecute}},
 			},
+			PreferNoScheduleWeight: ptr.To(int32(50)),
 		},
 		UserRBACAdmissionCheck: true,
 		FaultTolerance: &FaultToleranceConfig{

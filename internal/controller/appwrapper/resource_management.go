@@ -30,6 +30,7 @@ import (
 	kresource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -108,7 +109,7 @@ func hasResourceRequest(spec map[string]interface{}, resource string) bool {
 	return false
 }
 
-func addNodeSelectorsToAffinity(spec map[string]interface{}, exprsToAdd []v1.NodeSelectorRequirement) error {
+func addNodeSelectorsToAffinity(spec map[string]interface{}, exprsToAdd []v1.NodeSelectorRequirement, required bool, weight int32) error {
 	if _, ok := spec["affinity"]; !ok {
 		spec["affinity"] = map[string]interface{}{}
 	}
@@ -123,44 +124,64 @@ func addNodeSelectorsToAffinity(spec map[string]interface{}, exprsToAdd []v1.Nod
 	if !ok {
 		return fmt.Errorf("spec.affinity.nodeAffinity is not a map")
 	}
-	if _, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"]; !ok {
-		nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"] = map[string]interface{}{}
-	}
-	nodeSelector, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution is not a map")
-	}
-	if _, ok := nodeSelector["nodeSelectorTerms"]; !ok {
-		nodeSelector["nodeSelectorTerms"] = []interface{}{map[string]interface{}{}}
-	}
-	existingTerms, ok := nodeSelector["nodeSelectorTerms"].([]interface{})
-	if !ok {
-		return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms is not an array")
-	}
-	for idx, term := range existingTerms {
-		selTerm, ok := term.(map[string]interface{})
+	if required {
+		if _, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"]; !ok {
+			nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"] = map[string]interface{}{}
+		}
+		nodeSelector, ok := nodeAffinity["requiredDuringSchedulingIgnoredDuringExecution"].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v] is not an map", idx)
+			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution is not a map")
 		}
-		if _, ok := selTerm["matchExpressions"]; !ok {
-			selTerm["matchExpressions"] = []interface{}{}
+		if _, ok := nodeSelector["nodeSelectorTerms"]; !ok {
+			nodeSelector["nodeSelectorTerms"] = []interface{}{map[string]interface{}{}}
 		}
-		matchExpressions, ok := selTerm["matchExpressions"].([]interface{})
+		existingTerms, ok := nodeSelector["nodeSelectorTerms"].([]interface{})
 		if !ok {
-			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v].matchExpressions is not an map", idx)
+			return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms is not an array")
 		}
-		for _, expr := range exprsToAdd {
-			bytes, err := json.Marshal(expr)
-			if err != nil {
-				return fmt.Errorf("marshalling selectorTerm %v: %w", expr, err)
+		for idx, term := range existingTerms {
+			selTerm, ok := term.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v] is not an map", idx)
 			}
-			var obj interface{}
-			if err = json.Unmarshal(bytes, &obj); err != nil {
-				return fmt.Errorf("unmarshalling selectorTerm %v: %w", expr, err)
+			if _, ok := selTerm["matchExpressions"]; !ok {
+				selTerm["matchExpressions"] = []interface{}{}
 			}
-			matchExpressions = append(matchExpressions, obj)
+			matchExpressions, ok := selTerm["matchExpressions"].([]interface{})
+			if !ok {
+				return fmt.Errorf("spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[%v].matchExpressions is not an map", idx)
+			}
+			for _, expr := range exprsToAdd {
+				bytes, err := json.Marshal(expr)
+				if err != nil {
+					return fmt.Errorf("marshalling selectorTerm %v: %w", expr, err)
+				}
+				var obj interface{}
+				if err = json.Unmarshal(bytes, &obj); err != nil {
+					return fmt.Errorf("unmarshalling selectorTerm %v: %w", expr, err)
+				}
+				matchExpressions = append(matchExpressions, obj)
+			}
+			selTerm["matchExpressions"] = matchExpressions
 		}
-		selTerm["matchExpressions"] = matchExpressions
+	} else {
+		if _, ok := nodeAffinity["preferredDuringSchedulingIgnoredDuringExecution"]; !ok {
+			nodeAffinity["preferredDuringSchedulingIgnoredDuringExecution"] = []interface{}{}
+		}
+		terms, ok := nodeAffinity["preferredDuringSchedulingIgnoredDuringExecution"].([]interface{})
+		if !ok {
+			return fmt.Errorf("spec.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution is not an array")
+		}
+		bytes, err := json.Marshal(v1.PreferredSchedulingTerm{Weight: weight, Preference: v1.NodeSelectorTerm{MatchExpressions: exprsToAdd}})
+		if err != nil {
+			return fmt.Errorf("marshalling selectorTerms %v: %w", exprsToAdd, err)
+		}
+		var obj interface{}
+		if err = json.Unmarshal(bytes, &obj); err != nil {
+			return fmt.Errorf("unmarshalling selectorTerms %v: %w", exprsToAdd, err)
+		}
+		terms = append(terms, obj)
+		nodeAffinity["preferredDuringSchedulingIgnoredDuringExecution"] = terms
 	}
 
 	return nil
@@ -291,20 +312,35 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		}
 
 		if r.Config.Autopilot != nil && r.Config.Autopilot.InjectAntiAffinities {
-			toAdd := map[string][]string{}
+			toAddRequired := map[string][]string{}
+			toAddPreferred := map[string][]string{}
 			for resource, taints := range r.Config.Autopilot.ResourceTaints {
 				if hasResourceRequest(spec, resource) {
 					for _, taint := range taints {
-						toAdd[taint.Key] = append(toAdd[taint.Key], taint.Value)
+						if taint.Effect == v1.TaintEffectNoExecute || taint.Effect == v1.TaintEffectNoSchedule {
+							toAddRequired[taint.Key] = append(toAddRequired[taint.Key], taint.Value)
+						} else if taint.Effect == v1.TaintEffectPreferNoSchedule {
+							toAddPreferred[taint.Key] = append(toAddPreferred[taint.Key], taint.Value)
+						}
 					}
 				}
 			}
-			if len(toAdd) > 0 {
+			if len(toAddRequired) > 0 {
 				matchExpressions := []v1.NodeSelectorRequirement{}
-				for k, v := range toAdd {
+				for k, v := range toAddRequired {
 					matchExpressions = append(matchExpressions, v1.NodeSelectorRequirement{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: v})
 				}
-				if err := addNodeSelectorsToAffinity(spec, matchExpressions); err != nil {
+				if err := addNodeSelectorsToAffinity(spec, matchExpressions, true, 0); err != nil {
+					log.FromContext(ctx).Error(err, "failed to inject Autopilot affinities")
+				}
+			}
+			if len(toAddPreferred) > 0 {
+				matchExpressions := []v1.NodeSelectorRequirement{}
+				for k, v := range toAddPreferred {
+					matchExpressions = append(matchExpressions, v1.NodeSelectorRequirement{Operator: v1.NodeSelectorOpNotIn, Key: k, Values: v})
+				}
+				weight := ptr.Deref(r.Config.Autopilot.PreferNoScheduleWeight, 1)
+				if err := addNodeSelectorsToAffinity(spec, matchExpressions, false, weight); err != nil {
 					log.FromContext(ctx).Error(err, "failed to inject Autopilot affinities")
 				}
 			}
@@ -314,6 +350,8 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err := controllerutil.SetControllerReference(aw, obj, r.Scheme); err != nil {
 		return err, true
 	}
+
+	log.FromContext(ctx).Info("After injection", "obj", obj)
 
 	orig := copyForStatusPatch(aw)
 	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) == nil {
