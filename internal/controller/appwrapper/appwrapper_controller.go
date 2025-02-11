@@ -80,7 +80,7 @@ type componentStatusSummary struct {
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
 
-// permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters
+// permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters, jobsets
 
 //+kubebuilder:rbac:groups="",resources=pods;services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
@@ -89,6 +89,7 @@ type componentStatusSummary struct {
 //+kubebuilder:rbac:groups=scheduling.x-k8s.io,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=ray.io,resources=rayclusters;rayjobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile reconciles an appwrapper
 // Please see [aw-states] for documentation of this method.
