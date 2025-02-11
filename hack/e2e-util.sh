@@ -29,6 +29,9 @@ export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-855e096"
 export KUBERAY_VERSION=1.1.0
 export IMAGE_KUBERAY_OPERATOR="quay.io/kuberay/operator:v1.1.1"
 
+export JOBSET_VERSION=v0.7.3
+export IMAGE_JOBSET_OPERATOR="registry.k8s.io/jobset/jobset:v0.7.3"
+
 # These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
 export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
@@ -142,7 +145,7 @@ function check_prerequisites {
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -238,7 +241,7 @@ function kind_up_cluster {
 }
 
 function kind_load_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR}
+  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
@@ -263,6 +266,15 @@ function configure_cluster {
   helm install kuberay-operator kuberay-operator --repo https://ray-project.github.io/kuberay-helm/ --version $KUBERAY_VERSION --create-namespace -n kuberay-system
   echo "Waiting for pods in the kuberay namespace to become ready"
   while [[ $(kubectl get pods -n kuberay-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
+  do
+      echo -n "." && sleep 1;
+  done
+  echo ""
+
+  echo "Installing JobSet operator version $JOBSET_VERSION"
+  kubectl apply --server-side -f "https://github.com/kubernetes-sigs/jobset/releases/download/${JOBSET_VERSION}/manifests.yaml"
+  echo "Waiting for pods in the jobset namespace to become ready"
+  while [[ $(kubectl get pods -n jobset-system -o 'jsonpath={..status.conditions[?(@.type=="Ready")].status}' | tr ' ' '\n' | sort -u) != "True" ]]
   do
       echo -n "." && sleep 1;
   done

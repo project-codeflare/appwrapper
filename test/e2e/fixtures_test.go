@@ -336,6 +336,44 @@ func stuckInitBatchjob(milliCPU int64) workloadv1beta2.AppWrapperComponent {
 	}
 }
 
+const jobsetYAML = `
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  generateName: %v
+spec:
+  replicatedJobs:
+  - name: driver
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        backoffLimit: 0
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: sleep
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 100"]
+              resources:
+                requests:
+                  cpu: %v
+`
+
+func jobset(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(jobsetYAML,
+		"jobset-",
+		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
+
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	return workloadv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Path: "template.spec.replicatedJobs[0].template.spec.template"}},
+		Template:        runtime.RawExtension{Raw: jsonBytes},
+	}
+}
+
 // This is not a useful PyTorchJob:
 // 1. Using a dummy busybox image to avoid pulling a large & rate-limited image from dockerhub
 // 2. We avoid needing the injected sidecar (alpine:3.10 from dockerhub) by not specifying a Master
