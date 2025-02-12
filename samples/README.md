@@ -28,6 +28,7 @@ The current set of automatically inferred Kinds is:
    + kubeflow.org/v1 PyTorchJob
    + ray.io/v1 RayCluster
    + ray.io/v1 RayJob
+   + jobset.x-k8s.io/v1alpha2 JobSet
 
 In all of the examples, if `podSets` inference is supported for the wrapped Kind,
 then `podSets` is omitted from the sample yaml.
