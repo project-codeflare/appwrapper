@@ -155,6 +155,13 @@ spec:
                         description: AppWrapperPodSet describes an homogeneous set
                           of pods
                         properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              Annotations is an unstructured key value map that may be used to store and retrieve
+                              arbitrary metadata about the PodSet to customize its treatment by the AppWrapper controller.
+                            type: object
                           path:
                             description: Path is the path Component.Template to the
                               PodTemplateSpec for this PodSet
@@ -280,6 +287,13 @@ spec:
                         description: AppWrapperPodSet describes an homogeneous set
                           of pods
                         properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            description: |-
+                              Annotations is an unstructured key value map that may be used to store and retrieve
+                              arbitrary metadata about the PodSet to customize its treatment by the AppWrapper controller.
+                            type: object
                           path:
                             description: Path is the path Component.Template to the
                               PodTemplateSpec for this PodSet

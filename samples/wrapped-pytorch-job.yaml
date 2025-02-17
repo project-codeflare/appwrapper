@@ -29,7 +29,7 @@ spec:
                     requests:
                       cpu: 1
           Worker:
-            replicas: 1
+            replicas: 2
             restartPolicy: OnFailure
             template:
               spec:
