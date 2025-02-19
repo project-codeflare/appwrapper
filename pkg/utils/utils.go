@@ -29,11 +29,14 @@ import (
 
 	dockerref "github.com/distribution/reference"
 
+	kftraining "github.com/kubeflow/training-operator/pkg/apis/kubeflow.org/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/ptr"
+	jobsetapi "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 
 	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 	"sigs.k8s.io/kueue/pkg/podset"
@@ -42,6 +45,12 @@ import (
 )
 
 const templateString = "template"
+
+const (
+	PodSetAnnotationTASPodIndexLabel      = "workload.codeflare.dev.appwrapper/tas-pod-index-label"
+	PodSetAnnotationTASSubGroupIndexLabel = "workload.codeflare.dev.appwrapper/tas-sub-group-index-label"
+	PodSetAnnotationTASSubGroupCount      = "workload.codeflare.dev.appwrapper/tas-sub-group-count"
+)
 
 // GetPodTemplateSpec extracts a Kueue-compatible PodTemplateSpec at the given path within obj
 func GetPodTemplateSpec(obj *unstructured.Unstructured, path string) (*v1.PodTemplateSpec, error) {
@@ -490,7 +499,13 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 		if completions, err := GetReplicas(obj, "template.spec.completions"); err == nil && completions < replicas {
 			replicas = completions
 		}
-		podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: "template.spec.template"})
+		podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{
+			Replicas: ptr.To(replicas),
+			Path:     "template.spec.template",
+			Annotations: map[string]string{
+				PodSetAnnotationTASPodIndexLabel: batchv1.JobCompletionIndexAnnotation,
+			},
+		})
 
 	case schema.GroupVersionKind{Group: "jobset.x-k8s.io", Version: "v1alpha2", Kind: "JobSet"}:
 		if jobs, err := getValueAtPath(obj.UnstructuredContent(), "template.spec.replicatedJobs"); err == nil {
@@ -499,15 +514,26 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 					jobSpecPrefix := fmt.Sprintf("template.spec.replicatedJobs[%v].", i)
 					// validate path to replica template
 					if _, err := getValueAtPath(obj.UnstructuredContent(), jobSpecPrefix+"template"); err == nil {
-						var replicas int32 = 1
+						var podCount int32 = 1
 						if parallelism, err := GetReplicas(obj, jobSpecPrefix+"template.spec.parallelism"); err == nil {
-							replicas = parallelism
+							podCount = parallelism
 						}
-						if completions, err := GetReplicas(obj, jobSpecPrefix+"template.spec.completions"); err == nil && completions < replicas {
-							replicas = completions
+						if completions, err := GetReplicas(obj, jobSpecPrefix+"template.spec.completions"); err == nil && completions < podCount {
+							podCount = completions
 						}
-						// infer replica count
-						podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: jobSpecPrefix + "template.spec.template"})
+						var replicas int32 = 1
+						if r, err := GetReplicas(obj, jobSpecPrefix+"replicas"); err == nil {
+							replicas = r
+						}
+						podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{
+							Replicas: ptr.To(replicas * podCount),
+							Path:     jobSpecPrefix + "template.spec.template",
+							Annotations: map[string]string{
+								PodSetAnnotationTASPodIndexLabel:      batchv1.JobCompletionIndexAnnotation,
+								PodSetAnnotationTASSubGroupIndexLabel: jobsetapi.JobIndexKey,
+								PodSetAnnotationTASSubGroupCount:      strconv.Itoa(int(replicas)),
+							},
+						})
 					}
 				}
 			}
@@ -523,7 +549,13 @@ func InferPodSets(obj *unstructured.Unstructured) ([]workloadv1beta2.AppWrapperP
 				if err != nil {
 					return nil, err
 				}
-				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{Replicas: ptr.To(replicas), Path: prefix + templateString})
+				podSets = append(podSets, workloadv1beta2.AppWrapperPodSet{
+					Replicas: ptr.To(replicas),
+					Path:     prefix + templateString,
+					Annotations: map[string]string{
+						PodSetAnnotationTASPodIndexLabel: kftraining.ReplicaIndexLabel,
+					},
+				})
 			}
 		}
 
