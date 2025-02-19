@@ -38,9 +38,6 @@ import (
 	"k8s.io/utils/ptr"
 	jobsetapi "sigs.k8s.io/jobset/api/jobset/v1alpha2"
 
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	"sigs.k8s.io/kueue/pkg/podset"
-
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
@@ -349,36 +346,32 @@ func EnsureComponentStatusInitialized(aw *awv1beta2.AppWrapper) error {
 	return nil
 }
 
-// GetPodSets constructs the kueue.PodSets for an AppWrapper
-func GetPodSets(aw *awv1beta2.AppWrapper) ([]kueue.PodSet, error) {
-	podSets := []kueue.PodSet{}
+func GetComponentPodSpecs(aw *awv1beta2.AppWrapper) ([]*v1.PodTemplateSpec, []awv1beta2.AppWrapperPodSet, error) {
+	templates := []*v1.PodTemplateSpec{}
+	podSets := []awv1beta2.AppWrapperPodSet{}
 	if err := EnsureComponentStatusInitialized(aw); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for idx := range aw.Status.ComponentStatus {
 		if len(aw.Status.ComponentStatus[idx].PodSets) > 0 {
 			obj := &unstructured.Unstructured{}
 			if _, _, err := unstructured.UnstructuredJSONScheme.Decode(aw.Spec.Components[idx].Template.Raw, nil, obj); err != nil {
 				// Should be unreachable; Template.Raw validated by AppWrapper AdmissionController
-				return nil, err
+				return nil, nil, err
 			}
-			for psIdx, podSet := range aw.Status.ComponentStatus[idx].PodSets {
-				replicas := Replicas(podSet)
+			for _, podSet := range aw.Status.ComponentStatus[idx].PodSets {
 				if template, err := GetPodTemplateSpec(obj, podSet.Path); err == nil {
-					podSets = append(podSets, kueue.PodSet{
-						Name:     fmt.Sprintf("%s-%v-%v", aw.Name, idx, psIdx),
-						Template: *template,
-						Count:    replicas,
-					})
+					templates = append(templates, template)
+					podSets = append(podSets, podSet)
 				}
 			}
 		}
 	}
-	return podSets, nil
+	return templates, podSets, nil
 }
 
 // SetPodSetInfos propagates podSetsInfo into the PodSetInfos of aw.Spec.Components
-func SetPodSetInfos(aw *awv1beta2.AppWrapper, podSetsInfo []podset.PodSetInfo) error {
+func SetPodSetInfos(aw *awv1beta2.AppWrapper, podSetsInfo []awv1beta2.AppWrapperPodSetInfo) error {
 	if err := EnsureComponentStatusInitialized(aw); err != nil {
 		return err
 	}
@@ -392,18 +385,12 @@ func SetPodSetInfos(aw *awv1beta2.AppWrapper, podSetsInfo []podset.PodSetInfo) e
 			if podSetsInfoIndex > len(podSetsInfo) {
 				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
-			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = awv1beta2.AppWrapperPodSetInfo{
-				Annotations:     podSetsInfo[podSetsInfoIndex-1].Annotations,
-				Labels:          podSetsInfo[podSetsInfoIndex-1].Labels,
-				NodeSelector:    podSetsInfo[podSetsInfoIndex-1].NodeSelector,
-				Tolerations:     podSetsInfo[podSetsInfoIndex-1].Tolerations,
-				SchedulingGates: podSetsInfo[podSetsInfoIndex-1].SchedulingGates,
-			}
+			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = podSetsInfo[podSetIdx]
 		}
 	}
 
 	if podSetsInfoIndex != len(podSetsInfo) {
-		return podset.BadPodSetsInfoLenError(podSetsInfoIndex, len(podSetsInfo))
+		return fmt.Errorf("expecting %d podsets, got %d", podSetsInfoIndex, len(podSetsInfo))
 	}
 	return nil
 }

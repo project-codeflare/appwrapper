@@ -29,7 +29,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/kueue/pkg/podset"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/pkg/config"
@@ -39,7 +38,7 @@ import (
 var _ = Describe("AppWrapper Controller", func() {
 	var awReconciler *AppWrapperReconciler
 	var awName types.NamespacedName
-	markerPodSet := podset.PodSetInfo{
+	markerPodSet := awv1beta2.AppWrapperPodSetInfo{
 		Labels:          map[string]string{"testkey1": "value1"},
 		Annotations:     map[string]string{"test2": "test2"},
 		NodeSelector:    map[string]string{"nodeName": "myNode"},
@@ -79,7 +78,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSuspended))
 
 		By("Updating aw.Spec by invoking utils.SetPodSetInfos and setting suspend to false")
-		Expect(utils.SetPodSetInfos(aw, []podset.PodSetInfo{markerPodSet, markerPodSet})).To(Succeed())
+		Expect(utils.SetPodSetInfos(aw, []awv1beta2.AppWrapperPodSetInfo{markerPodSet, markerPodSet})).To(Succeed())
 		aw.Spec.Suspend = false
 		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
 
