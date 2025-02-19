@@ -223,12 +223,8 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 
 	for podSetsIdx, podSet := range componentStatus.PodSets {
 		toInject := &awv1beta2.AppWrapperPodSetInfo{}
-		if r.Config.EnableKueueIntegrations {
-			if podSetsIdx < len(component.PodSetInfos) {
-				toInject = &component.PodSetInfos[podSetsIdx]
-			} else {
-				return fmt.Errorf("missing podSetInfo %v for component %v", podSetsIdx, componentIdx), true
-			}
+		if podSetsIdx < len(component.PodSetInfos) {
+			toInject = &component.PodSetInfos[podSetsIdx]
 		}
 
 		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
