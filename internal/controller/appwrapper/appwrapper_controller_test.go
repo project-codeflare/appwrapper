@@ -33,7 +33,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/podset"
 	utilslices "sigs.k8s.io/kueue/pkg/util/slices"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -51,7 +51,7 @@ var _ = Describe("AppWrapper Controller", func() {
 	}
 	var kueuePodSets []kueue.PodSet
 
-	advanceToResuming := func(components ...workloadv1beta2.AppWrapperComponent) {
+	advanceToResuming := func(components ...awv1beta2.AppWrapperComponent) {
 		By("Create an AppWrapper")
 		aw := toAppWrapper(components...)
 		aw.Spec.Suspend = true
@@ -81,7 +81,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSuspended))
 
 		By("Updating aw.Spec by invoking RunWithPodSetsInfo")
 		Expect((*workload.AppWrapper)(aw).RunWithPodSetsInfo([]podset.PodSetInfo{markerPodSet, markerPodSet})).To(Succeed())
@@ -93,10 +93,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperResuming))
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperResuming))
 		Expect(controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer)).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 	}
@@ -107,10 +107,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw := getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.PodsReady))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
@@ -124,10 +124,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.PodsReady))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err = awReconciler.getPodStatus(ctx, aw)
@@ -147,10 +147,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeTrue())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.PodsReady))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).PodsReady()).Should(BeTrue())
@@ -214,7 +214,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 	AfterEach(func() {
 		By("Cleanup the AppWrapper and ensure no Pods remain")
-		aw := &workloadv1beta2.AppWrapper{}
+		aw := &awv1beta2.AppWrapper{}
 		Expect(k8sClient.Get(ctx, awName, aw)).To(Succeed())
 		Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 
@@ -242,9 +242,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperRunning))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		pc, err := utils.ExpectedPodCount(aw)
@@ -262,9 +262,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSucceeded))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSucceeded))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		_, _, finished := (*workload.AppWrapper)(aw).Finished()
@@ -276,7 +276,7 @@ var _ = Describe("AppWrapper Controller", func() {
 		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
 		Expect(err).NotTo(HaveOccurred())
 		aw = getAppWrapper(awName)
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeFalse())
 	})
 
 	It("Running Workloads can be Suspended", func() {
@@ -295,9 +295,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspending))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSuspending))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeTrue())
 
@@ -308,9 +308,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperSuspended))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSuspended))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeTrue())
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
@@ -332,9 +332,9 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperFailed))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperFailed))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		_, _, finished := (*workload.AppWrapper)(aw).Finished()
@@ -346,10 +346,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw = getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperFailed))
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperFailed))
 
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeFalse())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeFalse())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		_, _, finished = (*workload.AppWrapper)(aw).Finished()
@@ -364,10 +364,10 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		aw := getAppWrapper(awName)
-		Expect(aw.Status.Phase).Should(Equal(workloadv1beta2.AppWrapperFailed))
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))).Should(BeTrue())
-		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperFailed))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.PodsReady))).Should(BeFalse())
 		Expect((*workload.AppWrapper)(aw).IsActive()).Should(BeTrue())
 		Expect((*workload.AppWrapper)(aw).IsSuspended()).Should(BeFalse())
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
@@ -384,7 +384,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		By("Validate expected markers and Autopilot anti-affinities were injected")
 		for _, p := range pods {
-			Expect(p.Labels).Should(HaveKeyWithValue(workloadv1beta2.AppWrapperLabel, awName.Name))
+			Expect(p.Labels).Should(HaveKeyWithValue(awv1beta2.AppWrapperLabel, awName.Name))
 			validateMarkers(&p)
 			validateAutopilot(&p)
 		}
@@ -399,7 +399,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		By("Validate expected markers and Autopilot anti-affinities were injected")
 		for _, p := range pods {
-			Expect(p.Labels).Should(HaveKeyWithValue(workloadv1beta2.AppWrapperLabel, awName.Name))
+			Expect(p.Labels).Should(HaveKeyWithValue(awv1beta2.AppWrapperLabel, awName.Name))
 			validateMarkers(&p)
 			validateAutopilot(&p)
 		}
@@ -438,7 +438,7 @@ var _ = Describe("AppWrapper Annotations", func() {
 	})
 
 	It("Unannotated appwrappers use defaults", func() {
-		aw := &workloadv1beta2.AppWrapper{}
+		aw := &awv1beta2.AppWrapper{}
 		Expect(awReconciler.admissionGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.AdmissionGracePeriod))
 		Expect(awReconciler.warmupGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.WarmupGracePeriod))
 		Expect(awReconciler.failureGraceDuration(ctx, aw)).Should(Equal(awReconciler.Config.FaultTolerance.FailureGracePeriod))
@@ -451,17 +451,17 @@ var _ = Describe("AppWrapper Annotations", func() {
 
 	It("Valid annotations override defaults", func() {
 		allowed := 10 * time.Second
-		aw := &workloadv1beta2.AppWrapper{
+		aw := &awv1beta2.AppWrapper{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: allowed.String(),
-					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    allowed.String(),
-					workloadv1beta2.FailureGracePeriodDurationAnnotation:   allowed.String(),
-					workloadv1beta2.RetryPausePeriodDurationAnnotation:     allowed.String(),
-					workloadv1beta2.RetryLimitAnnotation:                   "101",
-					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  allowed.String(),
-					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: allowed.String(),
-					workloadv1beta2.SuccessTTLAnnotation:                   allowed.String(),
+					awv1beta2.AdmissionGracePeriodDurationAnnotation: allowed.String(),
+					awv1beta2.WarmupGracePeriodDurationAnnotation:    allowed.String(),
+					awv1beta2.FailureGracePeriodDurationAnnotation:   allowed.String(),
+					awv1beta2.RetryPausePeriodDurationAnnotation:     allowed.String(),
+					awv1beta2.RetryLimitAnnotation:                   "101",
+					awv1beta2.ForcefulDeletionGracePeriodAnnotation:  allowed.String(),
+					awv1beta2.DeletionOnFailureGracePeriodAnnotation: allowed.String(),
+					awv1beta2.SuccessTTLAnnotation:                   allowed.String(),
 				},
 			},
 		}
@@ -477,17 +477,17 @@ var _ = Describe("AppWrapper Annotations", func() {
 
 	It("Malformed annotations use defaults", func() {
 		malformed := "222badTime"
-		aw := &workloadv1beta2.AppWrapper{
+		aw := &awv1beta2.AppWrapper{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: malformed,
-					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    malformed,
-					workloadv1beta2.FailureGracePeriodDurationAnnotation:   malformed,
-					workloadv1beta2.RetryPausePeriodDurationAnnotation:     malformed,
-					workloadv1beta2.RetryLimitAnnotation:                   "abc",
-					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  malformed,
-					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: malformed,
-					workloadv1beta2.SuccessTTLAnnotation:                   malformed,
+					awv1beta2.AdmissionGracePeriodDurationAnnotation: malformed,
+					awv1beta2.WarmupGracePeriodDurationAnnotation:    malformed,
+					awv1beta2.FailureGracePeriodDurationAnnotation:   malformed,
+					awv1beta2.RetryPausePeriodDurationAnnotation:     malformed,
+					awv1beta2.RetryLimitAnnotation:                   "abc",
+					awv1beta2.ForcefulDeletionGracePeriodAnnotation:  malformed,
+					awv1beta2.DeletionOnFailureGracePeriodAnnotation: malformed,
+					awv1beta2.SuccessTTLAnnotation:                   malformed,
 				},
 			},
 		}
@@ -504,16 +504,16 @@ var _ = Describe("AppWrapper Annotations", func() {
 	It("Out of bounds annotations are clipped", func() {
 		negative := -10 * time.Minute
 		tooLong := 2 * awReconciler.Config.FaultTolerance.GracePeriodMaximum
-		aw := &workloadv1beta2.AppWrapper{
+		aw := &awv1beta2.AppWrapper{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					workloadv1beta2.AdmissionGracePeriodDurationAnnotation: negative.String(),
-					workloadv1beta2.WarmupGracePeriodDurationAnnotation:    tooLong.String(),
-					workloadv1beta2.FailureGracePeriodDurationAnnotation:   tooLong.String(),
-					workloadv1beta2.RetryPausePeriodDurationAnnotation:     negative.String(),
-					workloadv1beta2.ForcefulDeletionGracePeriodAnnotation:  tooLong.String(),
-					workloadv1beta2.DeletionOnFailureGracePeriodAnnotation: tooLong.String(),
-					workloadv1beta2.SuccessTTLAnnotation:                   (awReconciler.Config.FaultTolerance.SuccessTTL + 10*time.Second).String(),
+					awv1beta2.AdmissionGracePeriodDurationAnnotation: negative.String(),
+					awv1beta2.WarmupGracePeriodDurationAnnotation:    tooLong.String(),
+					awv1beta2.FailureGracePeriodDurationAnnotation:   tooLong.String(),
+					awv1beta2.RetryPausePeriodDurationAnnotation:     negative.String(),
+					awv1beta2.ForcefulDeletionGracePeriodAnnotation:  tooLong.String(),
+					awv1beta2.DeletionOnFailureGracePeriodAnnotation: tooLong.String(),
+					awv1beta2.SuccessTTLAnnotation:                   (awReconciler.Config.FaultTolerance.SuccessTTL + 10*time.Second).String(),
 				},
 			},
 		}
@@ -527,11 +527,11 @@ var _ = Describe("AppWrapper Annotations", func() {
 	})
 
 	It("Parsing of terminal exits codes", func() {
-		aw := &workloadv1beta2.AppWrapper{
+		aw := &awv1beta2.AppWrapper{
 			ObjectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
-					workloadv1beta2.TerminalExitCodesAnnotation:  "3,10,abc,42",
-					workloadv1beta2.RetryableExitCodesAnnotation: "x,10,20",
+					awv1beta2.TerminalExitCodesAnnotation:  "3,10,abc,42",
+					awv1beta2.RetryableExitCodesAnnotation: "x,10,20",
 				},
 			},
 		}
