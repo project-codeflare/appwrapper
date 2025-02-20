@@ -23,6 +23,7 @@ import (
 	"time"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/kueue/pkg/podset"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 )
 
 func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstructured, error) {

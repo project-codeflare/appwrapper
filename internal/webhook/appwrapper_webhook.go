@@ -32,18 +32,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/utils/ptr"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
