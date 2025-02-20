@@ -41,7 +41,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -98,13 +98,13 @@ type componentStatusSummary struct {
 //
 //gocyclo:ignore
 func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	aw := &workloadv1beta2.AppWrapper{}
+	aw := &awv1beta2.AppWrapper{}
 	if err := r.Get(ctx, req.NamespacedName, aw); err != nil {
 		return ctrl.Result{}, nil
 	}
 
 	// stop reconciliation if managed by another controller
-	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != workloadv1beta2.AppWrapperControllerName {
+	if aw.Spec.ManagedBy != nil && *aw.Spec.ManagedBy != awv1beta2.AppWrapperControllerName {
 		return ctrl.Result{}, nil
 	}
 
@@ -113,30 +113,30 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if controllerutil.ContainsFinalizer(aw, AppWrapperFinalizer) {
 			statusUpdated := false
 			orig := copyForStatusPatch(aw)
-			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 				if !r.deleteComponents(ctx, aw) {
 					// one or more components are still terminating
-					if aw.Status.Phase != workloadv1beta2.AppWrapperTerminating {
+					if aw.Status.Phase != awv1beta2.AppWrapperTerminating {
 						// Set Phase for better UX, but ignore errors. We still want to requeue after 5 seconds (not immediately)
-						aw.Status.Phase = workloadv1beta2.AppWrapperTerminating
+						aw.Status.Phase = awv1beta2.AppWrapperTerminating
 						_ = r.Status().Patch(ctx, aw, client.MergeFrom(orig))
 					}
 					return ctrl.Result{RequeueAfter: 5 * time.Second}, nil // check after a short while
 				}
 				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-					Type:    string(workloadv1beta2.ResourcesDeployed),
+					Type:    string(awv1beta2.ResourcesDeployed),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(workloadv1beta2.AppWrapperTerminating),
+					Reason:  string(awv1beta2.AppWrapperTerminating),
 					Message: "Resources successfully deleted",
 				})
 				statusUpdated = true
 			}
 
-			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved)) {
+			if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved)) {
 				meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-					Type:    string(workloadv1beta2.QuotaReserved),
+					Type:    string(awv1beta2.QuotaReserved),
 					Status:  metav1.ConditionFalse,
-					Reason:  string(workloadv1beta2.AppWrapperTerminating),
+					Reason:  string(awv1beta2.AppWrapperTerminating),
 					Message: "No resources deployed",
 				})
 				statusUpdated = true
@@ -159,15 +159,15 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	switch aw.Status.Phase {
 
-	case workloadv1beta2.AppWrapperEmpty: // initial state
+	case awv1beta2.AppWrapperEmpty: // initial state
 		orig := copyForStatusPatch(aw)
 		if err := utils.EnsureComponentStatusInitialized(aw); err != nil {
 			return ctrl.Result{}, err
 		}
 
-		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperSuspended)
+		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspended)
 
-	case workloadv1beta2.AppWrapperSuspended: // no components deployed
+	case awv1beta2.AppWrapperSuspended: // no components deployed
 		if aw.Spec.Suspend {
 			return ctrl.Result{}, nil // remain suspended
 		}
@@ -183,40 +183,40 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		// begin deployment
 		orig := copyForStatusPatch(aw)
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.QuotaReserved),
+			Type:    string(awv1beta2.QuotaReserved),
 			Status:  metav1.ConditionTrue,
-			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Reason:  string(awv1beta2.AppWrapperResuming),
 			Message: "Suspend is false",
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.ResourcesDeployed),
+			Type:    string(awv1beta2.ResourcesDeployed),
 			Status:  metav1.ConditionTrue,
-			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Reason:  string(awv1beta2.AppWrapperResuming),
 			Message: "Suspend is false",
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.PodsReady),
+			Type:    string(awv1beta2.PodsReady),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Reason:  string(awv1beta2.AppWrapperResuming),
 			Message: "Suspend is false",
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.Unhealthy),
+			Type:    string(awv1beta2.Unhealthy),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Reason:  string(awv1beta2.AppWrapperResuming),
 			Message: "Suspend is false",
 		})
-		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperResuming)
+		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperResuming)
 
-	case workloadv1beta2.AppWrapperResuming: // deploying components
+	case awv1beta2.AppWrapperResuming: // deploying components
 		if aw.Spec.Suspend {
-			return ctrl.Result{}, r.transitionToPhase(ctx, copyForStatusPatch(aw), aw, workloadv1beta2.AppWrapperSuspending) // abort deployment
+			return ctrl.Result{}, r.transitionToPhase(ctx, copyForStatusPatch(aw), aw, awv1beta2.AppWrapperSuspending) // abort deployment
 		}
 		err, fatal := r.createComponents(ctx, aw) // NOTE: createComponents applies patches to aw.Status incrementally as resources are created
 		orig := copyForStatusPatch(aw)
 		if err != nil {
 			if !fatal {
-				startTime := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+				startTime := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)).LastTransitionTime
 				graceDuration := r.admissionGraceDuration(ctx, aw)
 				if time.Now().Before(startTime.Add(graceDuration)) {
 					// be patient; non-fatal error; requeue and keep trying
@@ -225,24 +225,24 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			detailMsg := fmt.Sprintf("error creating components: %v", err)
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.Unhealthy),
+				Type:    string(awv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "CreateFailed",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "CreateFailed: "+detailMsg)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "CreateFailed: "+detailMsg)
 			if fatal {
-				return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperFailed) // always move to failed on fatal error
+				return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
 				return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, false, 1)
 			}
 		}
-		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperRunning)
+		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperRunning)
 
-	case workloadv1beta2.AppWrapperRunning: // components deployed
+	case awv1beta2.AppWrapperRunning: // components deployed
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
-			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperSuspending) // begin undeployment
+			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // begin undeployment
 		}
 
 		// Gather status information at the Component and Pod level.
@@ -259,13 +259,13 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		detailMsg := fmt.Sprintf("Only found %v deployed components, but was expecting %v", compStatus.deployed, compStatus.expected)
 		if compStatus.deployed != compStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.Unhealthy),
+				Type:    string(awv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "MissingComponent",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
-			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperFailed)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
+			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperFailed)
 		}
 
 		// If a component's controller has put it into a failed state, we do not need
@@ -273,12 +273,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		detailMsg = fmt.Sprintf("Found %v failed components", compStatus.failed)
 		if compStatus.failed > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.Unhealthy),
+				Type:    string(awv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "FailedComponent",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "FailedComponent: "+detailMsg)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "FailedComponent: "+detailMsg)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 		}
 
@@ -286,38 +286,38 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
 			msg := fmt.Sprintf("%v pods succeeded and no running, pending, or failed pods", podStatus.succeeded)
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.QuotaReserved),
+				Type:    string(awv1beta2.QuotaReserved),
 				Status:  metav1.ConditionFalse,
-				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Reason:  string(awv1beta2.AppWrapperSucceeded),
 				Message: msg,
 			})
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Type:    string(awv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionTrue,
-				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Reason:  string(awv1beta2.AppWrapperSucceeded),
 				Message: msg,
 			})
-			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperSucceeded)
+			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSucceeded)
 		}
 
 		// Handle Failed Pods
 		if podStatus.failed > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:   string(workloadv1beta2.Unhealthy),
+				Type:   string(awv1beta2.Unhealthy),
 				Status: metav1.ConditionTrue,
 				Reason: "FoundFailedPods",
 				// Intentionally no detailed message with failed pod count, since changing the message resets the transition time
 			})
 
 			// Grace period to give the resource controller a chance to correct the failure
-			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
+			whenDetected := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.Unhealthy)).LastTransitionTime
 			gracePeriod := r.failureGraceDuration(ctx, aw)
 			now := time.Now()
 			deadline := whenDetected.Add(gracePeriod)
 			if now.Before(deadline) {
 				return requeueAfter(deadline.Sub(now), r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			} else {
-				r.Recorder.Eventf(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "FoundFailedPods: %v failed pods", podStatus.failed)
+				r.Recorder.Eventf(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "FoundFailedPods: %v failed pods", podStatus.failed)
 				return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 			}
 		}
@@ -326,20 +326,20 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		detailMsg = fmt.Sprintf("Workload contains pods using NoExecute resources on Nodes: %v", podStatus.noExecuteNodes)
 		if len(podStatus.noExecuteNodes) > 0 {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.Unhealthy),
+				Type:    string(awv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "AutopilotNoExecute",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), detailMsg)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), detailMsg)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, false, 0) // Autopilot triggered evacuation does not increment retry count
 		}
 
-		clearCondition(aw, workloadv1beta2.Unhealthy, "FoundNoFailedPods", "")
+		clearCondition(aw, awv1beta2.Unhealthy, "FoundNoFailedPods", "")
 
 		if podStatus.running+podStatus.succeeded >= podStatus.expected {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.PodsReady),
+				Type:    string(awv1beta2.PodsReady),
 				Status:  metav1.ConditionTrue,
 				Reason:  "SufficientPodsReady",
 				Message: fmt.Sprintf("%v pods running; %v pods succeeded", podStatus.running, podStatus.succeeded),
@@ -349,8 +349,8 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 		// Not ready yet; either continue to wait or giveup if the warmup period has expired
 		podDetailsMessage := fmt.Sprintf("%v pods pending; %v pods running; %v pods succeeded", podStatus.pending, podStatus.running, podStatus.succeeded)
-		clearCondition(aw, workloadv1beta2.PodsReady, "InsufficientPodsReady", podDetailsMessage)
-		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+		clearCondition(aw, awv1beta2.PodsReady, "InsufficientPodsReady", podDetailsMessage)
+		whenDeployed := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)).LastTransitionTime
 		var graceDuration time.Duration
 		if podStatus.pending+podStatus.running+podStatus.succeeded >= podStatus.expected {
 			graceDuration = r.warmupGraceDuration(ctx, aw)
@@ -361,60 +361,60 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return requeueAfter(5*time.Second, r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 		} else {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.Unhealthy),
+				Type:    string(awv1beta2.Unhealthy),
 				Status:  metav1.ConditionTrue,
 				Reason:  "InsufficientPodsReady",
 				Message: podDetailsMessage,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(workloadv1beta2.Unhealthy), "InsufficientPodsReady: "+podDetailsMessage)
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "InsufficientPodsReady: "+podDetailsMessage)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 		}
 
-	case workloadv1beta2.AppWrapperSuspending: // undeploying components
+	case awv1beta2.AppWrapperSuspending: // undeploying components
 		orig := copyForStatusPatch(aw)
 		// finish undeploying components irrespective of desired state (suspend bit)
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 			if !r.deleteComponents(ctx, aw) {
 				return requeueAfter(5*time.Second, r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Type:    string(awv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
-				Reason:  string(workloadv1beta2.AppWrapperSuspended),
+				Reason:  string(awv1beta2.AppWrapperSuspended),
 				Message: "Suspend is true",
 			})
 		}
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.QuotaReserved),
+			Type:    string(awv1beta2.QuotaReserved),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperSuspended),
+			Reason:  string(awv1beta2.AppWrapperSuspended),
 			Message: "Suspend is true",
 		})
-		clearCondition(aw, workloadv1beta2.PodsReady, string(workloadv1beta2.AppWrapperSuspended), "")
-		clearCondition(aw, workloadv1beta2.Unhealthy, string(workloadv1beta2.AppWrapperSuspended), "")
-		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperSuspended)
+		clearCondition(aw, awv1beta2.PodsReady, string(awv1beta2.AppWrapperSuspended), "")
+		clearCondition(aw, awv1beta2.Unhealthy, string(awv1beta2.AppWrapperSuspended), "")
+		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspended)
 
-	case workloadv1beta2.AppWrapperResetting:
+	case awv1beta2.AppWrapperResetting:
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
-			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
+			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
 		}
 
-		clearCondition(aw, workloadv1beta2.PodsReady, string(workloadv1beta2.AppWrapperResetting), "")
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+		clearCondition(aw, awv1beta2.PodsReady, string(awv1beta2.AppWrapperResetting), "")
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 			if !r.deleteComponents(ctx, aw) {
 				return requeueAfter(5*time.Second, r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Type:    string(awv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
-				Reason:  string(workloadv1beta2.AppWrapperResetting),
+				Reason:  string(awv1beta2.AppWrapperResetting),
 				Message: "Resources deleted for resetting AppWrapper",
 			})
 		}
 
 		// Pause before transitioning to Resuming to heuristically allow transient system problems to subside
-		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.Unhealthy)).LastTransitionTime
+		whenReset := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.Unhealthy)).LastTransitionTime
 		pauseDuration := r.retryPauseDuration(ctx, aw)
 		now := time.Now()
 		deadline := whenReset.Add(pauseDuration)
@@ -423,14 +423,14 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.ResourcesDeployed),
+			Type:    string(awv1beta2.ResourcesDeployed),
 			Status:  metav1.ConditionTrue,
-			Reason:  string(workloadv1beta2.AppWrapperResuming),
+			Reason:  string(awv1beta2.AppWrapperResuming),
 			Message: "Reset complete; resuming",
 		})
-		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperResuming)
+		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperResuming)
 
-	case workloadv1beta2.AppWrapperFailed:
+	case awv1beta2.AppWrapperFailed:
 		// Support for debugging failed jobs.
 		// When an appwrapper is annotated with a non-zero debugging delay,
 		// we hold quota for the delay period and do not delete the resources of
@@ -440,12 +440,12 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		orig := copyForStatusPatch(aw)
 		if deletionDelay > 0 && !aw.Spec.Suspend {
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.DeletingResources),
+				Type:    string(awv1beta2.DeletingResources),
 				Status:  metav1.ConditionFalse,
 				Reason:  "DeletionPaused",
-				Message: fmt.Sprintf("%v has value %v", workloadv1beta2.DeletionOnFailureGracePeriodAnnotation, deletionDelay),
+				Message: fmt.Sprintf("%v has value %v", awv1beta2.DeletionOnFailureGracePeriodAnnotation, deletionDelay),
 			})
-			whenDelayed := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
+			whenDelayed := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.DeletingResources)).LastTransitionTime
 
 			now := time.Now()
 			deadline := whenDelayed.Add(deletionDelay)
@@ -454,7 +454,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 		}
 
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 			if !r.deleteComponents(ctx, aw) {
 				return requeueAfter(5*time.Second, r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			}
@@ -463,24 +463,24 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				msg = "Kueue forced resource deletion by suspending AppWrapper"
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Type:    string(awv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
-				Reason:  string(workloadv1beta2.AppWrapperFailed),
+				Reason:  string(awv1beta2.AppWrapperFailed),
 				Message: msg,
 			})
 		}
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-			Type:    string(workloadv1beta2.QuotaReserved),
+			Type:    string(awv1beta2.QuotaReserved),
 			Status:  metav1.ConditionFalse,
-			Reason:  string(workloadv1beta2.AppWrapperFailed),
+			Reason:  string(awv1beta2.AppWrapperFailed),
 			Message: "No resources deployed",
 		})
 		return ctrl.Result{}, r.Status().Patch(ctx, aw, client.MergeFrom(orig))
 
-	case workloadv1beta2.AppWrapperSucceeded:
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+	case awv1beta2.AppWrapperSucceeded:
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 			deletionDelay := r.timeToLiveAfterSucceededDuration(ctx, aw)
-			whenSucceeded := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)).LastTransitionTime
+			whenSucceeded := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)).LastTransitionTime
 			now := time.Now()
 			deadline := whenSucceeded.Add(deletionDelay)
 			if now.Before(deadline) {
@@ -492,9 +492,9 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				return requeueAfter(5*time.Second, r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			}
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-				Type:    string(workloadv1beta2.ResourcesDeployed),
+				Type:    string(awv1beta2.ResourcesDeployed),
 				Status:  metav1.ConditionFalse,
-				Reason:  string(workloadv1beta2.AppWrapperSucceeded),
+				Reason:  string(awv1beta2.AppWrapperSucceeded),
 				Message: fmt.Sprintf("Time to live after success of %v expired", deletionDelay),
 			})
 			return ctrl.Result{}, r.Status().Patch(ctx, aw, client.MergeFrom(orig))
@@ -505,7 +505,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-func (r *AppWrapperReconciler) transitionToPhase(ctx context.Context, orig *workloadv1beta2.AppWrapper, modified *workloadv1beta2.AppWrapper, phase workloadv1beta2.AppWrapperPhase) error {
+func (r *AppWrapperReconciler) transitionToPhase(ctx context.Context, orig *awv1beta2.AppWrapper, modified *awv1beta2.AppWrapper, phase awv1beta2.AppWrapperPhase) error {
 	modified.Status.Phase = phase
 	if err := r.Status().Patch(ctx, modified, client.MergeFrom(orig)); err != nil {
 		return err
@@ -515,22 +515,22 @@ func (r *AppWrapperReconciler) transitionToPhase(ctx context.Context, orig *work
 	return nil
 }
 
-func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, orig *workloadv1beta2.AppWrapper, aw *workloadv1beta2.AppWrapper, terminalFailure bool, retryIncrement int32) error {
+func (r *AppWrapperReconciler) resetOrFail(ctx context.Context, orig *awv1beta2.AppWrapper, aw *awv1beta2.AppWrapper, terminalFailure bool, retryIncrement int32) error {
 	maxRetries := r.retryLimit(ctx, aw)
 	if !terminalFailure && aw.Status.Retries < maxRetries {
 		aw.Status.Retries += retryIncrement
-		return r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperResetting)
+		return r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperResetting)
 	} else {
-		return r.transitionToPhase(ctx, orig, aw, workloadv1beta2.AppWrapperFailed)
+		return r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperFailed)
 	}
 }
 
 //gocyclo:ignore
-func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*podStatusSummary, error) {
+func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *awv1beta2.AppWrapper) (*podStatusSummary, error) {
 	pods := &v1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(aw.Namespace),
-		client.MatchingLabels{workloadv1beta2.AppWrapperLabel: aw.Name}); err != nil {
+		client.MatchingLabels{awv1beta2.AppWrapperLabel: aw.Name}); err != nil {
 		return nil, err
 	}
 	pc, err := utils.ExpectedPodCount(aw)
@@ -621,7 +621,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *workloadv1b
 }
 
 //gocyclo:ignore
-func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *workloadv1beta2.AppWrapper) (*componentStatusSummary, error) {
+func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1beta2.AppWrapper) (*componentStatusSummary, error) {
 	summary := &componentStatusSummary{expected: int32(len(aw.Status.ComponentStatus))}
 
 	for componentIdx := range aw.Status.ComponentStatus {
@@ -765,8 +765,8 @@ func (r *AppWrapperReconciler) limitDuration(desired time.Duration) time.Duratio
 	}
 }
 
-func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.AdmissionGracePeriodDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.AdmissionGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -776,8 +776,8 @@ func (r *AppWrapperReconciler) admissionGraceDuration(ctx context.Context, aw *w
 	return r.limitDuration(r.Config.FaultTolerance.AdmissionGracePeriod)
 }
 
-func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.WarmupGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -787,8 +787,8 @@ func (r *AppWrapperReconciler) warmupGraceDuration(ctx context.Context, aw *work
 	return r.limitDuration(r.Config.FaultTolerance.WarmupGracePeriod)
 }
 
-func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.FailureGracePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -798,8 +798,8 @@ func (r *AppWrapperReconciler) failureGraceDuration(ctx context.Context, aw *wor
 	return r.limitDuration(r.Config.FaultTolerance.FailureGracePeriod)
 }
 
-func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1beta2.AppWrapper) int32 {
-	if userLimit, ok := aw.Annotations[workloadv1beta2.RetryLimitAnnotation]; ok {
+func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *awv1beta2.AppWrapper) int32 {
+	if userLimit, ok := aw.Annotations[awv1beta2.RetryLimitAnnotation]; ok {
 		if limit, err := strconv.Atoi(userLimit); err == nil {
 			return int32(limit)
 		} else {
@@ -809,8 +809,8 @@ func (r *AppWrapperReconciler) retryLimit(ctx context.Context, aw *workloadv1bet
 	return r.Config.FaultTolerance.RetryLimit
 }
 
-func (r *AppWrapperReconciler) retryPauseDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation]; ok {
+func (r *AppWrapperReconciler) retryPauseDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.RetryPausePeriodDurationAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -820,8 +820,8 @@ func (r *AppWrapperReconciler) retryPauseDuration(ctx context.Context, aw *workl
 	return r.limitDuration(r.Config.FaultTolerance.RetryPausePeriod)
 }
 
-func (r *AppWrapperReconciler) forcefulDeletionGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.ForcefulDeletionGracePeriodAnnotation]; ok {
+func (r *AppWrapperReconciler) forcefulDeletionGraceDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.ForcefulDeletionGracePeriodAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -831,8 +831,8 @@ func (r *AppWrapperReconciler) forcefulDeletionGraceDuration(ctx context.Context
 	return r.limitDuration(r.Config.FaultTolerance.ForcefulDeletionGracePeriod)
 }
 
-func (r *AppWrapperReconciler) deletionOnFailureGraceDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.DeletionOnFailureGracePeriodAnnotation]; ok {
+func (r *AppWrapperReconciler) deletionOnFailureGraceDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.DeletionOnFailureGracePeriodAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			return r.limitDuration(duration)
 		} else {
@@ -842,8 +842,8 @@ func (r *AppWrapperReconciler) deletionOnFailureGraceDuration(ctx context.Contex
 	return 0 * time.Second
 }
 
-func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Context, aw *workloadv1beta2.AppWrapper) time.Duration {
-	if userPeriod, ok := aw.Annotations[workloadv1beta2.SuccessTTLAnnotation]; ok {
+func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Context, aw *awv1beta2.AppWrapper) time.Duration {
+	if userPeriod, ok := aw.Annotations[awv1beta2.SuccessTTLAnnotation]; ok {
 		if duration, err := time.ParseDuration(userPeriod); err == nil {
 			if duration > 0 && duration < r.Config.FaultTolerance.SuccessTTL {
 				return duration
@@ -855,9 +855,9 @@ func (r *AppWrapperReconciler) timeToLiveAfterSucceededDuration(ctx context.Cont
 	return r.Config.FaultTolerance.SuccessTTL
 }
 
-func (r *AppWrapperReconciler) terminalExitCodes(_ context.Context, aw *workloadv1beta2.AppWrapper) []int {
+func (r *AppWrapperReconciler) terminalExitCodes(_ context.Context, aw *awv1beta2.AppWrapper) []int {
 	ans := []int{}
-	if exitCodeAnn, ok := aw.Annotations[workloadv1beta2.TerminalExitCodesAnnotation]; ok {
+	if exitCodeAnn, ok := aw.Annotations[awv1beta2.TerminalExitCodesAnnotation]; ok {
 		exitCodes := strings.Split(exitCodeAnn, ",")
 		for _, str := range exitCodes {
 			exitCode, err := strconv.Atoi(str)
@@ -869,9 +869,9 @@ func (r *AppWrapperReconciler) terminalExitCodes(_ context.Context, aw *workload
 	return ans
 }
 
-func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *workloadv1beta2.AppWrapper) []int {
+func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *awv1beta2.AppWrapper) []int {
 	ans := []int{}
-	if exitCodeAnn, ok := aw.Annotations[workloadv1beta2.RetryableExitCodesAnnotation]; ok {
+	if exitCodeAnn, ok := aw.Annotations[awv1beta2.RetryableExitCodesAnnotation]; ok {
 		exitCodes := strings.Split(exitCodeAnn, ",")
 		for _, str := range exitCodes {
 			exitCode, err := strconv.Atoi(str)
@@ -883,7 +883,7 @@ func (r *AppWrapperReconciler) retryableExitCodes(_ context.Context, aw *workloa
 	return ans
 }
 
-func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.AppWrapperCondition, reason string, message string) {
+func clearCondition(aw *awv1beta2.AppWrapper, condition awv1beta2.AppWrapperCondition, reason string, message string) {
 	if meta.IsStatusConditionTrue(aw.Status.Conditions, string(condition)) {
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(condition),
@@ -897,7 +897,7 @@ func clearCondition(aw *workloadv1beta2.AppWrapper, condition workloadv1beta2.Ap
 // podMapFunc maps pods to appwrappers and generates reconcile.Requests for those whose Status.Phase is PodSucceeded
 func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object) []reconcile.Request {
 	pod := obj.(*v1.Pod)
-	if name, ok := pod.Labels[workloadv1beta2.AppWrapperLabel]; ok {
+	if name, ok := pod.Labels[awv1beta2.AppWrapperLabel]; ok {
 		if pod.Status.Phase == v1.PodSucceeded {
 			return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: pod.Namespace, Name: name}}}
 		}
@@ -908,15 +908,15 @@ func (r *AppWrapperReconciler) podMapFunc(ctx context.Context, obj client.Object
 // SetupWithManager sets up the controller with the Manager.
 func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&workloadv1beta2.AppWrapper{}).
+		For(&awv1beta2.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Named("AppWrapper").
 		Complete(r)
 }
 
 // copyForStatusPatch returns an AppWrapper with an empty Spec and a DeepCopy of orig's Status for use in a subsequent Status().Patch(...) call
-func copyForStatusPatch(orig *workloadv1beta2.AppWrapper) *workloadv1beta2.AppWrapper {
-	copy := workloadv1beta2.AppWrapper{
+func copyForStatusPatch(orig *awv1beta2.AppWrapper) *awv1beta2.AppWrapper {
+	copy := awv1beta2.AppWrapper{
 		TypeMeta:   orig.TypeMeta,
 		ObjectMeta: orig.ObjectMeta,
 		Status:     *orig.Status.DeepCopy(),

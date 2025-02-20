@@ -23,7 +23,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -43,16 +43,16 @@ func randName(baseName string) string {
 	return fmt.Sprintf("%s-%s", baseName, string(b))
 }
 
-func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
-	return &workloadv1beta2.AppWrapper{
-		TypeMeta:   metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
+func toAppWrapper(components ...awv1beta2.AppWrapperComponent) *awv1beta2.AppWrapper {
+	return &awv1beta2.AppWrapper{
+		TypeMeta:   metav1.TypeMeta{APIVersion: awv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{Name: randName("aw"), Namespace: "default"},
-		Spec:       workloadv1beta2.AppWrapperSpec{Components: components},
+		Spec:       awv1beta2.AppWrapperSpec{Components: components},
 	}
 }
 
-func getAppWrapper(typeNamespacedName types.NamespacedName) *workloadv1beta2.AppWrapper {
-	aw := &workloadv1beta2.AppWrapper{}
+func getAppWrapper(typeNamespacedName types.NamespacedName) *awv1beta2.AppWrapper {
+	aw := &awv1beta2.AppWrapper{}
 	err := k8sClient.Get(ctx, typeNamespacedName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
@@ -73,27 +73,27 @@ spec:
       requests:
         cpu: %v`
 
-func pod(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func pod(milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(podYAML,
 		randName("pod"),
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
 }
 
-func podForInference(milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func podForInference(milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(podYAML,
 		randName("pod"),
 		resource.NewMilliQuantity(milliCPU, resource.DecimalSI))
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -114,7 +114,7 @@ spec:
       requests:
         cpu: %v`
 
-func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func namespacedPod(namespace string, milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(namespacedPodYAML,
 		randName("pod"),
 		namespace,
@@ -122,8 +122,8 @@ func namespacedPod(namespace string, milliCPU int64) workloadv1beta2.AppWrapperC
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Path: "template"}},
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{{Path: "template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -141,12 +141,12 @@ spec:
     port: 80
     targetPort: 8080`
 
-func service() workloadv1beta2.AppWrapperComponent {
+func service() awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(serviceYAML, randName("service"))
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{},
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -177,7 +177,7 @@ spec:
           requests:
             cpu: %v`
 
-func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func deployment(replicaCount int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(deploymentYAML,
 		randName("deployment"),
 		replicaCount,
@@ -185,13 +185,13 @@ func deployment(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComp
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), Path: "template.spec.template"}},
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(replicaCount)), Path: "template.spec.template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
 }
 
-func deploymentForInference(replicaCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func deploymentForInference(replicaCount int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(deploymentYAML,
 		randName("deployment"),
 		replicaCount,
@@ -199,7 +199,7 @@ func deploymentForInference(replicaCount int, milliCPU int64) workloadv1beta2.Ap
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -376,7 +376,7 @@ spec:
           name: odh-ca-cert
 `
 
-func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func rayCluster(workerCount int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	workerCPU := resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
 	yamlString := fmt.Sprintf(rayClusterYAML,
 		randName("raycluster"),
@@ -385,8 +385,8 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{
 			{Replicas: ptr.To(int32(1)), Path: "template.spec.headGroupSpec.template"},
 			{Replicas: ptr.To(int32(workerCount)), Path: "template.spec.workerGroupSpecs[0].template"},
 		},
@@ -394,7 +394,7 @@ func rayCluster(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperCompo
 	}
 }
 
-func rayClusterForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func rayClusterForInference(workerCount int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	workerCPU := resource.NewMilliQuantity(milliCPU, resource.DecimalSI)
 	yamlString := fmt.Sprintf(rayClusterYAML,
 		randName("raycluster"),
@@ -403,7 +403,7 @@ func rayClusterForInference(workerCount int, milliCPU int64) workloadv1beta2.App
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -447,7 +447,7 @@ spec:
                   cpu: %v
 `
 
-func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapperComponent {
+func jobSet(replicasWorker int, milliCPUWorker int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(jobSetYAML,
 		randName("jobset"),
 		replicasWorker, replicasWorker,
@@ -455,8 +455,8 @@ func jobSet(replicasWorker int, milliCPUWorker int64) workloadv1beta2.AppWrapper
 	)
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
-		DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{
+	return awv1beta2.AppWrapperComponent{
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{
 			{Path: "template.spec.replicatedJobs[0].template.spec.template"},
 			{Replicas: ptr.To(int32(replicasWorker)), Path: "template.spec.replicatedJobs[1].template.spec.template"},
 		},
@@ -483,7 +483,7 @@ spec:
           requests:
             cpu: %v`
 
-func jobForInference(parallelism int, completions int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func jobForInference(parallelism int, completions int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(jobYAML,
 		randName("job"),
 		parallelism,
@@ -492,7 +492,7 @@ func jobForInference(parallelism int, completions int, milliCPU int64) workloadv
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -534,7 +534,7 @@ spec:
               requests:
                 cpu: %v`
 
-func pytorchJobForInference(masterMilliCPU int64, workerReplicas int, workerMilliCPU int64) workloadv1beta2.AppWrapperComponent {
+func pytorchJobForInference(masterMilliCPU int64, workerReplicas int, workerMilliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(pytorchJobYAML,
 		randName("pytorch-job"),
 		resource.NewMilliQuantity(masterMilliCPU, resource.DecimalSI),
@@ -543,7 +543,7 @@ func pytorchJobForInference(masterMilliCPU int64, workerReplicas int, workerMill
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }
@@ -576,7 +576,7 @@ spec:
                     cpu: %v
 `
 
-func rayJobForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrapperComponent {
+func rayJobForInference(workerCount int, milliCPU int64) awv1beta2.AppWrapperComponent {
 	yamlString := fmt.Sprintf(rayJobYAML,
 		randName("rayjob"),
 		workerCount,
@@ -584,7 +584,7 @@ func rayJobForInference(workerCount int, milliCPU int64) workloadv1beta2.AppWrap
 
 	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
 	Expect(err).NotTo(HaveOccurred())
-	return workloadv1beta2.AppWrapperComponent{
+	return awv1beta2.AppWrapperComponent{
 		Template: runtime.RawExtension{Raw: jsonBytes},
 	}
 }

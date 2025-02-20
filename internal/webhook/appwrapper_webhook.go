@@ -32,18 +32,16 @@ import (
 	"k8s.io/client-go/kubernetes"
 	authClientv1 "k8s.io/client-go/kubernetes/typed/authorization/v1"
 	"k8s.io/utils/ptr"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
-
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
@@ -81,7 +79,7 @@ var _ webhook.CustomDefaulter = &appWrapperWebhook{}
 //  2. Ensure Suspend is set appropriately
 //  3. Add labels with the user name and id
 func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
-	aw := obj.(*workloadv1beta2.AppWrapper)
+	aw := obj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Applying defaults", "job", aw)
 
 	// Queue name and Suspend
@@ -113,7 +111,7 @@ var _ webhook.CustomValidator = &appWrapperWebhook{}
 
 // ValidateCreate validates invariants when an AppWrapper is created
 func (w *appWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	aw := obj.(*workloadv1beta2.AppWrapper)
+	aw := obj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Validating create", "job", aw)
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
 	if w.enableKueueIntegrations {
@@ -124,8 +122,8 @@ func (w *appWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 
 // ValidateUpdate validates invariants when an AppWrapper is updated
 func (w *appWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	oldAW := oldObj.(*workloadv1beta2.AppWrapper)
-	newAW := newObj.(*workloadv1beta2.AppWrapper)
+	oldAW := oldObj.(*awv1beta2.AppWrapper)
+	newAW := newObj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Validating update", "job", newAW)
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
 	if w.enableKueueIntegrations {
@@ -149,7 +147,7 @@ func (w *appWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (adm
 //  3. AppWrappers must not contain any resources that the user could not create directly
 //  4. Every PodSet must be well-formed: the Path must exist and must be parseable as a PodSpecTemplate
 //  5. AppWrappers must contain between 1 and 8 PodSets (Kueue invariant)
-func (w *appWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *workloadv1beta2.AppWrapper) field.ErrorList {
+func (w *appWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *awv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	components := aw.Spec.Components
 	componentsPath := field.NewPath("spec").Child("components")
@@ -251,7 +249,7 @@ func (w *appWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *wo
 }
 
 // validateAppWrapperUpdate enforces deep immutablity of all fields that were validated by validateAppWrapperCreate
-func (w *appWrapperWebhook) validateAppWrapperUpdate(old *workloadv1beta2.AppWrapper, new *workloadv1beta2.AppWrapper) field.ErrorList {
+func (w *appWrapperWebhook) validateAppWrapperUpdate(old *awv1beta2.AppWrapper, new *awv1beta2.AppWrapper) field.ErrorList {
 	allErrors := field.ErrorList{}
 	msg := "attempt to change immutable field"
 	componentsPath := field.NewPath("spec").Child("components")
@@ -340,7 +338,7 @@ func SetupAppWrapperWebhook(mgr ctrl.Manager, awConfig *config.AppWrapperConfig)
 	}
 
 	return ctrl.NewWebhookManagedBy(mgr).
-		For(&workloadv1beta2.AppWrapper{}).
+		For(&awv1beta2.AppWrapper{}).
 		WithDefaulter(wh).
 		WithValidator(wh).
 		Complete()

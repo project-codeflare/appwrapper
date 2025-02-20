@@ -40,7 +40,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
@@ -68,7 +68,7 @@ func extendContextWithClient(ctx context.Context) context.Context {
 	baseConfig := ctrl.GetConfigOrDie()
 	scheme := runtime.NewScheme()
 	Expect(clientgoscheme.AddToScheme(scheme)).To(Succeed())
-	Expect(workloadv1beta2.AddToScheme(scheme)).To(Succeed())
+	Expect(awv1beta2.AddToScheme(scheme)).To(Succeed())
 	Expect(kueue.AddToScheme(scheme)).To(Succeed())
 
 	// Create a client with full permissions
@@ -145,7 +145,7 @@ func ensureTestQueuesExist(ctx context.Context) {
 	Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
 }
 
-func cleanupTestObjects(ctx context.Context, appwrappers []*workloadv1beta2.AppWrapper) {
+func cleanupTestObjects(ctx context.Context, appwrappers []*awv1beta2.AppWrapper) {
 	if appwrappers == nil {
 		return
 	}
@@ -162,32 +162,32 @@ func cleanupTestObjects(ctx context.Context, appwrappers []*workloadv1beta2.AppW
 
 func deleteAppWrapper(ctx context.Context, name string, namespace string) error {
 	foreground := metav1.DeletePropagationForeground
-	aw := &workloadv1beta2.AppWrapper{ObjectMeta: metav1.ObjectMeta{
+	aw := &awv1beta2.AppWrapper{ObjectMeta: metav1.ObjectMeta{
 		Name:      name,
 		Namespace: namespace,
 	}}
 	return getClient(ctx).Delete(ctx, aw, &client.DeleteOptions{PropagationPolicy: &foreground})
 }
 
-func createAppWrapper(ctx context.Context, components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
+func createAppWrapper(ctx context.Context, components ...awv1beta2.AppWrapperComponent) *awv1beta2.AppWrapper {
 	aw := toAppWrapper(components...)
 	Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 	return aw
 }
 
-func toAppWrapper(components ...workloadv1beta2.AppWrapperComponent) *workloadv1beta2.AppWrapper {
-	return &workloadv1beta2.AppWrapper{
-		TypeMeta: metav1.TypeMeta{APIVersion: workloadv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
+func toAppWrapper(components ...awv1beta2.AppWrapperComponent) *awv1beta2.AppWrapper {
+	return &awv1beta2.AppWrapper{
+		TypeMeta: metav1.TypeMeta{APIVersion: awv1beta2.GroupVersion.String(), Kind: "AppWrapper"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      randName("aw"),
 			Namespace: testNamespace,
 			Labels:    map[string]string{kc.QueueLabel: testQueueName},
 		},
-		Spec: workloadv1beta2.AppWrapperSpec{Components: components},
+		Spec: awv1beta2.AppWrapperSpec{Components: components},
 	}
 }
 
-func updateAppWrapper(ctx context.Context, awName types.NamespacedName, update func(*workloadv1beta2.AppWrapper)) error {
+func updateAppWrapper(ctx context.Context, awName types.NamespacedName, update func(*awv1beta2.AppWrapper)) error {
 	for {
 		aw := getAppWrapper(ctx, awName)
 		update(aw)
@@ -201,8 +201,8 @@ func updateAppWrapper(ctx context.Context, awName types.NamespacedName, update f
 	}
 }
 
-func getAppWrapper(ctx context.Context, awName types.NamespacedName) *workloadv1beta2.AppWrapper {
-	aw := &workloadv1beta2.AppWrapper{}
+func getAppWrapper(ctx context.Context, awName types.NamespacedName) *awv1beta2.AppWrapper {
+	aw := &awv1beta2.AppWrapper{}
 	err := getClient(ctx).Get(ctx, awName, aw)
 	Expect(err).NotTo(HaveOccurred())
 	return aw
@@ -215,7 +215,7 @@ func getNodeForAppwrapper(ctx context.Context, awName types.NamespacedName) (str
 		return "", err
 	}
 	for _, pod := range podList.Items {
-		if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName.Name {
+		if awn, found := pod.Labels[awv1beta2.AppWrapperLabel]; found && awn == awName.Name {
 			return pod.Spec.NodeName, nil
 		}
 	}
@@ -248,7 +248,7 @@ func podsInPhase(awNamespace string, awName string, phase []v1.PodPhase, minimum
 
 		matchingPodCount := int32(0)
 		for _, pod := range podList.Items {
-			if awn, found := pod.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName {
+			if awn, found := pod.Labels[awv1beta2.AppWrapperLabel]; found && awn == awName {
 				for _, p := range phase {
 					if pod.Status.Phase == p {
 						matchingPodCount++
@@ -271,7 +271,7 @@ func noPodsExist(awNamespace string, awName string) wait.ConditionWithContextFun
 		}
 
 		for _, podFromPodList := range podList.Items {
-			if awn, found := podFromPodList.Labels[workloadv1beta2.AppWrapperLabel]; found && awn == awName {
+			if awn, found := podFromPodList.Labels[awv1beta2.AppWrapperLabel]; found && awn == awName {
 				return false, nil
 			}
 		}
@@ -283,7 +283,7 @@ func waitAWPodsDeleted(ctx context.Context, awNamespace string, awName string) e
 	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 90*time.Second, true, noPodsExist(awNamespace, awName))
 }
 
-func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error {
+func waitAWPodsReady(ctx context.Context, aw *awv1beta2.AppWrapper) error {
 	numExpected, err := utils.ExpectedPodCount(aw)
 	if err != nil {
 		return err
@@ -292,7 +292,7 @@ func waitAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) error 
 	return wait.PollUntilContextTimeout(ctx, 100*time.Millisecond, 120*time.Second, true, podsInPhase(aw.Namespace, aw.Name, phases, numExpected))
 }
 
-func checkAllAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
+func checkAllAWPodsReady(ctx context.Context, aw *awv1beta2.AppWrapper) bool {
 	numExpected, err := utils.ExpectedPodCount(aw)
 	if err != nil {
 		return false
@@ -302,18 +302,18 @@ func checkAllAWPodsReady(ctx context.Context, aw *workloadv1beta2.AppWrapper) bo
 	return err == nil
 }
 
-func checkAppWrapperRunning(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
-	aw2 := &workloadv1beta2.AppWrapper{}
+func checkAppWrapperRunning(ctx context.Context, aw *awv1beta2.AppWrapper) bool {
+	aw2 := &awv1beta2.AppWrapper{}
 	err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: aw.Namespace, Name: aw.Name}, aw2)
 	Expect(err).NotTo(HaveOccurred())
-	return aw2.Status.Phase == workloadv1beta2.AppWrapperRunning
+	return aw2.Status.Phase == awv1beta2.AppWrapperRunning
 }
 
-func AppWrapperPhase(ctx context.Context, aw *workloadv1beta2.AppWrapper) func(g Gomega) workloadv1beta2.AppWrapperPhase {
+func AppWrapperPhase(ctx context.Context, aw *awv1beta2.AppWrapper) func(g Gomega) awv1beta2.AppWrapperPhase {
 	name := aw.Name
 	namespace := aw.Namespace
-	return func(g Gomega) workloadv1beta2.AppWrapperPhase {
-		aw := &workloadv1beta2.AppWrapper{}
+	return func(g Gomega) awv1beta2.AppWrapperPhase {
+		aw := &awv1beta2.AppWrapper{}
 		err := getClient(ctx).Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, aw)
 		g.Expect(err).NotTo(HaveOccurred())
 		return aw.Status.Phase

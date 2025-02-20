@@ -17,6 +17,8 @@ limitations under the License.
 package workload
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
@@ -27,7 +29,7 @@ import (
 	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 	"sigs.k8s.io/kueue/pkg/podset"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
@@ -39,10 +41,10 @@ import (
 // +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=resourceflavors,verbs=get;list;watch
 // +kubebuilder:rbac:groups=kueue.x-k8s.io,resources=workloadpriorityclasses,verbs=get;list;watch
 
-type AppWrapper workloadv1beta2.AppWrapper
+type AppWrapper awv1beta2.AppWrapper
 
 var (
-	GVK                = workloadv1beta2.GroupVersion.WithKind("AppWrapper")
+	GVK                = awv1beta2.GroupVersion.WithKind("AppWrapper")
 	WorkloadReconciler = jobframework.NewGenericReconcilerFactory(
 		func() jobframework.GenericJob { return &AppWrapper{} },
 		func(b *builder.Builder, c client.Client) *builder.Builder {
@@ -52,7 +54,7 @@ var (
 )
 
 func (aw *AppWrapper) Object() client.Object {
-	return (*workloadv1beta2.AppWrapper)(aw)
+	return (*awv1beta2.AppWrapper)(aw)
 }
 
 func (aw *AppWrapper) IsSuspended() bool {
@@ -60,7 +62,7 @@ func (aw *AppWrapper) IsSuspended() bool {
 }
 
 func (aw *AppWrapper) IsActive() bool {
-	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.QuotaReserved))
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))
 }
 
 func (aw *AppWrapper) Suspend() {
@@ -72,37 +74,51 @@ func (aw *AppWrapper) GVK() schema.GroupVersionKind {
 }
 
 func (aw *AppWrapper) PodSets() []kueue.PodSet {
-	podSets, err := utils.GetPodSets((*workloadv1beta2.AppWrapper)(aw))
+	podSpecTemplates, awPodSets, err := utils.GetComponentPodSpecs((*awv1beta2.AppWrapper)(aw))
 	if err != nil {
 		// Kueue will raise an error on zero length PodSet; the Kueue GenericJob API prevents propagating the actual error.
 		return []kueue.PodSet{}
 	}
-	for psIndex := range podSets {
-		podSets[psIndex].TopologyRequest = jobframework.PodSetTopologyRequest(&podSets[psIndex].Template.ObjectMeta, nil, nil, nil)
+	podSets := []kueue.PodSet{}
+	for psIndex := range podSpecTemplates {
+		podSets = append(podSets, kueue.PodSet{
+			Name:            fmt.Sprintf("%s-%v", aw.Name, psIndex),
+			Template:        *podSpecTemplates[psIndex],
+			Count:           utils.Replicas(awPodSets[psIndex]),
+			TopologyRequest: jobframework.PodSetTopologyRequest(&(podSpecTemplates[psIndex].ObjectMeta), nil, nil, nil),
+		})
 	}
-
 	return podSets
 }
 
 func (aw *AppWrapper) RunWithPodSetsInfo(podSetsInfo []podset.PodSetInfo) error {
-	if err := utils.SetPodSetInfos((*workloadv1beta2.AppWrapper)(aw), podSetsInfo); err != nil {
-		return err
+	awPodSetsInfo := make([]awv1beta2.AppWrapperPodSetInfo, len(podSetsInfo))
+	for idx := range podSetsInfo {
+		awPodSetsInfo[idx].Annotations = podSetsInfo[idx].Annotations
+		awPodSetsInfo[idx].Labels = podSetsInfo[idx].Labels
+		awPodSetsInfo[idx].NodeSelector = podSetsInfo[idx].NodeSelector
+		awPodSetsInfo[idx].Tolerations = podSetsInfo[idx].Tolerations
+		awPodSetsInfo[idx].SchedulingGates = podSetsInfo[idx].SchedulingGates
+	}
+
+	if err := utils.SetPodSetInfos((*awv1beta2.AppWrapper)(aw), awPodSetsInfo); err != nil {
+		return fmt.Errorf("%w: %v", podset.ErrInvalidPodsetInfo, err)
 	}
 	aw.Spec.Suspend = false
 	return nil
 }
 
 func (aw *AppWrapper) RestorePodSetsInfo(podSetsInfo []podset.PodSetInfo) bool {
-	return utils.ClearPodSetInfos((*workloadv1beta2.AppWrapper)(aw))
+	return utils.ClearPodSetInfos((*awv1beta2.AppWrapper)(aw))
 }
 
 func (aw *AppWrapper) Finished() (message string, success, finished bool) {
 	switch aw.Status.Phase {
-	case workloadv1beta2.AppWrapperSucceeded:
+	case awv1beta2.AppWrapperSucceeded:
 		return "AppWrapper finished successfully", true, true
 
-	case workloadv1beta2.AppWrapperFailed:
-		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+	case awv1beta2.AppWrapperFailed:
+		if meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed)) {
 			return "Still deleting resources for failed AppWrapper", false, false
 		} else {
 			return "AppWrapper failed", false, true
@@ -112,5 +128,5 @@ func (aw *AppWrapper) Finished() (message string, success, finished bool) {
 }
 
 func (aw *AppWrapper) PodsReady() bool {
-	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(workloadv1beta2.PodsReady))
+	return meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.PodsReady))
 }

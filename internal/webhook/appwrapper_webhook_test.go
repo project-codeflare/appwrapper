@@ -21,13 +21,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
+
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 )
 
 var _ = Describe("AppWrapper Webhook Tests", func() {
@@ -149,8 +148,8 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			child := toAppWrapper(pod(100))
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
-			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
-				DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{},
+			aw := toAppWrapper(pod(100), awv1beta2.AppWrapperComponent{
+				DeclaredPodSets: []awv1beta2.AppWrapperPodSet{},
 				Template:        runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(k8sClient.Create(ctx, aw)).ShouldNot(Succeed())
@@ -197,7 +196,7 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				Expect(k8sClient.Update(ctx, aw)).Should(Succeed())
 
 				aw = getAppWrapper(awName)
-				aw.Spec.Components[1].PodSetInfos = make([]workloadv1beta2.AppWrapperPodSetInfo, 1)
+				aw.Spec.Components[1].PodSetInfos = make([]awv1beta2.AppWrapperPodSetInfo, 1)
 				Expect(k8sClient.Update(ctx, aw)).Should(Succeed())
 			})
 

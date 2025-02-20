@@ -22,7 +22,8 @@ import (
 	"fmt"
 	"time"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,8 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/kueue/pkg/podset"
-	utilmaps "sigs.k8s.io/kueue/pkg/util/maps"
 )
 
 func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstructured, error) {
@@ -188,7 +187,7 @@ func addNodeSelectorsToAffinity(spec map[string]interface{}, exprsToAdd []v1.Nod
 }
 
 //gocyclo:ignore
-func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workloadv1beta2.AppWrapper, componentIdx int) (error, bool) {
+func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta2.AppWrapper, componentIdx int) (error, bool) {
 	component := aw.Spec.Components[componentIdx]
 	componentStatus := aw.Status.ComponentStatus[componentIdx]
 	toMap := func(x interface{}) map[string]string {
@@ -218,17 +217,13 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	if err != nil {
 		return err, true
 	}
-	awLabels := map[string]string{workloadv1beta2.AppWrapperLabel: aw.Name}
+	awLabels := map[string]string{awv1beta2.AppWrapperLabel: aw.Name}
 	obj.SetLabels(utilmaps.MergeKeepFirst(obj.GetLabels(), awLabels))
 
 	for podSetsIdx, podSet := range componentStatus.PodSets {
-		toInject := &workloadv1beta2.AppWrapperPodSetInfo{}
-		if r.Config.EnableKueueIntegrations {
-			if podSetsIdx < len(component.PodSetInfos) {
-				toInject = &component.PodSetInfos[podSetsIdx]
-			} else {
-				return fmt.Errorf("missing podSetInfo %v for component %v", podSetsIdx, componentIdx), true
-			}
+		toInject := &awv1beta2.AppWrapperPodSetInfo{}
+		if podSetsIdx < len(component.PodSetInfos) {
+			toInject = &component.PodSetInfos[podSetsIdx]
 		}
 
 		p, err := utils.GetRawTemplate(obj.UnstructuredContent(), podSet.Path)
@@ -245,7 +240,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		if len(toInject.Annotations) > 0 {
 			existing := toMap(metadata["annotations"])
 			if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
-				return podset.BadPodSetsUpdateError("annotations", err), true
+				return fmt.Errorf("conflict updating annotations: %w", err), true
 			}
 			metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
 		}
@@ -254,7 +249,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
 		existing := toMap(metadata["labels"])
 		if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
-			return podset.BadPodSetsUpdateError("labels", err), true
+			return fmt.Errorf("conflict updating labels: %w", err), true
 		}
 		metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
 
@@ -262,7 +257,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 		if len(toInject.NodeSelector) > 0 {
 			existing := toMap(spec["nodeSelector"])
 			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
-				return podset.BadPodSetsUpdateError("nodeSelector", err), true
+				return fmt.Errorf("conflict updating nodeSelector: %w", err), true
 			}
 			spec["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 		}
@@ -354,12 +349,12 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	log.FromContext(ctx).Info("After injection", "obj", obj)
 
 	orig := copyForStatusPatch(aw)
-	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) == nil {
+	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(awv1beta2.ResourcesDeployed)) == nil {
 		aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
 		aw.Status.ComponentStatus[componentIdx].Kind = obj.GetKind()
 		aw.Status.ComponentStatus[componentIdx].APIVersion = obj.GetAPIVersion()
 		meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-			Type:   string(workloadv1beta2.ResourcesDeployed),
+			Type:   string(awv1beta2.ResourcesDeployed),
 			Status: metav1.ConditionUnknown,
 			Reason: "ComponentCreationInitiated",
 		})
@@ -383,7 +378,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 			// resource not actually created; patch status to reflect that
 			orig := copyForStatusPatch(aw)
 			meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-				Type:   string(workloadv1beta2.ResourcesDeployed),
+				Type:   string(awv1beta2.ResourcesDeployed),
 				Status: metav1.ConditionFalse,
 				Reason: "ComponentCreationErrored",
 			})
@@ -399,7 +394,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 	orig = copyForStatusPatch(aw)
 	aw.Status.ComponentStatus[componentIdx].Name = obj.GetName() // Update name to support usage of GenerateName
 	meta.SetStatusCondition(&aw.Status.ComponentStatus[componentIdx].Conditions, metav1.Condition{
-		Type:   string(workloadv1beta2.ResourcesDeployed),
+		Type:   string(awv1beta2.ResourcesDeployed),
 		Status: metav1.ConditionTrue,
 		Reason: "ComponentCreatedSuccessfully",
 	})
@@ -411,9 +406,9 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *workload
 }
 
 // createComponents incrementally patches aw.Status -- MUST NOT CARRY STATUS PATCHES ACROSS INVOCATIONS
-func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) (error, bool) {
+func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *awv1beta2.AppWrapper) (error, bool) {
 	for componentIdx := range aw.Spec.Components {
-		if !meta.IsStatusConditionTrue(aw.Status.ComponentStatus[componentIdx].Conditions, string(workloadv1beta2.ResourcesDeployed)) {
+		if !meta.IsStatusConditionTrue(aw.Status.ComponentStatus[componentIdx].Conditions, string(awv1beta2.ResourcesDeployed)) {
 			if err, fatal := r.createComponent(ctx, aw, componentIdx); err != nil {
 				return err, fatal
 			}
@@ -422,10 +417,10 @@ func (r *AppWrapperReconciler) createComponents(ctx context.Context, aw *workloa
 	return nil, false
 }
 
-func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloadv1beta2.AppWrapper) bool {
+func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *awv1beta2.AppWrapper) bool {
 	deleteIfPresent := func(idx int, opts ...client.DeleteOption) bool {
 		cs := &aw.Status.ComponentStatus[idx]
-		rd := meta.FindStatusCondition(cs.Conditions, string(workloadv1beta2.ResourcesDeployed))
+		rd := meta.FindStatusCondition(cs.Conditions, string(awv1beta2.ResourcesDeployed))
 		if rd == nil || rd.Status == metav1.ConditionFalse || (rd.Status == metav1.ConditionUnknown && cs.Name == "") {
 			return false // not present
 		}
@@ -437,7 +432,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 			if apierrors.IsNotFound(err) {
 				// Has already been undeployed; update componentStatus and return not present
 				meta.SetStatusCondition(&cs.Conditions, metav1.Condition{
-					Type:   string(workloadv1beta2.ResourcesDeployed),
+					Type:   string(awv1beta2.ResourcesDeployed),
 					Status: metav1.ConditionFalse,
 					Reason: "CompononetDeleted",
 				})
@@ -451,7 +446,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	}
 
 	meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
-		Type:   string(workloadv1beta2.DeletingResources),
+		Type:   string(awv1beta2.DeletingResources),
 		Status: metav1.ConditionTrue,
 		Reason: "DeletionInitiated",
 	})
@@ -462,7 +457,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	}
 
 	deletionGracePeriod := r.forcefulDeletionGraceDuration(ctx, aw)
-	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(workloadv1beta2.DeletingResources)).LastTransitionTime
+	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.DeletingResources)).LastTransitionTime
 	gracePeriodExpired := time.Now().After(whenInitiated.Time.Add(deletionGracePeriod))
 
 	if componentsRemaining && !gracePeriodExpired {
@@ -474,13 +469,13 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *workloa
 	if err := r.List(ctx, pods,
 		client.UnsafeDisableDeepCopy,
 		client.InNamespace(aw.Namespace),
-		client.MatchingLabels{workloadv1beta2.AppWrapperLabel: aw.Name}); err != nil {
+		client.MatchingLabels{awv1beta2.AppWrapperLabel: aw.Name}); err != nil {
 		log.FromContext(ctx).Error(err, "Pod list error")
 	}
 
 	if !componentsRemaining && len(pods.Items) == 0 {
 		// no resources or pods left; deletion is complete
-		clearCondition(aw, workloadv1beta2.DeletingResources, "DeletionComplete", "")
+		clearCondition(aw, awv1beta2.DeletingResources, "DeletionComplete", "")
 		return true
 	}
 

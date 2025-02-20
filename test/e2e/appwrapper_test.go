@@ -31,14 +31,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/ptr"
 
-	workloadv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 )
 
 var _ = Describe("AppWrapper E2E Test", func() {
-	var appwrappers []*workloadv1beta2.AppWrapper
+	var appwrappers []*awv1beta2.AppWrapper
 
 	BeforeEach(func() {
-		appwrappers = []*workloadv1beta2.AppWrapper{}
+		appwrappers = []*awv1beta2.AppWrapper{}
 	})
 
 	AfterEach(func() {
@@ -51,32 +51,32 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			aw := createAppWrapper(ctx, pod(250), pod(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 		})
 		It("Deployments", func() {
 			aw := createAppWrapper(ctx, deployment(2, 200))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 		})
 		It("StatefulSets", func() {
 			aw := createAppWrapper(ctx, statefulset(2, 200))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 		})
 		It("Batch Jobs", func() {
 			aw := createAppWrapper(ctx, batchjob(250))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Consistently(AppWrapperPhase(ctx, aw), 5*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 		})
 
 		It("Mixed Basic Resources", func() {
 			aw := createAppWrapper(ctx, pod(100), deployment(2, 100), statefulset(2, 100), service(), batchjob(100))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Consistently(AppWrapperPhase(ctx, aw), 10*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Consistently(AppWrapperPhase(ctx, aw), 10*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 		})
 	})
 
@@ -93,14 +93,14 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			aw := createAppWrapper(ctx, raycluster(500, 2, 250))
 			appwrappers = append(appwrappers, aw)
 			// Non-functonal RayCluster; will never reach Running Phase
-			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(workloadv1beta2.AppWrapperResuming))
+			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(awv1beta2.AppWrapperResuming))
 		})
 
 		It("RayJobs", func() {
 			aw := createAppWrapper(ctx, rayjob(500, 2, 250))
 			appwrappers = append(appwrappers, aw)
 			// Non-functonal RayJob; will never reach Running Phase
-			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(workloadv1beta2.AppWrapperResuming))
+			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(awv1beta2.AppWrapperResuming))
 		})
 	})
 
@@ -111,7 +111,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			// TODO: Need dev versions of kueue/jobset to get correct handling of ownership
 			//       Once those are released change the test to:
 			// Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(workloadv1beta2.AppWrapperResuming))
+			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(awv1beta2.AppWrapperResuming))
 		})
 	})
 
@@ -195,8 +195,8 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			child := toAppWrapper(pod(100))
 			childBytes, err := json.Marshal(child)
 			Expect(err).ShouldNot(HaveOccurred())
-			aw := toAppWrapper(pod(100), workloadv1beta2.AppWrapperComponent{
-				DeclaredPodSets: []workloadv1beta2.AppWrapperPodSet{},
+			aw := toAppWrapper(pod(100), awv1beta2.AppWrapperComponent{
+				DeclaredPodSets: []awv1beta2.AppWrapperPodSet{},
 				Template:        runtime.RawExtension{Raw: childBytes},
 			})
 			Expect(getClient(ctx).Create(ctx, aw)).ShouldNot(Succeed())
@@ -207,23 +207,23 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			appwrappers = append(appwrappers, aw)
 			awName := types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
 
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+			Expect(updateAppWrapper(ctx, awName, func(aw *awv1beta2.AppWrapper) {
 				aw.Spec.Components[0].Template = aw.Spec.Components[1].Template
 			})).ShouldNot(Succeed())
 
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+			Expect(updateAppWrapper(ctx, awName, func(aw *awv1beta2.AppWrapper) {
 				aw.Spec.Components = append(aw.Spec.Components, aw.Spec.Components[0])
 			})).ShouldNot(Succeed())
 
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+			Expect(updateAppWrapper(ctx, awName, func(aw *awv1beta2.AppWrapper) {
 				aw.Spec.Components[0].DeclaredPodSets = append(aw.Spec.Components[0].DeclaredPodSets, aw.Spec.Components[0].DeclaredPodSets...)
 			})).ShouldNot(Succeed())
 
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+			Expect(updateAppWrapper(ctx, awName, func(aw *awv1beta2.AppWrapper) {
 				aw.Spec.Components[0].DeclaredPodSets[0].Path = "bad"
 			})).ShouldNot(Succeed())
 
-			Expect(updateAppWrapper(ctx, awName, func(aw *workloadv1beta2.AppWrapper) {
+			Expect(updateAppWrapper(ctx, awName, func(aw *awv1beta2.AppWrapper) {
 				aw.Spec.Components[0].DeclaredPodSets[0].Replicas = ptr.To(int32(12))
 			})).ShouldNot(Succeed())
 		})
@@ -255,12 +255,12 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			By("Jobs should be queued when quota is exhausted")
 			aw3 := createAppWrapper(ctx, deployment(2, 250))
 			appwrappers = append(appwrappers, aw3)
-			Eventually(AppWrapperPhase(ctx, aw3), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
-			Consistently(AppWrapperPhase(ctx, aw3), 20*time.Second).Should(Equal(workloadv1beta2.AppWrapperSuspended))
+			Eventually(AppWrapperPhase(ctx, aw3), 30*time.Second).Should(Equal(awv1beta2.AppWrapperSuspended))
+			Consistently(AppWrapperPhase(ctx, aw3), 20*time.Second).Should(Equal(awv1beta2.AppWrapperSuspended))
 
 			By("Queued job is admitted when quota becomes available")
 			Expect(deleteAppWrapper(ctx, aw.Name, aw.Namespace)).Should(Succeed())
-			appwrappers = []*workloadv1beta2.AppWrapper{aw2, aw3}
+			appwrappers = []*awv1beta2.AppWrapper{aw2, aw3}
 			Expect(waitAWPodsReady(ctx, aw3)).Should(Succeed())
 		})
 	})
@@ -291,7 +291,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			aw := createAppWrapper(ctx, succeedingBatchjob(500))
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperSucceeded))
+			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(awv1beta2.AppWrapperSucceeded))
 		})
 
 		It("A failed Batch Job will be Reset up to retryLimit and then Failed", func() {
@@ -299,14 +299,14 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			if aw.Annotations == nil {
 				aw.Annotations = make(map[string]string)
 			}
-			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "0s"
-			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "2"
-			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
+			aw.Annotations[awv1beta2.FailureGracePeriodDurationAnnotation] = "0s"
+			aw.Annotations[awv1beta2.RetryLimitAnnotation] = "2"
+			aw.Annotations[awv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
 			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
-			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			Eventually(AppWrapperPhase(ctx, aw), 90*time.Second).Should(Equal(awv1beta2.AppWrapperResetting))
+			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(awv1beta2.AppWrapperFailed))
 			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
 			Expect(aw.Status.Retries).Should(Equal(int32(2)))
 		})
@@ -314,14 +314,14 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		It("Deleting a Running Component yields a failed AppWrapper", func() {
 			aw := createAppWrapper(ctx, pytorchjob(2, 500))
 			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
 			toDelete := &metav1.PartialObjectMetadata{
 				TypeMeta:   metav1.TypeMeta{Kind: aw.Status.ComponentStatus[0].Kind, APIVersion: aw.Status.ComponentStatus[0].APIVersion},
 				ObjectMeta: metav1.ObjectMeta{Name: aw.Status.ComponentStatus[0].Name, Namespace: aw.Namespace},
 			}
 			Expect(getClient(ctx).Delete(ctx, toDelete)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			Eventually(AppWrapperPhase(ctx, aw), 60*time.Second).Should(Equal(awv1beta2.AppWrapperFailed))
 		})
 	})
 
@@ -342,9 +342,9 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			err = updateNode(ctx, nodeName, func(n *v1.Node) { n.Labels["autopilot.ibm.com/gpuhealth"] = "EVICT" })
 			Expect(err).ShouldNot(HaveOccurred())
 			By("workload is reset")
-			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
+			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(awv1beta2.AppWrapperResetting))
 			By("workload is running again")
-			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
+			Eventually(AppWrapperPhase(ctx, aw), 120*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
 			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 	})
@@ -355,15 +355,15 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			if aw.Annotations == nil {
 				aw.Annotations = make(map[string]string)
 			}
-			aw.Annotations[workloadv1beta2.FailureGracePeriodDurationAnnotation] = "10s"
-			aw.Annotations[workloadv1beta2.WarmupGracePeriodDurationAnnotation] = "10s"
-			aw.Annotations[workloadv1beta2.RetryLimitAnnotation] = "1"
-			aw.Annotations[workloadv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
+			aw.Annotations[awv1beta2.FailureGracePeriodDurationAnnotation] = "10s"
+			aw.Annotations[awv1beta2.WarmupGracePeriodDurationAnnotation] = "10s"
+			aw.Annotations[awv1beta2.RetryLimitAnnotation] = "1"
+			aw.Annotations[awv1beta2.RetryPausePeriodDurationAnnotation] = "5s"
 			Expect(getClient(ctx).Create(ctx, aw)).To(Succeed())
 			appwrappers = append(appwrappers, aw)
-			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperRunning))
-			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(workloadv1beta2.AppWrapperResetting))
-			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(workloadv1beta2.AppWrapperFailed))
+			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(awv1beta2.AppWrapperRunning))
+			Eventually(AppWrapperPhase(ctx, aw), 30*time.Second).Should(Equal(awv1beta2.AppWrapperResetting))
+			Eventually(AppWrapperPhase(ctx, aw), 180*time.Second).Should(Equal(awv1beta2.AppWrapperFailed))
 			aw = getAppWrapper(ctx, types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace})
 			Expect(aw.Status.Retries).Should(Equal(int32(1)))
 		})
@@ -387,7 +387,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			By("Polling for all AppWrappers to be Running")
 			err := wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 1*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 				t := time.Now()
-				toCheckAWS := make([]*workloadv1beta2.AppWrapper, 0, len(appwrappers))
+				toCheckAWS := make([]*awv1beta2.AppWrapper, 0, len(appwrappers))
 				for _, aw := range nonRunningAWs {
 					if !checkAppWrapperRunning(ctx, aw) {
 						toCheckAWS = append(toCheckAWS, aw)
@@ -413,7 +413,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 			nonReadyAWs := appwrappers
 			err = wait.PollUntilContextTimeout(ctx, 500*time.Millisecond, 3*time.Minute, false, func(ctx context.Context) (done bool, err error) {
 				t := time.Now()
-				toCheckAWS := make([]*workloadv1beta2.AppWrapper, 0, len(appwrappers))
+				toCheckAWS := make([]*awv1beta2.AppWrapper, 0, len(appwrappers))
 				for _, aw := range nonReadyAWs {
 					if !checkAllAWPodsReady(ctx, aw) {
 						toCheckAWS = append(toCheckAWS, aw)
