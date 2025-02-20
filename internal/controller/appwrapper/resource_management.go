@@ -35,7 +35,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/kueue/pkg/podset"
 )
 
 func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstructured, error) {
@@ -241,7 +240,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 		if len(toInject.Annotations) > 0 {
 			existing := toMap(metadata["annotations"])
 			if err := utilmaps.HaveConflict(existing, toInject.Annotations); err != nil {
-				return podset.BadPodSetsUpdateError("annotations", err), true
+				return fmt.Errorf("conflict updating annotations: %w", err), true
 			}
 			metadata["annotations"] = utilmaps.MergeKeepFirst(existing, toInject.Annotations)
 		}
@@ -250,7 +249,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 		mergedLabels := utilmaps.MergeKeepFirst(toInject.Labels, awLabels)
 		existing := toMap(metadata["labels"])
 		if err := utilmaps.HaveConflict(existing, mergedLabels); err != nil {
-			return podset.BadPodSetsUpdateError("labels", err), true
+			return fmt.Errorf("conflict updating labels: %w", err), true
 		}
 		metadata["labels"] = utilmaps.MergeKeepFirst(existing, mergedLabels)
 
@@ -258,7 +257,7 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 		if len(toInject.NodeSelector) > 0 {
 			existing := toMap(spec["nodeSelector"])
 			if err := utilmaps.HaveConflict(existing, toInject.NodeSelector); err != nil {
-				return podset.BadPodSetsUpdateError("nodeSelector", err), true
+				return fmt.Errorf("conflict updating nodeSelector: %w", err), true
 			}
 			spec["nodeSelector"] = utilmaps.MergeKeepFirst(existing, toInject.NodeSelector)
 		}

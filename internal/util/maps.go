@@ -15,11 +15,12 @@ limitations under the License.
 */
 
 /*
-	This file contains a copy of the functions from https://github.com/kubernetes-sigs/kueue/blob/main/pkg/util/maps/maps.go
+	This file contains a copy of the two map utility functions from
+	https://github.com/kubernetes-sigs/kueue/blob/main/pkg/util/maps/maps.go
 	that are used by the AppWrapper controlller.
 
-	We copy the used functions to eliminate our go dependency on Kueue, which simplifies bundling AppWrapper
-	in the codeflare-operator in RedHat OpenShift AI.
+	We "vendor" the used functions to eliminate our go dependency on Kueue.
+	This simplifies bundling AppWrapper in the codeflare-operator in RedHat OpenShift AI.
 */
 
 package maps
