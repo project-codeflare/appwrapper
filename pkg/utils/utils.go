@@ -385,7 +385,7 @@ func SetPodSetInfos(aw *awv1beta2.AppWrapper, podSetsInfo []awv1beta2.AppWrapper
 			if podSetsInfoIndex > len(podSetsInfo) {
 				continue // we will return an error below...continuing to get an accurate count for the error message
 			}
-			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = podSetsInfo[podSetIdx]
+			aw.Spec.Components[idx].PodSetInfos[podSetIdx] = podSetsInfo[podSetsInfoIndex-1]
 		}
 	}
 
