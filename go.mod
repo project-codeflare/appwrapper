@@ -19,7 +19,7 @@ require (
 	sigs.k8s.io/controller-runtime v0.19.3
 	sigs.k8s.io/controller-tools v0.16.5
 	sigs.k8s.io/jobset v0.7.1
-	sigs.k8s.io/kueue v0.10.1
+	sigs.k8s.io/kueue v0.10.2
 	sigs.k8s.io/kustomize/kustomize/v5 v5.5.0
 	sigs.k8s.io/yaml v1.4.0
 )
