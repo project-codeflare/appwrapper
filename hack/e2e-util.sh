@@ -23,10 +23,10 @@ export KUTTL_VERSION=0.15.0
 DUMP_LOGS="true"
 
 # These must be kept in synch -- we pull and load the image to mitigate dockerhub rate limits
-export KUBEFLOW_VERSION=v1.7.0
-export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-855e096"
+export KUBEFLOW_VERSION=v1.8.1
+export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-5170a36"
 
-export KUBERAY_VERSION=1.1.0
+export KUBERAY_VERSION=1.1.1
 export IMAGE_KUBERAY_OPERATOR="quay.io/kuberay/operator:v1.1.1"
 
 export JOBSET_VERSION=v0.7.3
