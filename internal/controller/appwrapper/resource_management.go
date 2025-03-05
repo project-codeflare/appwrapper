@@ -346,8 +346,6 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 		return err, true
 	}
 
-	log.FromContext(ctx).Info("After injection", "obj", obj)
-
 	orig := copyForStatusPatch(aw)
 	if meta.FindStatusCondition(aw.Status.ComponentStatus[componentIdx].Conditions, string(awv1beta2.ResourcesDeployed)) == nil {
 		aw.Status.ComponentStatus[componentIdx].Name = obj.GetName()
