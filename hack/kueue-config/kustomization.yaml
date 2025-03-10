@@ -17,21 +17,6 @@ images:
 
 patches:
 - target:
-    kind: ClusterRole
-    name: manager-role
-  patch: |
-    - op: add
-      path: /rules/-
-      value:
-        apiGroups:
-        - workload.codeflare.dev
-        resources:
-        - appwrappers
-        verbs:
-        - get
-        - list
-        - watch
-- target:
     kind: Deployment
     name: controller-manager
   patch: |
