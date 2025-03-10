@@ -21,9 +21,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/kueue/apis/config/v1beta1"
 )
 
 type OperatorConfig struct {
@@ -34,21 +32,12 @@ type OperatorConfig struct {
 }
 
 type AppWrapperConfig struct {
-	EnableKueueIntegrations bool                       `json:"enableKueueIntegrations,omitempty"`
-	KueueJobReconciller     *KueueJobReconcillerConfig `json:"kueueJobReconciller,omitempty"`
-	Autopilot               *AutopilotConfig           `json:"autopilot,omitempty"`
-	UserRBACAdmissionCheck  bool                       `json:"userRBACAdmissionCheck,omitempty"`
-	FaultTolerance          *FaultToleranceConfig      `json:"faultTolerance,omitempty"`
-	SchedulerName           string                     `json:"schedulerName,omitempty"`
-	DefaultQueueName        string                     `json:"defaultQueueName,omitempty"`
-	SlackQueueName          string                     `json:"slackQueueName,omitempty"`
-}
-
-type KueueJobReconcillerConfig struct {
-	ManageJobsWithoutQueueName  bool                      `json:"manageJobsWithoutQueueName,omitempty"`
-	ManageJobsNamespaceSelector *metav1.LabelSelector     `json:"manageJobsNamespaceSelector,omitempty"`
-	WaitForPodsReady            *v1beta1.WaitForPodsReady `json:"waitForPodsReady,omitempty"`
-	LabelKeysToCopy             []string                  `json:"labelKeysToCopy,omitempty"`
+	Autopilot              *AutopilotConfig      `json:"autopilot,omitempty"`
+	UserRBACAdmissionCheck bool                  `json:"userRBACAdmissionCheck,omitempty"`
+	FaultTolerance         *FaultToleranceConfig `json:"faultTolerance,omitempty"`
+	SchedulerName          string                `json:"schedulerName,omitempty"`
+	DefaultQueueName       string                `json:"defaultQueueName,omitempty"`
+	SlackQueueName         string                `json:"slackQueueName,omitempty"`
 }
 
 type AutopilotConfig struct {
@@ -98,21 +87,6 @@ type HealthConfiguration struct {
 // NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
-		EnableKueueIntegrations: true,
-		KueueJobReconciller: &KueueJobReconcillerConfig{
-			ManageJobsWithoutQueueName: true,
-			ManageJobsNamespaceSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      "kubernetes.io/metadata.name",
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"kube-system", "kueue-system", "appwrapper-system"},
-					},
-				},
-			},
-			WaitForPodsReady: &v1beta1.WaitForPodsReady{Enable: true},
-			LabelKeysToCopy:  []string{},
-		},
 		Autopilot: &AutopilotConfig{
 			InjectAntiAffinities: true,
 			MonitorNodes:         true,

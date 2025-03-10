@@ -4,8 +4,6 @@ metadata:
   name: operator-config
 data:
   config.yaml: |
-    appwrapper:
-      enableKueueIntegrations: true
     controllerManager:
       health:
         bindAddress: ":8081"

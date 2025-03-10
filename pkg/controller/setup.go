@@ -30,27 +30,12 @@ import (
 	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
-	"github.com/project-codeflare/appwrapper/internal/controller/workload"
 	"github.com/project-codeflare/appwrapper/internal/webhook"
 	"github.com/project-codeflare/appwrapper/pkg/config"
-
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 )
 
 // SetupControllers creates and configures all components of the AppWrapper controller
 func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	if awConfig.EnableKueueIntegrations {
-		if err := workload.WorkloadReconciler(
-			mgr.GetClient(),
-			mgr.GetEventRecorderFor("kueue"),
-			jobframework.WithManageJobsWithoutQueueName(awConfig.KueueJobReconciller.ManageJobsWithoutQueueName),
-			jobframework.WithWaitForPodsReady(awConfig.KueueJobReconciller.WaitForPodsReady),
-			jobframework.WithLabelKeysToCopy(awConfig.KueueJobReconciller.LabelKeysToCopy),
-		).SetupWithManager(mgr); err != nil {
-			return fmt.Errorf("workload controller: %w", err)
-		}
-	}
-
 	if awConfig.Autopilot != nil && awConfig.Autopilot.MonitorNodes {
 		conduit := make(chan event.GenericEvent, 1)
 		if err := (&appwrapper.NodeHealthMonitor{
@@ -92,11 +77,6 @@ func SetupWebhooks(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
 }
 
 func SetupIndexers(ctx context.Context, mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	if awConfig.EnableKueueIntegrations {
-		if err := jobframework.SetupWorkloadOwnerIndex(ctx, mgr.GetFieldIndexer(), workload.GVK); err != nil {
-			return fmt.Errorf("workload indexer: %w", err)
-		}
-	}
 	return nil
 }
 
