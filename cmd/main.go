@@ -47,8 +47,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/yaml"
 
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"github.com/project-codeflare/appwrapper/internal/metrics"
 	"github.com/project-codeflare/appwrapper/pkg/config"
@@ -66,7 +64,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(kueue.AddToScheme(scheme))
 	utilruntime.Must(awv1beta2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }

@@ -39,7 +39,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -66,7 +65,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "config", "crd", "bases"),
-			filepath.Join("..", "..", "..", "dep-crds", "kueue")},
+		},
 		ErrorIfCRDPathMissing: true,
 
 		// The BinaryAssetsDirectory is only required if you want to run the tests directly
@@ -93,8 +92,6 @@ var _ = BeforeSuite(func() {
 	err = rbacv1.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 	err = clientgoscheme.AddToScheme(scheme)
-	Expect(err).NotTo(HaveOccurred())
-	err = kueue.AddToScheme(scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

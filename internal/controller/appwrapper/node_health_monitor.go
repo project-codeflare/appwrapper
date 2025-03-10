@@ -24,12 +24,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -44,7 +42,6 @@ import (
 type NodeHealthMonitor struct {
 	client.Client
 	Config *config.AppWrapperConfig
-	Events chan event.GenericEvent // event channel for NodeHealthMonitor to trigger SlackClusterQueueMonitor
 }
 
 var (
@@ -85,16 +82,6 @@ func (r *NodeHealthMonitor) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{}, nil
 }
 
-func (r *NodeHealthMonitor) triggerSlackCQMonitor() {
-	if r.Config.SlackQueueName != "" {
-		select {
-		case r.Events <- event.GenericEvent{Object: &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: r.Config.SlackQueueName}}}:
-		default:
-			// do not block if event is already in channel
-		}
-	}
-}
-
 // update noExecuteNodes and noScheduleNodes for the deletion of nodeName
 func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName string) {
 	if _, ok := noExecuteNodes[nodeName]; ok {
@@ -103,7 +90,6 @@ func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName 
 		noExecuteNodesMutex.Unlock() // END CRITICAL SECTION
 		log.FromContext(ctx).Info("Updated NoExecute information due to Node deletion",
 			"Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
-		r.triggerSlackCQMonitor()
 	}
 	if _, ok := noScheduleNodes[nodeName]; ok {
 		noScheduleNodesMutex.Lock() // BEGIN CRITICAL SECTION
@@ -111,7 +97,6 @@ func (r *NodeHealthMonitor) updateForNodeDeletion(ctx context.Context, nodeName 
 		noScheduleNodesMutex.Unlock() // END CRITICAL SECTION
 		log.FromContext(ctx).Info("Updated NoSchedule information due to Node deletion",
 			"Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
-		r.triggerSlackCQMonitor()
 	}
 }
 
@@ -146,7 +131,6 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 
 	if noExecuteNodesChanged {
 		log.FromContext(ctx).Info("Updated NoExecute information", "Number NoExecute Nodes", len(noExecuteNodes), "NoExecute Resource Details", noExecuteNodes)
-		r.triggerSlackCQMonitor()
 	}
 }
 
@@ -192,7 +176,6 @@ func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.
 
 	if noScheduleNodesChanged {
 		log.FromContext(ctx).Info("Updated NoSchedule information", "Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
-		r.triggerSlackCQMonitor()
 	}
 }
 

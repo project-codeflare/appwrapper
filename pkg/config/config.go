@@ -37,7 +37,6 @@ type AppWrapperConfig struct {
 	FaultTolerance         *FaultToleranceConfig `json:"faultTolerance,omitempty"`
 	SchedulerName          string                `json:"schedulerName,omitempty"`
 	DefaultQueueName       string                `json:"defaultQueueName,omitempty"`
-	SlackQueueName         string                `json:"slackQueueName,omitempty"`
 }
 
 type AutopilotConfig struct {
