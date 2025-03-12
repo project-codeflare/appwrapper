@@ -6,7 +6,8 @@ resources:
 
 images:
 - name: us-central1-docker.pkg.dev/k8s-staging-images/kueue/kueue
-  newName: registry.k8s.io/kueue/kueue
+  # TEMP -- disable rename when using an RC build
+  #  newName: registry.k8s.io/kueue/kueue
   newTag: v0.11.0-rc.0
 
 patches:
