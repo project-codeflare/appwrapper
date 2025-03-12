@@ -56,7 +56,7 @@ jobs:
     - name: Deploy AppWrapper controller
       run: |
         make kind-push -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }}
-        make deploy -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }} ENV=standalone
+        make deploy -e GIT_BRANCH=${{ env.GIT_BRANCH }} TAG=${{ env.GIT_BRANCH }}-${{ env.TAG }} ENV=default
 
     - name: Run E2E tests
       run: LABEL_FILTER="Metrics,Standalone,Webhook" ./hack/run-tests-on-cluster.sh

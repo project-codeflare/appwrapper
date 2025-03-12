@@ -99,8 +99,6 @@ EXTERNAL_CRDS_DIR ?= $(shell pwd)/dep-crds
 KUEUE_ROOT = $(shell go list -m -mod=readonly -f "{{.Dir}}" sigs.k8s.io/kueue)
 .PHONY: dep-crds
 dep-crds: ## Copy CRDs from external operators to dep-crds directory.
-	mkdir -p $(EXTERNAL_CRDS_DIR)/kueue
-	cp -f $(KUEUE_ROOT)/config/components/crd/bases/* $(EXTERNAL_CRDS_DIR)/kueue
 
 .PHONY: test
 test: manifests generate fmt vet dep-crds envtest ## Run unit tests.

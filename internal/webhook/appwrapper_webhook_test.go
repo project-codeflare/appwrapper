@@ -32,14 +32,6 @@ import (
 var _ = Describe("AppWrapper Webhook Tests", func() {
 
 	Context("Defaulting Webhook", func() {
-		It("Suspended is set to true", func() {
-			aw := toAppWrapper(pod(100))
-
-			Expect(k8sClient.Create(ctx, aw)).To(Succeed())
-			Expect(aw.Spec.Suspend).Should(BeTrue(), "aw.Spec.Suspend should have been changed to true")
-			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
-		})
-
 		It("Default queue name is set", func() {
 			aw := toAppWrapper(pod(100))
 
@@ -244,7 +236,6 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 			aw := toAppWrapper(pod(100), deployment(1, 100), namespacedPod("default", 100), rayCluster(1, 100), jobSet(1, 100))
 
 			Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "Legal AppWrappers should be accepted")
-			Expect(aw.Spec.Suspend).Should(BeTrue())
 			Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 		})
 
@@ -254,7 +245,6 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 					jobForInference(2, 4, 100), jobForInference(8, 4, 100))
 
 				Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets should be inferred")
-				Expect(aw.Spec.Suspend).Should(BeTrue())
 				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 			})
 
@@ -262,7 +252,6 @@ var _ = Describe("AppWrapper Webhook Tests", func() {
 				aw := toAppWrapper(pytorchJobForInference(100, 4, 100), rayClusterForInference(7, 100), rayJobForInference(7, 100))
 
 				Expect(k8sClient.Create(ctx, aw)).To(Succeed(), "PodSets should be inferred")
-				Expect(aw.Spec.Suspend).Should(BeTrue())
 				Expect(k8sClient.Delete(ctx, aw)).To(Succeed())
 			})
 		})

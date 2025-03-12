@@ -24,7 +24,6 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -37,10 +36,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
-	"sigs.k8s.io/kueue/pkg/controller/jobframework"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	wlc "github.com/project-codeflare/appwrapper/internal/controller/workload"
 	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
 	"github.com/project-codeflare/appwrapper/pkg/config"
 	"github.com/project-codeflare/appwrapper/pkg/utils"
@@ -52,6 +49,10 @@ const (
 	QueueNameLabel          = "kueue.x-k8s.io/queue-name"
 )
 
+var (
+	awgvk = awv1beta2.GroupVersion.WithKind(awv1beta2.AppWrapperKind)
+)
+
 type rbacACSupport struct {
 	discoveryClient       *discovery.DiscoveryClient
 	subjectAccessReviewer authClientv1.SubjectAccessReviewInterface
@@ -59,12 +60,9 @@ type rbacACSupport struct {
 }
 
 type appWrapperWebhook struct {
-	client                       client.Client
-	defaultQueueName             string
-	enableKueueIntegrations      bool
-	manageJobsWithoutQueueName   bool
-	managedJobsNamespaceSelector labels.Selector
-	userRBACAdmissionCheck       bool
+	client                 client.Client
+	defaultQueueName       string
+	userRBACAdmissionCheck bool
 
 	// support for userRBACAdmissionCheck; will be nil if it is not enabled
 	rbacACSupport *rbacACSupport
@@ -82,15 +80,9 @@ func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	aw := obj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Applying defaults", "job", aw)
 
-	// Queue name and Suspend
-	if w.enableKueueIntegrations {
-		if w.defaultQueueName != "" {
-			aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.defaultQueueName})
-		}
-		err := jobframework.ApplyDefaultForSuspend(ctx, (*wlc.AppWrapper)(aw), w.client, w.manageJobsWithoutQueueName, w.managedJobsNamespaceSelector)
-		if err != nil {
-			return err
-		}
+	// propagate non-empty default queue name
+	if w.defaultQueueName != "" {
+		aw.Labels = utilmaps.MergeKeepFirst(aw.Labels, map[string]string{QueueNameLabel: w.defaultQueueName})
 	}
 
 	// inject labels with user name and id
@@ -114,9 +106,6 @@ func (w *appWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Obje
 	aw := obj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Validating create", "job", aw)
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
-	if w.enableKueueIntegrations {
-		allErrors = append(allErrors, jobframework.ValidateJobOnCreate((*wlc.AppWrapper)(aw))...)
-	}
 	return nil, allErrors.ToAggregate()
 }
 
@@ -126,9 +115,6 @@ func (w *appWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj r
 	newAW := newObj.(*awv1beta2.AppWrapper)
 	log.FromContext(ctx).V(2).Info("Validating update", "job", newAW)
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
-	if w.enableKueueIntegrations {
-		allErrors = append(allErrors, jobframework.ValidateJobOnUpdate((*wlc.AppWrapper)(oldAW), (*wlc.AppWrapper)(newAW))...)
-	}
 	return nil, allErrors.ToAggregate()
 }
 
@@ -167,7 +153,7 @@ func (w *appWrapperWebhook) validateAppWrapperCreate(ctx context.Context, aw *aw
 		}
 
 		// 1. Deny nested AppWrappers
-		if *gvk == wlc.GVK {
+		if *gvk == awgvk {
 			allErrors = append(allErrors, field.Forbidden(compPath.Child("template"), "Nested AppWrappers are forbidden"))
 		}
 
@@ -311,17 +297,10 @@ func (w *appWrapperWebhook) lookupResource(gvk *schema.GroupVersionKind) string 
 }
 
 func SetupAppWrapperWebhook(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error {
-	nsSelector, err := metav1.LabelSelectorAsSelector(awConfig.KueueJobReconciller.ManageJobsNamespaceSelector)
-	if err != nil {
-		return err
-	}
 	wh := &appWrapperWebhook{
-		client:                       mgr.GetClient(),
-		defaultQueueName:             awConfig.DefaultQueueName,
-		enableKueueIntegrations:      awConfig.EnableKueueIntegrations,
-		manageJobsWithoutQueueName:   awConfig.KueueJobReconciller.ManageJobsWithoutQueueName,
-		managedJobsNamespaceSelector: nsSelector,
-		userRBACAdmissionCheck:       awConfig.UserRBACAdmissionCheck,
+		client:                 mgr.GetClient(),
+		defaultQueueName:       awConfig.DefaultQueueName,
+		userRBACAdmissionCheck: awConfig.UserRBACAdmissionCheck,
 	}
 
 	if awConfig.UserRBACAdmissionCheck {

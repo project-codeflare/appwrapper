@@ -108,10 +108,7 @@ var _ = Describe("AppWrapper E2E Test", func() {
 		It("JobSet", func() {
 			aw := createAppWrapper(ctx, jobset(500))
 			appwrappers = append(appwrappers, aw)
-			// TODO: Need dev versions of kueue/jobset to get correct handling of ownership
-			//       Once those are released change the test to:
-			// Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
-			Eventually(AppWrapperPhase(ctx, aw), 15*time.Second).Should(Equal(awv1beta2.AppWrapperResuming))
+			Expect(waitAWPodsReady(ctx, aw)).Should(Succeed())
 		})
 	})
 

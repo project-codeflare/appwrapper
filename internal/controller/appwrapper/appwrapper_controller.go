@@ -910,7 +910,7 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&awv1beta2.AppWrapper{}).
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
-		Named("AppWrapper").
+		Named(awv1beta2.AppWrapperKind).
 		Complete(r)
 }
 

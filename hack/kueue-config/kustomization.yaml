@@ -2,35 +2,15 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.10.2"
-
-configMapGenerator:
-- name: manager-config
-  behavior: replace
-  files:
-  - controller_manager_config.yaml
+- "https://github.com/kubernetes-sigs/kueue/config/default?ref=v0.11.0-rc.0"
 
 images:
 - name: us-central1-docker.pkg.dev/k8s-staging-images/kueue/kueue
-  newName: registry.k8s.io/kueue/kueue
-  newTag: v0.10.2
+  # TEMP -- disable rename when using an RC build
+  #  newName: registry.k8s.io/kueue/kueue
+  newTag: v0.11.0-rc.0
 
 patches:
-- target:
-    kind: ClusterRole
-    name: manager-role
-  patch: |
-    - op: add
-      path: /rules/-
-      value:
-        apiGroups:
-        - workload.codeflare.dev
-        resources:
-        - appwrappers
-        verbs:
-        - get
-        - list
-        - watch
 - target:
     kind: Deployment
     name: controller-manager
