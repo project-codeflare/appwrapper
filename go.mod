@@ -1,6 +1,8 @@
 module github.com/project-codeflare/appwrapper
 
-go 1.23.0
+go 1.24.0
+
+toolchain go1.24.1
 
 require (
 	github.com/distribution/reference v0.6.0
@@ -12,14 +14,14 @@ require (
 	github.com/open-policy-agent/cert-controller v0.12.0
 	github.com/prometheus/client_golang v1.21.1
 	go.uber.org/zap v1.27.0
-	k8s.io/api v0.32.2
-	k8s.io/apimachinery v0.32.2
-	k8s.io/client-go v0.32.2
+	k8s.io/api v0.32.3
+	k8s.io/apimachinery v0.32.3
+	k8s.io/client-go v0.32.3
 	k8s.io/utils v0.0.0-20241104100929-3ea5e8cea738
 	sigs.k8s.io/controller-runtime v0.20.2
 	sigs.k8s.io/controller-tools v0.16.5
 	sigs.k8s.io/jobset v0.8.0
-	sigs.k8s.io/kueue v0.11.0-rc.0
+	sigs.k8s.io/kueue v0.11.0-rc.1
 	sigs.k8s.io/kustomize/kustomize/v5 v5.5.0
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -110,8 +112,8 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/apiextensions-apiserver v0.32.1 // indirect
-	k8s.io/apiserver v0.32.2 // indirect
-	k8s.io/component-base v0.32.2 // indirect
+	k8s.io/apiserver v0.32.3 // indirect
+	k8s.io/component-base v0.32.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.0 // indirect
