@@ -210,6 +210,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case awv1beta2.AppWrapperResuming: // deploying components
 		if aw.Spec.Suspend {
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resuming phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, copyForStatusPatch(aw), aw, awv1beta2.AppWrapperSuspending) // abort deployment
 		}
 		err, fatal := r.createComponents(ctx, aw) // NOTE: createComponents applies patches to aw.Status incrementally as resources are created
@@ -242,6 +243,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case awv1beta2.AppWrapperRunning: // components deployed
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Running phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // begin undeployment
 		}
 
@@ -397,6 +399,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case awv1beta2.AppWrapperResetting:
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
+			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resetting phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
 		}
 
