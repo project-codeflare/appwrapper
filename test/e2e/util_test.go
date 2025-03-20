@@ -26,7 +26,7 @@ import (
 
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -34,8 +34,7 @@ import (
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	kueue "sigs.k8s.io/kueue/apis/kueue/v1beta1"
-	kc "sigs.k8s.io/kueue/pkg/controller/constants"
+	"sigs.k8s.io/yaml"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,9 +44,8 @@ import (
 )
 
 const (
-	testNamespace  = "e2e-test"
-	testFlavorName = "e2e-test-flavor"
-	testQueueName  = "e2e-test-queue"
+	testNamespace = "e2e-test"
+	testQueueName = "e2e-test-queue"
 )
 
 type myKey struct {
@@ -69,7 +67,6 @@ func extendContextWithClient(ctx context.Context) context.Context {
 	scheme := runtime.NewScheme()
 	Expect(clientgoscheme.AddToScheme(scheme)).To(Succeed())
 	Expect(awv1beta2.AddToScheme(scheme)).To(Succeed())
-	Expect(kueue.AddToScheme(scheme)).To(Succeed())
 
 	// Create a client with full permissions
 	k8sClient, err := client.New(baseConfig, client.Options{Scheme: scheme})
@@ -115,34 +112,52 @@ func extendContextWithLimitedClient(ctx context.Context) context.Context {
 	return context.WithValue(ctx, myKey{key: "kubelimitedclient"}, limitedClient)
 }
 
-func ensureTestQueuesExist(ctx context.Context) {
-	rf := &kueue.ResourceFlavor{ObjectMeta: metav1.ObjectMeta{Name: testFlavorName}}
-	err := getClient(ctx).Create(ctx, rf)
-	Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
-	cq := &kueue.ClusterQueue{
-		ObjectMeta: metav1.ObjectMeta{Name: testQueueName},
-		Spec: kueue.ClusterQueueSpec{
-			NamespaceSelector: &metav1.LabelSelector{},
-			ResourceGroups: []kueue.ResourceGroup{{
-				CoveredResources: []v1.ResourceName{v1.ResourceCPU, "nvidia.com/gpu"},
-				Flavors: []kueue.FlavorQuotas{{
-					Name: testFlavorName,
-					Resources: []kueue.ResourceQuota{{Name: v1.ResourceCPU, NominalQuota: *resource.NewMilliQuantity(2000, resource.DecimalSI)},
-						{Name: "nvidia.com/gpu", NominalQuota: *resource.NewQuantity(2, resource.DecimalSI)}},
-				}},
-			},
-			},
-		},
-	}
-	err = getClient(ctx).Create(ctx, cq)
-	Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
+const flavorYAML = `
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ResourceFlavor
+metadata:
+  name: e2e-test-flavor
+`
+const clusterQueueYAML = `
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: ClusterQueue
+metadata:
+  name: ` + testQueueName + `
+spec:
+  namespaceSelector: {}
+  resourceGroups:
+  - coveredResources: [cpu, nvidia.com/gpu]
+    flavors:
+    - name: e2e-test-flavor
+      resources:
+      - name: cpu
+        nominalQuota: 2000m
+      - name: nvidia.com/gpu
+        nominalQuota: 2
+`
+const localQueueYAML = `
+apiVersion: kueue.x-k8s.io/v1beta1
+kind: LocalQueue
+metadata:
+  namespace: ` + testNamespace + `
+  name: ` + testQueueName + `
+spec:
+  clusterQueue: ` + testQueueName
 
-	lq := &kueue.LocalQueue{
-		ObjectMeta: metav1.ObjectMeta{Name: testQueueName, Namespace: testNamespace},
-		Spec:       kueue.LocalQueueSpec{ClusterQueue: kueue.ClusterQueueReference(testQueueName)},
-	}
-	err = getClient(ctx).Create(ctx, lq)
+func createFromYaml(ctx context.Context, yamlString string) {
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	obj := &unstructured.Unstructured{}
+	_, _, err = unstructured.UnstructuredJSONScheme.Decode(jsonBytes, nil, obj)
+	Expect(err).NotTo(HaveOccurred())
+	err = getClient(ctx).Create(ctx, obj)
 	Expect(client.IgnoreAlreadyExists(err)).To(Succeed())
+}
+
+func ensureTestQueuesExist(ctx context.Context) {
+	createFromYaml(ctx, flavorYAML)
+	createFromYaml(ctx, clusterQueueYAML)
+	createFromYaml(ctx, localQueueYAML)
 }
 
 func cleanupTestObjects(ctx context.Context, appwrappers []*awv1beta2.AppWrapper) {
@@ -181,7 +196,7 @@ func toAppWrapper(components ...awv1beta2.AppWrapperComponent) *awv1beta2.AppWra
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      randName("aw"),
 			Namespace: testNamespace,
-			Labels:    map[string]string{kc.QueueLabel: testQueueName},
+			Labels:    map[string]string{"kueue.x-k8s.io/queue-name": testQueueName},
 		},
 		Spec: awv1beta2.AppWrapperSpec{Components: components},
 	}
