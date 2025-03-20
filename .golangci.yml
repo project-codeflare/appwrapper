@@ -18,8 +18,10 @@ linters:
   enable:
   - copyloopvar
   - dupl
+  - dupword
   - errcheck
   - gci
+  - ginkgolinter
   - goconst
   - gocyclo
   - gofmt
