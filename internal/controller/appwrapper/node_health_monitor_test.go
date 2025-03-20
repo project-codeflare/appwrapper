@@ -17,14 +17,16 @@ limitations under the License.
 package appwrapper
 
 import (
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/project-codeflare/appwrapper/pkg/config"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/project-codeflare/appwrapper/pkg/config"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("NodeMonitor Controller", func() {
@@ -74,7 +76,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Healthy cluster has no unhealthy nodes")
-		Expect(len(noExecuteNodes)).Should(Equal(0))
+		Expect(noExecuteNodes).Should(BeEmpty())
 
 		By("A node labeled EVICT is detected as unhealthy")
 		node := getNode(node1Name.Name)
@@ -84,7 +86,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(noExecuteNodes)).Should(Equal(1))
+		Expect(noExecuteNodes).Should(HaveLen(1))
 		Expect(noExecuteNodes).Should(HaveKey(node1Name.Name))
 		Expect(noExecuteNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
 
@@ -93,7 +95,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(err).NotTo(HaveOccurred())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(noExecuteNodes)).Should(Equal(1))
+		Expect(noExecuteNodes).Should(HaveLen(1))
 		Expect(noExecuteNodes).Should(HaveKey(node1Name.Name))
 		Expect(noExecuteNodes[node1Name.Name]).Should(HaveKey("nvidia.com/gpu"))
 
@@ -102,7 +104,7 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(noExecuteNodes)).Should(Equal(0))
+		Expect(noExecuteNodes).Should(BeEmpty())
 
 		deleteNode(node1Name.Name)
 		deleteNode(node2Name.Name)

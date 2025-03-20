@@ -2,6 +2,43 @@ run:
   deadline: 5m
   allow-parallel-runners: true
 
+# Settings of specific linters
+linters-settings:
+  gci:
+    sections:
+    - standard
+    - default
+    - prefix(github.com/project-codeflare/appwrapper)
+    - blank
+    - dot
+    skip-generated: true # Skip generated files.
+
+linters:
+  disable-all: true
+  enable:
+  - copyloopvar
+  - dupl
+  - dupword
+  - errcheck
+  - gci
+  - ginkgolinter
+  - goconst
+  - gocyclo
+  - gofmt
+  - goimports
+  - gosimple
+  - govet
+  - ineffassign
+  - lll
+  - misspell
+  - nakedret
+  - prealloc
+  - staticcheck
+  - typecheck
+  - unconvert
+  - unparam
+  - unused
+
 issues:
   # don't skip warning about doc comments
   # don't exclude the default set of lint
@@ -28,25 +65,3 @@ issues:
   - path: "pkg/*"
     linters:
     - lll
-linters:
-  disable-all: true
-  enable:
-  - copyloopvar
-  - dupl
-  - errcheck
-  - goconst
-  - gocyclo
-  - gofmt
-  - goimports
-  - gosimple
-  - govet
-  - ineffassign
-  - lll
-  - misspell
-  - nakedret
-  - prealloc
-  - staticcheck
-  - typecheck
-  - unconvert
-  - unparam
-  - unused

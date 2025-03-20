@@ -21,15 +21,16 @@ import (
 	"math/rand"
 	"time"
 
-	. "github.com/onsi/gomega"
-
-	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/yaml"
+
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+
+	. "github.com/onsi/gomega"
 )
 
 const charset = "abcdefghijklmnopqrstuvwxyz0123456789"

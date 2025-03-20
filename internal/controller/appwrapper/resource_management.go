@@ -22,9 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
-	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
-	"github.com/project-codeflare/appwrapper/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -35,6 +32,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+
+	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+	utilmaps "github.com/project-codeflare/appwrapper/internal/util"
+	"github.com/project-codeflare/appwrapper/pkg/utils"
 )
 
 func parseComponent(raw []byte, expectedNamespace string) (*unstructured.Unstructured, error) {
