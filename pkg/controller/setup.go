@@ -22,11 +22,10 @@ import (
 	"fmt"
 	"net/http"
 
+	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
-
-	cert "github.com/open-policy-agent/cert-controller/pkg/rotator"
 
 	"github.com/project-codeflare/appwrapper/internal/controller/appwrapper"
 	"github.com/project-codeflare/appwrapper/internal/webhook"

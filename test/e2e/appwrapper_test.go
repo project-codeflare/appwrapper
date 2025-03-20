@@ -22,8 +22,6 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -32,6 +30,9 @@ import (
 	"k8s.io/utils/ptr"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("AppWrapper E2E Test", func() {
