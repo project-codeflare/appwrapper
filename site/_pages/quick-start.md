@@ -66,7 +66,7 @@ Install the most recent AppWrapper release by doing:
 kubectl apply --server-side -f https://github.com/project-codeflare/appwrapper/releases/download/{{ site.appwrapper_version }}/install.yaml
 ```
 
-Before continuing, ensure AppWrappers are ready by executing this command:
+Before continuing, ensure AppWrapper is ready by executing this command:
 ```sh
 kubectl -n appwrapper-system wait --timeout=300s --for=condition=Available deployments --all
 ```

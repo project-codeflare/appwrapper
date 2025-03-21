@@ -13,9 +13,9 @@
 # you will see them accessed via {{ site.title }}, {{ site.email }}, and so on.
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
-title: "Project CodeFlare: AppWrappers"
+title: "Project CodeFlare: AppWrapper"
 description: >- #
-  Project Codeflare: AppWrappers
+  Project Codeflare: AppWrapper
 minimal_mistakes_skin: contrast
 
 # Build settings
