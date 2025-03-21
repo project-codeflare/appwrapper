@@ -4,13 +4,13 @@
 [![Continuous Integration](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml/badge.svg)](https://github.com/project-codeflare/appwrapper/actions/workflows/CI.yaml)
 
 An AppWrapper contains a collection of Kubernetes resources that a
-user desires to manage as a single logical workload. AppWrappers are
+user desires to manage as a single logical workload. AppWrapper is
 designed to smoothly interoperate with
 [Kueue](https://kueue.sigs.k8s.io).  They provide a flexible and
 workload-agnostic mechanism for enabling Kueue to manage a group of
 Kubernetes resources as a single logical unit without requiring any
 Kueue-specific support by the controllers of those resources.
-Kueue can be configured to recognize AppWrappers as an
+Kueue can be configured to recognize AppWrapper as an
 [externalFramework](https://kueue.sigs.k8s.io/docs/tasks/dev/integrate_a_custom_job/#building-an-external-integration),
 thus ensuring that if you have enabled Kueue's `manageJobsWithoutQueueName`
 option, admission decisions made for the AppWrapper will be properly
@@ -19,7 +19,7 @@ For a more detailed description of the overall design, see the
 [Architecture](https://project-codeflare.github.io/appwrapper/arch-controller/)
 section of our website.
 
-AppWrappers are designed to harden workloads by providing an
+An AppWrapper can be used to harden workloads by providing an
 additional level of automatic fault detection and recovery. The AppWrapper
 controller monitors the health of the workload and if corrective actions
 are not taken by the primary resource controllers within specified deadlines,
@@ -35,7 +35,7 @@ configuring these fault tolerance capabilities, please see the
 [Fault Tolerance](https://project-codeflare.github.io/appwrapper/arch-fault-tolerance/)
 section of our website.
 
-AppWrappers are designed to be used as part of fully open source software stack
+AppWrapper is designed to be used as part of fully open source software stack
 to run production batch workloads on Kubernetes and OpenShift. The [MLBatch](https://github.com/project-codeflare/mlbatch)
 project leverages [Kueue](https://kueue.sigs.k8s.io), the [Kubeflow Training
 Operator](https://www.kubeflow.org/docs/components/training/),
@@ -43,7 +43,7 @@ Operator](https://www.kubeflow.org/docs/components/training/),
 [Codeflare Operator](https://github.com/project-codeflare/codeflare-operator)
 from [Red Hat OpenShift
 AI](https://www.redhat.com/en/technologies/cloud-computing/openshift/openshift-ai).
-MLBatch enables [AppWrappers](https://project-codeflare.github.io/appwrapper/)
+MLBatch enables [AppWrapper](https://project-codeflare.github.io/appwrapper/)
 and adds
 [Coscheduler](https://github.com/kubernetes-sigs/scheduler-plugins/blob/master/pkg/coscheduling/README.md).
 MLBatch includes a number of configuration steps to help these components work

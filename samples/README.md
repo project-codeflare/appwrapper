@@ -2,7 +2,7 @@
 
 This directory contains a number of example yamls showing how to wrap
 different Pod-creating Kubernetes resources in an AppWrapper.
-AppWrappers can be used to wrap one or more instances of
+An AppWrapper can be used to wrap one or more instances of
 any Kubernetes Kind that uses `PodSpecTemplate` to define its Pods.
 An AppWrapper must contain at least one such Pod-creating resource in addition
 to zero or more non-Pod-creating resources.

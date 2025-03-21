@@ -1,6 +1,6 @@
 This directory contains configuration files for enabling
 [kube-state-metrics](https://github.com/kubernetes/kube-state-metrics/)
-to report metrics for AppWrappers.
+to report metrics for AppWrapper.
 
 The file [appwrapper-ksm-cm.yaml](./appwrapper-ksm-cm.yaml) defines
 a configuration map that can be volume-mounted into the
