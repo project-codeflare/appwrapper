@@ -1,11 +1,11 @@
 name: CI-devmode
 on:
   push:
-    branches: [main, rhoai-2.10]
+    branches: [main, rhoai-2.10, kueue-0.10]
     paths-ignore:
     - 'site/**'
   pull_request:
-    branches: [main, rhoai-2.10]
+    branches: [main, rhoai-2.10, kueue-0.10]
 
 jobs:
   CI:
