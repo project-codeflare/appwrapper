@@ -56,7 +56,8 @@ var (
 	// noScheduleNodes is a mapping from Node names to ResourceLists of unschedulable resources.
 	// A resource may be unschedulable either because:
 	//  (a) the Node is cordoned (node.Spec.Unschedulable is true) or
-	//  (b) Autopilot has labeled the Node with a NoExecute or NoSchedule taint for the resource.
+	//  (b) the Node has been marked as NotReady by Kubernetes or
+	//  (c) Autopilot has labeled the Node with a NoExecute or NoSchedule taint for the resource.
 	noScheduleNodes = make(map[string]v1.ResourceList)
 	// noScheduleNodesMutex synchronizes access to noScheduleNodes
 	noScheduleNodesMutex sync.RWMutex
@@ -153,7 +154,7 @@ func (r *NodeHealthMonitor) updateNoExecuteNodes(ctx context.Context, node *v1.N
 // update noScheduleNodes entry for node
 func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.Node) {
 	var noScheduleResources v1.ResourceList
-	if node.Spec.Unschedulable {
+	if r.nodeIsUnscheduable(node) {
 		noScheduleResources = node.Status.Capacity.DeepCopy()
 		delete(noScheduleResources, v1.ResourcePods)
 	} else {
@@ -194,6 +195,18 @@ func (r *NodeHealthMonitor) updateNoScheduleNodes(ctx context.Context, node *v1.
 		log.FromContext(ctx).Info("Updated NoSchedule information", "Number NoSchedule Nodes", len(noScheduleNodes), "NoSchedule Resource Details", noScheduleNodes)
 		r.triggerSlackCQMonitor()
 	}
+}
+
+func (r *NodeHealthMonitor) nodeIsUnscheduable(node *v1.Node) bool {
+	if node.Spec.Unschedulable {
+		return true
+	}
+	for _, taint := range node.Spec.Taints {
+		if taint.Key == "node.kubernetes.io/unreachable" || taint.Key == "node.kubernetes.io/not-ready" {
+			return true
+		}
+	}
+	return false
 }
 
 // SetupWithManager sets up the controller with the Manager.

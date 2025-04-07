@@ -45,7 +45,13 @@ var _ = Describe("NodeMonitor Controller", func() {
 		Expect(k8sClient.Create(ctx, node)).To(Succeed())
 		node = getNode(nodeName)
 		node.Status.Capacity = nodeGPUs
+		node.Status.Conditions = append(node.Status.Conditions, v1.NodeCondition{
+			Type:   v1.NodeReady,
+			Status: v1.ConditionTrue,
+		})
 		Expect(k8sClient.Status().Update(ctx, node)).To(Succeed())
+		node.Spec.Taints = []v1.Taint{}
+		Expect(k8sClient.Update(ctx, node)).To(Succeed())
 	}
 
 	deleteNode := func(nodeName string) {
@@ -116,6 +122,62 @@ var _ = Describe("NodeMonitor Controller", func() {
 		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(noExecuteNodes)).Should(Equal(0))
+
+		By("A Node tainted as unreachable is detected as unscheduable")
+		node = getNode(node1Name.Name)
+		node.Spec.Taints = append(node.Spec.Taints, v1.Taint{Key: "node.kubernetes.io/unreachable", Effect: v1.TaintEffectNoExecute})
+		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(HaveLen(1))
+		Expect(noScheduleNodes).Should(HaveKey(node1Name.Name))
+		Expect(noScheduleNodes[node1Name.Name]).Should(HaveKey(v1.ResourceName("nvidia.com/gpu")))
+
+		By("Repeated reconcile does not change map")
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(HaveLen(1))
+		Expect(noScheduleNodes).Should(HaveKey(node1Name.Name))
+		Expect(noScheduleNodes[node1Name.Name]).Should(HaveKey(v1.ResourceName("nvidia.com/gpu")))
+
+		By("Removing the taint updates unhealthyNodes")
+		node.Spec.Taints = []v1.Taint{}
+		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(BeEmpty())
+
+		By("A Node tainted as not-read is detected as unscheduable")
+		node = getNode(node1Name.Name)
+		node.Spec.Taints = append(node.Spec.Taints, v1.Taint{Key: "node.kubernetes.io/not-ready", Effect: v1.TaintEffectNoExecute})
+		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(HaveLen(1))
+		Expect(noScheduleNodes).Should(HaveKey(node1Name.Name))
+		Expect(noScheduleNodes[node1Name.Name]).Should(HaveKey(v1.ResourceName("nvidia.com/gpu")))
+
+		By("Repeated reconcile does not change map")
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node2Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(HaveLen(1))
+		Expect(noScheduleNodes).Should(HaveKey(node1Name.Name))
+		Expect(noScheduleNodes[node1Name.Name]).Should(HaveKey(v1.ResourceName("nvidia.com/gpu")))
+
+		By("Removing the taint updates unhealthyNodes")
+		node.Spec.Taints = []v1.Taint{}
+		Expect(k8sClient.Update(ctx, node)).Should(Succeed())
+		_, err = nodeMonitor.Reconcile(ctx, reconcile.Request{NamespacedName: node1Name})
+		Expect(err).NotTo(HaveOccurred())
+		Expect(noScheduleNodes).Should(BeEmpty())
 
 		deleteNode(node1Name.Name)
 		deleteNode(node2Name.Name)
