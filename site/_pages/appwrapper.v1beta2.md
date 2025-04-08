@@ -69,7 +69,7 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 <a href="#workload-codeflare-dev-v1beta2-AppWrapperPodSet"><code>[]AppWrapperPodSet</code></a>
 </td>
 <td>
-   <p>PodSets contained in the Component</p>
+   <p>DeclaredPodSets for the Component (optional for known PodCreating GVKs)</p>
 </td>
 </tr>
 <tr><td><code>podSetInfos</code><br/>
@@ -84,6 +84,64 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 </td>
 <td>
    <p>Template defines the Kubernetes resource for the Component</p>
+</td>
+</tr>
+</tbody>
+</table>
+
+## `AppWrapperComponentStatus`     {#workload-codeflare-dev-v1beta2-AppWrapperComponentStatus}
+
+
+**Appears in:**
+
+- [AppWrapperStatus](#workload-codeflare-dev-v1beta2-AppWrapperStatus)
+
+
+<p>AppWrapperComponentStatus tracks the status of a single managed Component</p>
+
+
+<table class="table">
+<thead><tr><th width="30%">Field</th><th>Description</th></tr></thead>
+<tbody>
+
+
+<tr><td><code>name</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>Name is the name of the Component</p>
+</td>
+</tr>
+<tr><td><code>kind</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>Kind is the Kind of the Component</p>
+</td>
+</tr>
+<tr><td><code>apiVersion</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>APIVersion is the APIVersion of the Component</p>
+</td>
+</tr>
+<tr><td><code>podSets</code> <B>[Required]</B><br/>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperPodSet"><code>[]AppWrapperPodSet</code></a>
+</td>
+<td>
+   <p>PodSets is the validated PodSets for the Component (either from AppWrapperComponent.DeclaredPodSets or inferred by the controller)</p>
+</td>
+</tr>
+<tr><td><code>conditions</code><br/>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#condition-v1-meta"><code>[]k8s.io/apimachinery/pkg/apis/meta/v1.Condition</code></a>
+</td>
+<td>
+   <p>Conditions hold the latest available observations of the Component's current state.</p>
+<p>The type of the condition could be:</p>
+<ul>
+<li>ResourcesDeployed: The component is deployed on the cluster</li>
+</ul>
 </td>
 </tr>
 </tbody>
@@ -110,6 +168,8 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 
 - [AppWrapperComponent](#workload-codeflare-dev-v1beta2-AppWrapperComponent)
 
+- [AppWrapperComponentStatus](#workload-codeflare-dev-v1beta2-AppWrapperComponentStatus)
+
 
 <p>AppWrapperPodSet describes an homogeneous set of pods</p>
 
@@ -131,6 +191,14 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 </td>
 <td>
    <p>Path is the path Component.Template to the PodTemplateSpec for this PodSet</p>
+</td>
+</tr>
+<tr><td><code>annotations</code><br/>
+<code>map[string]string</code>
+</td>
+<td>
+   <p>Annotations is an unstructured key value map that may be used to store and retrieve
+arbitrary metadata about the PodSet to customize its treatment by the AppWrapper controller.</p>
 </td>
 </tr>
 </tbody>
@@ -180,6 +248,13 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
    <p>Tolerations to be added to the PodSpecTemplate</p>
 </td>
 </tr>
+<tr><td><code>schedulingGates</code><br/>
+<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.28/#podschedulinggate-v1-core"><code>[]k8s.io/api/core/v1.PodSchedulingGate</code></a>
+</td>
+<td>
+   <p>SchedulingGates to be added to the PodSpecTemplate</p>
+</td>
+</tr>
 </tbody>
 </table>
 
@@ -211,6 +286,13 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 </td>
 <td>
    <p>Suspend suspends the AppWrapper when set to true</p>
+</td>
+</tr>
+<tr><td><code>managedBy</code> <B>[Required]</B><br/>
+<code>string</code>
+</td>
+<td>
+   <p>ManagedBy is used to indicate the controller or entity that manages the AppWrapper.</p>
 </td>
 </tr>
 </tbody>
@@ -259,6 +341,13 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 <li>Unhealthy: One or more of the contained resources is unhealthy</li>
 <li>DeletingResources: The contained resources are in the process of being deleted from the cluster</li>
 </ul>
+</td>
+</tr>
+<tr><td><code>componentStatus</code> <B>[Required]</B><br/>
+<a href="#workload-codeflare-dev-v1beta2-AppWrapperComponentStatus"><code>[]AppWrapperComponentStatus</code></a>
+</td>
+<td>
+   <p>ComponentStatus parallels the Components array in the Spec and tracks the actually deployed resources</p>
 </td>
 </tr>
 </tbody>
