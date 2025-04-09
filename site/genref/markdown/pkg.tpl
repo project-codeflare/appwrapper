@@ -6,21 +6,18 @@
 permalink: /api/{{ .DisplayName }}/
 title: {{ .Title }}
 classes: wide
+description: Generated API reference documentation for {{ .DisplayName }}.
 ---
 {{ .GetComment -}}
   {{- end -}}
 {{- end }}
 
-Generated API reference documentation for {{ .GroupName }}.
-
 ## Resource Types
 
 {{ range .packages -}}
-  {{- range .VisibleTypes -}}
-    {{- if .IsExported }}
+{{- range .VisibleTypes -}}
 - [{{ .DisplayName }}]({{ .Link }})
-    {{- end -}}
-  {{- end -}}
+{{ end -}}
 {{- end -}}
 
 {{ range .packages -}}

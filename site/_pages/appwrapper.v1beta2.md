@@ -2,13 +2,22 @@
 permalink: /api/workload.codeflare.dev/v1beta2/
 title: AppWrapper API
 classes: wide
+description: Generated API reference documentation for workload.codeflare.dev/v1beta2.
 ---
 
 
-Generated API reference documentation for <no value>.
-
 ## Resource Types
 
+- [AppWrapper](#workload-codeflare-dev-v1beta2-AppWrapper)
+- [AppWrapperComponent](#workload-codeflare-dev-v1beta2-AppWrapperComponent)
+- [AppWrapperComponentStatus](#workload-codeflare-dev-v1beta2-AppWrapperComponentStatus)
+- [AppWrapperCondition](#workload-codeflare-dev-v1beta2-AppWrapperCondition)
+- [AppWrapperList](#workload-codeflare-dev-v1beta2-AppWrapperList)
+- [AppWrapperPhase](#workload-codeflare-dev-v1beta2-AppWrapperPhase)
+- [AppWrapperPodSet](#workload-codeflare-dev-v1beta2-AppWrapperPodSet)
+- [AppWrapperPodSetInfo](#workload-codeflare-dev-v1beta2-AppWrapperPodSetInfo)
+- [AppWrapperSpec](#workload-codeflare-dev-v1beta2-AppWrapperSpec)
+- [AppWrapperStatus](#workload-codeflare-dev-v1beta2-AppWrapperStatus)
 
 
 ## `AppWrapper`     {#workload-codeflare-dev-v1beta2-AppWrapper}
