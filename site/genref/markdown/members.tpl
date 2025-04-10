@@ -1,5 +1,5 @@
 {{ define "members" }}
-  {{/* . is a apiType */}}
+{{/* . is a apiType */}}
   {{- range .GetMembers -}}
     {{/* . is a apiMember */}}
     {{- if not .Hidden }}
