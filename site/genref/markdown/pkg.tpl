@@ -6,21 +6,18 @@
 permalink: /api/{{ .DisplayName }}/
 title: {{ .Title }}
 classes: wide
+description: Generated API reference documentation for {{ .DisplayName }}.
 ---
 {{ .GetComment -}}
   {{- end -}}
 {{- end }}
 
-Generated API reference documentation for {{ .GroupName }}.
-
 ## Resource Types
 
 {{ range .packages -}}
-  {{- range .VisibleTypes -}}
-    {{- if .IsExported }}
+{{- range .VisibleTypes -}}
 - [{{ .DisplayName }}]({{ .Link }})
-    {{- end -}}
-  {{- end -}}
+{{ end -}}
 {{- end -}}
 
 {{ range .packages -}}
@@ -33,9 +30,8 @@ Generated API reference documentation for {{ .GroupName }}.
     {{ end }}
   {{ else }}
     {{/* For package w/o group name, list only types referenced. */}}
-    {{ $isConfig := (eq .GroupName "") }}
     {{- range .VisibleTypes -}}
-      {{- if or .Referenced $isConfig -}}
+      {{- if .Referenced -}}
 {{ template "type" . }}
       {{- end -}}
     {{- end }}

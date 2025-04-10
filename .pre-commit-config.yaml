@@ -11,6 +11,11 @@ repos:
     entry: make lint-fix
     language: system
     pass_filenames: false
+  - id: generate-apiref
+    name: generate-apiref
+    entry: make generate-apiref
+    language: system
+    pass_filenames: false
 - repo: https://github.com/google/yamlfmt
   rev: v0.10.0
   hooks:
@@ -20,7 +25,8 @@ repos:
   rev: v4.5.0
   hooks:
   - id: trailing-whitespace
+    exclude: site/_pages/appwrapper.v1beta2.md
   - id: end-of-file-fixer
-    exclude: hack/boilerplate.go.txt
+    exclude: hack/boilerplate.go.txt|site/_pages/appwrapper.v1beta2.md
   - id: mixed-line-ending
     args: ["--fix=lf"]
