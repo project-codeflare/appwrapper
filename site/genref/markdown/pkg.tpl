@@ -30,9 +30,8 @@ description: Generated API reference documentation for {{ .DisplayName }}.
     {{ end }}
   {{ else }}
     {{/* For package w/o group name, list only types referenced. */}}
-    {{ $isConfig := (eq .GroupName "") }}
     {{- range .VisibleTypes -}}
-      {{- if or .Referenced $isConfig -}}
+      {{- if .Referenced -}}
 {{ template "type" . }}
       {{- end -}}
     {{- end }}
