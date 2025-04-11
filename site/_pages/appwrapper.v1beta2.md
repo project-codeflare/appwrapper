@@ -78,7 +78,7 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 <a href="#workload-codeflare-dev-v1beta2-AppWrapperPodSet"><code>[]AppWrapperPodSet</code></a>
 </td>
 <td>
-   <p>DeclaredPodSets for the Component (optional for known PodCreating GVKs)</p>
+   <p>DeclaredPodSets for the Component (optional for known GVKs whose PodSets can be automatically inferred)</p>
 </td>
 </tr>
 <tr><td><code>podSetInfos</code><br/>
@@ -165,7 +165,7 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 - [AppWrapperStatus](#workload-codeflare-dev-v1beta2-AppWrapperStatus)
 
 
-<p>AppWrapperPhase is the phase of the appwrapper</p>
+<p>AppWrapperPhase enumerates the valid Phases of an AppWrapper</p>
 
 
 
@@ -180,7 +180,7 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 - [AppWrapperComponentStatus](#workload-codeflare-dev-v1beta2-AppWrapperComponentStatus)
 
 
-<p>AppWrapperPodSet describes an homogeneous set of pods</p>
+<p>AppWrapperPodSet describes a homogeneous set of pods</p>
 
 
 <table class="table">
@@ -199,7 +199,7 @@ arbitrary metadata about the Component to customize its treatment by the AppWrap
 <code>string</code>
 </td>
 <td>
-   <p>Path is the path Component.Template to the PodTemplateSpec for this PodSet</p>
+   <p>Path is the path within Component.Template to the PodTemplateSpec for this PodSet</p>
 </td>
 </tr>
 <tr><td><code>annotations</code><br/>
@@ -315,7 +315,7 @@ arbitrary metadata about the PodSet to customize its treatment by the AppWrapper
 - [AppWrapper](#workload-codeflare-dev-v1beta2-AppWrapper)
 
 
-<p>AppWrapperStatus defines the observed state of the appwrapper</p>
+<p>AppWrapperStatus defines the observed state of the AppWrapper</p>
 
 
 <table class="table">
