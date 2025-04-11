@@ -79,6 +79,9 @@ type componentStatusSummary struct {
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=workload.codeflare.dev,resources=appwrappers/finalizers,verbs=update
 
+// permission for events
+//+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
+
 // permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters, jobsets
 
 //+kubebuilder:rbac:groups="",resources=pods;services,verbs=get;list;watch;create;update;patch;delete
