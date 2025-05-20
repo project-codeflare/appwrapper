@@ -16,7 +16,7 @@ export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export CLUSTER_CONTEXT=${CLUSTER_CONTEXT:-"--name test"}
 export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
-export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.29"}
+export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.30"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
@@ -66,9 +66,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.27.0)
-    echo "Downloading and installing kind v0.27.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.27.0/kind-linux-${arch} && \
+    # Download kind binary (0.28.0)
+    echo "Downloading and installing kind v0.28.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.28.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -162,6 +162,27 @@ function kind_up_cluster {
   # Determine node image tag based on kind version and desired kubernetes version
   KIND_ACTUAL_VERSION=$(kind version | awk '/ /{print $2}')
   case $KIND_ACTUAL_VERSION in
+
+    v0.28.0)
+      case $KIND_K8S_VERSION in
+        1.30)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.30.13@sha256:8673291894dc400e0fb4f57243f5fdc6e355ceaa765505e0e73941aa1b6e0b80"}
+          ;;
+        1.31)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.31.9@sha256:156da58ab617d0cb4f56bbdb4b493f4dc89725505347a4babde9e9544888bb92"}
+          ;;
+        1.32)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.32.5@sha256:36187f6c542fa9b78d2d499de4c857249c5a0ac8cc2241bef2ccd92729a7a259"}
+          ;;
+        1.33)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.33.1@sha256:8d866994839cd096b3590681c55a6fa4a071fdaf33be7b9660e5697d2ed13002"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
 
     v0.27.0)
       case $KIND_K8S_VERSION in
