@@ -82,16 +82,15 @@ type componentStatusSummary struct {
 // permission for events
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;watch;update;patch
 
-// permission to edit wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters, jobsets
-
-//+kubebuilder:rbac:groups="",resources=pods;services,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=scheduling.sigs.k8s.io,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=scheduling.x-k8s.io,resources=podgroups,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=ray.io,resources=rayclusters;rayjobs,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;update;patch;delete
+// permission for wrapped resources: pods, services, jobs, podgroups, pytorchjobs, rayclusters, jobsets
+//+kubebuilder:rbac:groups="",resources=pods;services,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=apps,resources=deployments;statefulsets,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=scheduling.sigs.k8s.io,resources=podgroups,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=scheduling.x-k8s.io,resources=podgroups,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=kubeflow.org,resources=pytorchjobs,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=ray.io,resources=rayclusters;rayjobs,verbs=get;list;watch;create;delete
+//+kubebuilder:rbac:groups=jobset.x-k8s.io,resources=jobsets,verbs=get;list;watch;create;delete
 
 // Reconcile reconciles an appwrapper
 // Please see [aw-states] for documentation of this method.

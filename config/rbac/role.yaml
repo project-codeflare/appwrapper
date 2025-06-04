@@ -31,8 +31,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ""
@@ -69,8 +67,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - authorization.k8s.io
@@ -87,8 +83,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - jobset.x-k8s.io
@@ -99,8 +93,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - kubeflow.org
@@ -111,8 +103,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - ray.io
@@ -124,8 +114,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - scheduling.sigs.k8s.io
@@ -137,8 +125,6 @@ rules:
   - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - workload.codeflare.dev
