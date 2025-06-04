@@ -58,10 +58,6 @@ The controller runs in the `appwrapper-system` namespace.
 
 Read the [Quick Start Guide](https://project-codeflare.github.io/appwrapper/quick-start/) to learn more.
 
-If you have modified the default configuration of Kueue to set `manageJobsWithoutQueueName` to true,
-then you must also apply [this patch](./hack/kueue-patches/02-aw-external-frameworks.txt) to your
-Kueue installation.
-
 ## Usage
 
 For example of AppWrapper usage, browse our [Samples](./samples) directory or
