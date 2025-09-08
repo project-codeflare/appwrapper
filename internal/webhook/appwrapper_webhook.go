@@ -92,7 +92,8 @@ func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 	}
 	userInfo := request.UserInfo
 	username := utils.SanitizeLabel(userInfo.Username)
-	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userInfo.UID}, aw.Labels)
+	userUID := utils.SanitizeLabel(userInfo.UID)
+	aw.Labels = utilmaps.MergeKeepFirst(map[string]string{AppWrapperUsernameLabel: username, AppWrapperUserIDLabel: userUID}, aw.Labels)
 
 	return nil
 }
