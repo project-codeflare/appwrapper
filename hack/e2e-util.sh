@@ -16,7 +16,7 @@ export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export CLUSTER_CONTEXT=${CLUSTER_CONTEXT:-"--name test"}
 export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
-export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.30"}
+export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.31"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
@@ -66,9 +66,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.29.0)
-    echo "Downloading and installing kind v0.29.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.29.0/kind-linux-${arch} && \
+    # Download kind binary (0.30.0)
+    echo "Downloading and installing kind v0.30.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.30.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -163,6 +163,26 @@ function kind_up_cluster {
   KIND_ACTUAL_VERSION=$(kind version | awk '/ /{print $2}')
   case $KIND_ACTUAL_VERSION in
 
+    v0.30.0)
+      case $KIND_K8S_VERSION in
+        1.31)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.31.12@sha256:0f5cc49c5e73c0c2bb6e2df56e7df189240d83cf94edfa30946482eb08ec57d2"}
+          ;;
+        1.32)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.32.8@sha256:abd489f042d2b644e2d033f5c2d900bc707798d075e8186cb65e3f1367a9d5a1"}
+          ;;
+        1.33)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.33.4@sha256:25a6018e48dfcaee478f4a59af81157a437f15e6e140bf103f85a2e7cd0cbbf2"}
+          ;;
+        1.34)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
 
     v0.29.0)
       case $KIND_K8S_VERSION in
