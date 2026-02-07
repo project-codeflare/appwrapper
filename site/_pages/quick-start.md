@@ -25,12 +25,12 @@ Finally, you need to create a default `ClusterQueue` and `LocalQueue`
 with a quota of 4 CPUs to enable Kueue to schedule workloads on your cluster.
 The yaml shown below accomplishes this:
 ```yaml
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: ResourceFlavor
 metadata:
   name: "default-flavor"
 ---
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: ClusterQueue
 metadata:
   name: "cluster-queue"
@@ -44,7 +44,7 @@ spec:
       - name: "cpu"
         nominalQuota: 4
 ---
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   namespace: "default"

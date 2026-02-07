@@ -112,13 +112,13 @@ func extendContextWithLimitedClient(ctx context.Context) context.Context {
 }
 
 const flavorYAML = `
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: ResourceFlavor
 metadata:
   name: e2e-test-flavor
 `
 const clusterQueueYAML = `
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: ClusterQueue
 metadata:
   name: ` + testQueueName + `
@@ -135,7 +135,7 @@ spec:
         nominalQuota: 2
 `
 const localQueueYAML = `
-apiVersion: kueue.x-k8s.io/v1beta1
+apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   namespace: ` + testNamespace + `
