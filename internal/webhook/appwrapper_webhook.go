@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"sync"
 
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -56,6 +57,7 @@ var (
 type rbacACSupport struct {
 	discoveryClient       *discovery.DiscoveryClient
 	subjectAccessReviewer authClientv1.SubjectAccessReviewInterface
+	cacheMutex            sync.RWMutex
 	kindToResourceCache   map[string]string
 }
 
@@ -281,16 +283,21 @@ func (w *appWrapperWebhook) validateAppWrapperUpdate(old *awv1beta2.AppWrapper, 
 }
 
 func (w *appWrapperWebhook) lookupResource(gvk *schema.GroupVersionKind) string {
+	w.rbacACSupport.cacheMutex.RLock()
 	if known, ok := w.rbacACSupport.kindToResourceCache[gvk.String()]; ok {
+		w.rbacACSupport.cacheMutex.RUnlock()
 		return known
 	}
+	w.rbacACSupport.cacheMutex.RUnlock()
 	resources, err := w.rbacACSupport.discoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
 	if err != nil {
 		return "*"
 	}
 	for _, r := range resources.APIResources {
 		if r.Kind == gvk.Kind {
+			w.rbacACSupport.cacheMutex.Lock()
 			w.rbacACSupport.kindToResourceCache[gvk.String()] = r.Name
+			w.rbacACSupport.cacheMutex.Unlock()
 			return r.Name
 		}
 	}
