@@ -29,8 +29,8 @@ export IMAGE_KUBEFLOW_OPERATOR="docker.io/kubeflow/training-operator:v1-5170a36"
 export KUBERAY_VERSION=1.1.1
 export IMAGE_KUBERAY_OPERATOR="quay.io/kuberay/operator:v1.1.1"
 
-export JOBSET_VERSION=v0.7.3
-export IMAGE_JOBSET_OPERATOR="registry.k8s.io/jobset/jobset:v0.7.3"
+export JOBSET_VERSION=v0.11.1
+export IMAGE_JOBSET_OPERATOR="registry.k8s.io/jobset/jobset:v0.11.1"
 
 # These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
