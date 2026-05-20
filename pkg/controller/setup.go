@@ -44,9 +44,8 @@ func SetupControllers(mgr ctrl.Manager, awConfig *config.AppWrapperConfig) error
 	}
 
 	if err := (&appwrapper.AppWrapperReconciler{
-		Client: mgr.GetClient(),
-		// TODO: migrate Event/Eventf call sites to k8s.io/client-go/tools/events.EventRecorder and switch to mgr.GetEventRecorder
-		Recorder: mgr.GetEventRecorderFor("appwrappers"), //nolint:staticcheck // SA1019: keep legacy events API until call sites are migrated
+		Client:   mgr.GetClient(),
+		Recorder: mgr.GetEventRecorder("appwrappers"),
 		Scheme:   mgr.GetScheme(),
 		Config:   awConfig,
 	}).SetupWithManager(mgr); err != nil {

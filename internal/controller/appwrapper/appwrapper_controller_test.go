@@ -24,7 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -66,7 +66,7 @@ var _ = Describe("AppWrapper Controller", func() {
 
 		awReconciler = &AppWrapperReconciler{
 			Client:   k8sClient,
-			Recorder: &record.FakeRecorder{},
+			Recorder: &events.FakeRecorder{},
 			Scheme:   k8sClient.Scheme(),
 			Config:   awConfig,
 		}
@@ -405,7 +405,7 @@ var _ = Describe("AppWrapper Annotations", func() {
 	BeforeEach(func() {
 		awReconciler = &AppWrapperReconciler{
 			Client:   k8sClient,
-			Recorder: &record.FakeRecorder{},
+			Recorder: &events.FakeRecorder{},
 			Scheme:   k8sClient.Scheme(),
 			Config:   config.NewAppWrapperConfig(),
 		}

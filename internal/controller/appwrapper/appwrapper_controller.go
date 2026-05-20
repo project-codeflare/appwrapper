@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -53,7 +53,7 @@ const (
 // AppWrapperReconciler reconciles an appwrapper
 type AppWrapperReconciler struct {
 	client.Client
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	Scheme   *runtime.Scheme
 	Config   *config.AppWrapperConfig
 }
@@ -211,7 +211,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	case awv1beta2.AppWrapperResuming: // deploying components
 		if aw.Spec.Suspend {
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resuming phase")
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "ExternallySuspended", string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resuming phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, copyForStatusPatch(aw), aw, awv1beta2.AppWrapperSuspending) // abort deployment
 		}
 		err, fatal := r.createComponents(ctx, aw) // NOTE: createComponents applies patches to aw.Status incrementally as resources are created
@@ -232,7 +232,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "CreateFailed",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "CreateFailed: "+detailMsg)
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "CreateFailed", string(awv1beta2.Unhealthy), "%s", detailMsg)
 			if fatal {
 				return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperFailed) // always move to failed on fatal error
 			} else {
@@ -244,7 +244,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case awv1beta2.AppWrapperRunning: // components deployed
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Running phase")
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "ExternallySuspended", string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Running phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // begin undeployment
 		}
 
@@ -267,7 +267,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "MissingComponent",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "MissingComponent: "+detailMsg)
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "MissingComponent", string(awv1beta2.Unhealthy), "%s", detailMsg)
 			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperFailed)
 		}
 
@@ -281,7 +281,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "FailedComponent",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "FailedComponent: "+detailMsg)
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "FailedComponent", string(awv1beta2.Unhealthy), "%s", detailMsg)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 		}
 
@@ -320,7 +320,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			if now.Before(deadline) {
 				return requeueAfter(deadline.Sub(now), r.Status().Patch(ctx, aw, client.MergeFrom(orig)))
 			} else {
-				r.Recorder.Eventf(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "FoundFailedPods: %v failed pods", podStatus.failed)
+				r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "FoundFailedPods", string(awv1beta2.Unhealthy), "%v failed pods", podStatus.failed)
 				return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 			}
 		}
@@ -334,7 +334,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "AutopilotNoExecute",
 				Message: detailMsg,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), detailMsg)
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "AutopilotNoExecute", string(awv1beta2.Unhealthy), "%s", detailMsg)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, false, 0) // Autopilot triggered evacuation does not increment retry count
 		}
 
@@ -369,7 +369,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 				Reason:  "InsufficientPodsReady",
 				Message: podDetailsMessage,
 			})
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.Unhealthy), "InsufficientPodsReady: "+podDetailsMessage)
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "InsufficientPodsReady", string(awv1beta2.Unhealthy), "%s", podDetailsMessage)
 			return ctrl.Result{}, r.resetOrFail(ctx, orig, aw, podStatus.terminalFailure, 1)
 		}
 
@@ -400,7 +400,7 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case awv1beta2.AppWrapperResetting:
 		orig := copyForStatusPatch(aw)
 		if aw.Spec.Suspend {
-			r.Recorder.Event(aw, v1.EventTypeNormal, string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resetting phase")
+			r.Recorder.Eventf(aw, nil, v1.EventTypeNormal, "ExternallySuspended", string(awv1beta2.AppWrapperSuspending), "Externally suspended while in the Resetting phase")
 			return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperSuspending) // Suspending trumps Resetting
 		}
 
