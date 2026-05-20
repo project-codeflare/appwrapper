@@ -25,7 +25,6 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	discovery "k8s.io/client-go/discovery"
@@ -35,7 +34,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
 	awv1beta2 "github.com/project-codeflare/appwrapper/api/v1beta2"
@@ -72,14 +70,13 @@ type appWrapperWebhook struct {
 
 //+kubebuilder:webhook:path=/mutate-workload-codeflare-dev-v1beta2-appwrapper,mutating=true,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create,versions=v1beta2,name=mappwrapper.kb.io,admissionReviewVersions=v1
 
-var _ webhook.CustomDefaulter = &appWrapperWebhook{}
+var _ admission.Defaulter[*awv1beta2.AppWrapper] = &appWrapperWebhook{}
 
 // Default fills in default values when an AppWrapper is created:
 //  1. Inject default queue name
 //  2. Ensure Suspend is set appropriately
 //  3. Add labels with the user name and id
-func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) error {
-	aw := obj.(*awv1beta2.AppWrapper)
+func (w *appWrapperWebhook) Default(ctx context.Context, aw *awv1beta2.AppWrapper) error {
 	log.FromContext(ctx).V(2).Info("Applying defaults", "job", aw)
 
 	// propagate non-empty default queue name
@@ -102,27 +99,24 @@ func (w *appWrapperWebhook) Default(ctx context.Context, obj runtime.Object) err
 
 //+kubebuilder:webhook:path=/validate-workload-codeflare-dev-v1beta2-appwrapper,mutating=false,failurePolicy=fail,sideEffects=None,groups=workload.codeflare.dev,resources=appwrappers,verbs=create;update,versions=v1beta2,name=vappwrapper.kb.io,admissionReviewVersions=v1
 
-var _ webhook.CustomValidator = &appWrapperWebhook{}
+var _ admission.Validator[*awv1beta2.AppWrapper] = &appWrapperWebhook{}
 
 // ValidateCreate validates invariants when an AppWrapper is created
-func (w *appWrapperWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	aw := obj.(*awv1beta2.AppWrapper)
+func (w *appWrapperWebhook) ValidateCreate(ctx context.Context, aw *awv1beta2.AppWrapper) (admission.Warnings, error) {
 	log.FromContext(ctx).V(2).Info("Validating create", "job", aw)
 	allErrors := w.validateAppWrapperCreate(ctx, aw)
 	return nil, allErrors.ToAggregate()
 }
 
 // ValidateUpdate validates invariants when an AppWrapper is updated
-func (w *appWrapperWebhook) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
-	oldAW := oldObj.(*awv1beta2.AppWrapper)
-	newAW := newObj.(*awv1beta2.AppWrapper)
+func (w *appWrapperWebhook) ValidateUpdate(ctx context.Context, oldAW, newAW *awv1beta2.AppWrapper) (admission.Warnings, error) {
 	log.FromContext(ctx).V(2).Info("Validating update", "job", newAW)
 	allErrors := w.validateAppWrapperUpdate(oldAW, newAW)
 	return nil, allErrors.ToAggregate()
 }
 
-// ValidateDelete is a noop for us, but is required to implement the CustomValidator interface
-func (w *appWrapperWebhook) ValidateDelete(context.Context, runtime.Object) (admission.Warnings, error) {
+// ValidateDelete is a noop for us, but is required to implement the Validator interface
+func (w *appWrapperWebhook) ValidateDelete(context.Context, *awv1beta2.AppWrapper) (admission.Warnings, error) {
 	return nil, nil
 }
 
@@ -324,8 +318,7 @@ func SetupAppWrapperWebhook(mgr ctrl.Manager, awConfig *config.AppWrapperConfig)
 
 	}
 
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(&awv1beta2.AppWrapper{}).
+	return ctrl.NewWebhookManagedBy(mgr, &awv1beta2.AppWrapper{}).
 		WithDefaulter(wh).
 		WithValidator(wh).
 		Complete()
