@@ -66,9 +66,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.31.0)
-    echo "Downloading and installing kind v0.31.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.31.0/kind-linux-${arch} && \
+    # Download kind binary (0.32.0)
+    echo "Downloading and installing kind v0.32.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -162,6 +162,27 @@ function kind_up_cluster {
   # Determine node image tag based on kind version and desired kubernetes version
   KIND_ACTUAL_VERSION=$(kind version | awk '/ /{print $2}')
   case $KIND_ACTUAL_VERSION in
+
+    v0.32.0)
+      case $KIND_K8S_VERSION in
+        1.33)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.33.12@sha256:3f5c8443c620245e4d355cfe09e96a91ead32ceaa569d3f1ca9edf0cb2fe2ff4"}
+          ;;
+        1.34)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.34.8@sha256:02722c2dedddcfc00febf5d27fbeb9b7b2c14294c82109ff4a85d89ac9ba3256"}
+          ;;
+        1.35)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"}
+          ;;
+        1.36)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
 
     v0.31.0)
       case $KIND_K8S_VERSION in
