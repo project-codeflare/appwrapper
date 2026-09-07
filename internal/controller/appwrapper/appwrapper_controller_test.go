@@ -65,10 +65,11 @@ var _ = Describe("AppWrapper Controller", func() {
 		awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"] = append(awConfig.Autopilot.ResourceTaints["nvidia.com/gpu"], v1.Taint{Key: "extra2", Value: "test2", Effect: v1.TaintEffectPreferNoSchedule})
 
 		awReconciler = &AppWrapperReconciler{
-			Client:   k8sClient,
-			Recorder: &events.FakeRecorder{},
-			Scheme:   k8sClient.Scheme(),
-			Config:   awConfig,
+			Client:    k8sClient,
+			APIReader: k8sClient,
+			Recorder:  &events.FakeRecorder{},
+			Scheme:    k8sClient.Scheme(),
+			Config:    awConfig,
 		}
 
 		By("Reconciling: Empty -> Suspended")
@@ -215,6 +216,44 @@ var _ = Describe("AppWrapper Controller", func() {
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
+	})
+
+	It("A stale cache must not be treated as a missing component", func() {
+		advanceToResuming(pod(100, 1, true), pod(100, 0, false))
+		beginRunning()
+
+		By("Blinding the reconciler's cached client to the deployed components")
+		awReconciler.Client = &cacheBlindToPods{Client: k8sClient}
+		defer func() { awReconciler.Client = k8sClient }()
+
+		By("Reconciling: Running -> Running (the uncached read still finds every component)")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw := getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.Unhealthy))).Should(BeFalse())
+	})
+
+	It("A genuinely deleted component still fails the AppWrapper", func() {
+		advanceToResuming(pod(100, 1, true), pod(100, 0, false))
+		beginRunning()
+
+		By("Deleting one of the deployed components out from under the AppWrapper")
+		aw := getAppWrapper(awName)
+		cs := aw.Status.ComponentStatus[0]
+		victim := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
+		victim.Name = cs.Name
+		victim.Namespace = aw.Namespace
+		Expect(k8sClient.Delete(ctx, victim)).To(Succeed())
+
+		By("Reconciling: Running -> Failed")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperFailed))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.Unhealthy))).Should(BeTrue())
 	})
 
 	It("Happy Path Lifecycle", func() {
@@ -404,10 +443,11 @@ var _ = Describe("AppWrapper Annotations", func() {
 
 	BeforeEach(func() {
 		awReconciler = &AppWrapperReconciler{
-			Client:   k8sClient,
-			Recorder: &events.FakeRecorder{},
-			Scheme:   k8sClient.Scheme(),
-			Config:   config.NewAppWrapperConfig(),
+			Client:    k8sClient,
+			APIReader: k8sClient,
+			Recorder:  &events.FakeRecorder{},
+			Scheme:    k8sClient.Scheme(),
+			Config:    config.NewAppWrapperConfig(),
 		}
 	})
 

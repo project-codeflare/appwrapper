@@ -53,9 +53,13 @@ const (
 // AppWrapperReconciler reconciles an appwrapper
 type AppWrapperReconciler struct {
 	client.Client
-	Recorder events.EventRecorder
-	Scheme   *runtime.Scheme
-	Config   *config.AppWrapperConfig
+	// APIReader performs uncached reads directly against the API server. It is used to
+	// confirm the absence of a component before failing an AppWrapper, because the
+	// cache-backed Client may not yet reflect a component this controller just created.
+	APIReader client.Reader
+	Recorder  events.EventRecorder
+	Scheme    *runtime.Scheme
+	Config    *config.AppWrapperConfig
 }
 
 type podStatusSummary struct {
@@ -249,10 +253,30 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		// Gather status information at the Component and Pod level.
-		compStatus, err := r.getComponentStatus(ctx, aw)
+		compStatus, err := r.getComponentStatus(ctx, r.Client, aw)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+
+		// A missing component is a terminal verdict: it fails the AppWrapper with no grace
+		// period and no retry.  The cache-backed Client is not a sound basis for that verdict
+		// because it can lag the API server -- notably right after this controller created the
+		// component itself, or while a freshly started informer is still catching up.  Confirm
+		// the absence with an uncached read before condemning the AppWrapper.
+		if compStatus.deployed != compStatus.expected {
+			compStatus, err = r.getComponentStatus(ctx, r.apiReader(), aw)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			if compStatus.deployed != compStatus.expected {
+				log.FromContext(ctx).Info("Missing component confirmed by uncached read",
+					"deployed", compStatus.deployed, "expected", compStatus.expected)
+			} else {
+				log.FromContext(ctx).V(2).Info("Stale cache reported a missing component; uncached read found all components",
+					"expected", compStatus.expected)
+			}
+		}
+
 		podStatus, err := r.getPodStatus(ctx, aw)
 		if err != nil {
 			return ctrl.Result{}, err
@@ -625,7 +649,7 @@ func (r *AppWrapperReconciler) getPodStatus(ctx context.Context, aw *awv1beta2.A
 }
 
 //gocyclo:ignore
-func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1beta2.AppWrapper) (*componentStatusSummary, error) {
+func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, reader client.Reader, aw *awv1beta2.AppWrapper) (*componentStatusSummary, error) {
 	summary := &componentStatusSummary{expected: int32(len(aw.Status.ComponentStatus))}
 
 	for componentIdx := range aw.Status.ComponentStatus {
@@ -634,7 +658,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 
 		case "batch/v1:Job":
 			obj := &batchv1.Job{}
-			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			if err := reader.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
@@ -654,7 +678,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 			obj := &unstructured.Unstructured{}
 			obj.SetAPIVersion(cs.APIVersion)
 			obj.SetKind(cs.Kind)
-			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			if err := reader.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
@@ -689,7 +713,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 			obj := &unstructured.Unstructured{}
 			obj.SetAPIVersion(cs.APIVersion)
 			obj.SetKind(cs.Kind)
-			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			if err := reader.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
@@ -719,7 +743,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 			obj := &unstructured.Unstructured{}
 			obj.SetAPIVersion(cs.APIVersion)
 			obj.SetKind(cs.Kind)
-			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			if err := reader.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 
@@ -746,7 +770,7 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 
 		default:
 			obj := &metav1.PartialObjectMetadata{TypeMeta: metav1.TypeMeta{Kind: cs.Kind, APIVersion: cs.APIVersion}}
-			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+			if err := reader.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
 				if obj.GetDeletionTimestamp().IsZero() {
 					summary.deployed += 1
 				}
@@ -916,6 +940,15 @@ func (r *AppWrapperReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(r.podMapFunc)).
 		Named(awv1beta2.AppWrapperKind).
 		Complete(r)
+}
+
+// apiReader returns a Reader that bypasses the controller-runtime cache.
+// It falls back to the cached Client if no APIReader was injected.
+func (r *AppWrapperReconciler) apiReader() client.Reader {
+	if r.APIReader != nil {
+		return r.APIReader
+	}
+	return r.Client
 }
 
 // copyForStatusPatch returns an AppWrapper with an empty Spec and a DeepCopy of orig's Status for use in a subsequent Status().Patch(...) call
