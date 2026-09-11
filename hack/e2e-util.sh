@@ -16,7 +16,7 @@ export LOG_LEVEL=${TEST_LOG_LEVEL:-2}
 export CLEANUP_CLUSTER=${CLEANUP_CLUSTER:-"true"}
 export CLUSTER_CONTEXT=${CLUSTER_CONTEXT:-"--name test"}
 export KIND_OPT=${KIND_OPT:=" --config ${ROOT_DIR}/hack/kind-config.yaml"}
-export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.33"}
+export KIND_K8S_VERSION=${KIND_K8S_VERSION:-"1.35"}
 export KA_BIN=_output/bin
 export WAIT_TIME="20s"
 export KUTTL_VERSION=0.15.0
@@ -66,9 +66,9 @@ function update_test_host {
   which kind >/dev/null 2>&1
   if [ $? -ne 0 ]
   then
-    # Download kind binary (0.32.0)
-    echo "Downloading and installing kind v0.32.0...."
-    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.32.0/kind-linux-${arch} && \
+    # Download kind binary (0.33.0)
+    echo "Downloading and installing kind v0.33.0...."
+    sudo curl -o /usr/local/bin/kind -L https://github.com/kubernetes-sigs/kind/releases/download/v0.33.0/kind-linux-${arch} && \
     sudo chmod +x /usr/local/bin/kind
     [ $? -ne 0 ] && echo "Failed to download kind" && exit 1
     echo "Kind was sucessfully installed."
@@ -163,6 +163,27 @@ function kind_up_cluster {
   KIND_ACTUAL_VERSION=$(kind version | awk '/ /{print $2}')
   case $KIND_ACTUAL_VERSION in
 
+    v0.33.0)
+      case $KIND_K8S_VERSION in
+        1.34)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.34.11@sha256:44e222ee2132dab25ff87301682f89eb82c7880ea3a1bf543bfe9708fd08d67d"}
+          ;;
+        1.35)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"}
+          ;;
+        1.36)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed"}
+          ;;
+        1.37)
+          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"}
+          ;;
+        *)
+          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
+          exit 1
+          ;;
+      esac
+      ;;
+
     v0.32.0)
       case $KIND_K8S_VERSION in
         1.33)
@@ -200,69 +221,6 @@ function kind_up_cluster {
           ;;
         1.35)
           KIND_NODE_TAG=${KIND_NODE_TAG:="v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f"}
-          ;;
-        *)
-          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
-          exit 1
-          ;;
-      esac
-      ;;
-
-    v0.30.0)
-      case $KIND_K8S_VERSION in
-        1.31)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.31.12@sha256:0f5cc49c5e73c0c2bb6e2df56e7df189240d83cf94edfa30946482eb08ec57d2"}
-          ;;
-        1.32)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.32.8@sha256:abd489f042d2b644e2d033f5c2d900bc707798d075e8186cb65e3f1367a9d5a1"}
-          ;;
-        1.33)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.33.4@sha256:25a6018e48dfcaee478f4a59af81157a437f15e6e140bf103f85a2e7cd0cbbf2"}
-          ;;
-        1.34)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a"}
-          ;;
-        *)
-          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
-          exit 1
-          ;;
-      esac
-      ;;
-
-    v0.29.0)
-      case $KIND_K8S_VERSION in
-        1.30)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.30.13@sha256:397209b3d947d154f6641f2d0ce8d473732bd91c87d9575ade99049aa33cd648"}
-          ;;
-        1.31)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.31.9@sha256:b94a3a6c06198d17f59cca8c6f486236fa05e2fb359cbd75dabbfc348a10b211"}
-          ;;
-        1.32)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.32.5@sha256:e3b2327e3a5ab8c76f5ece68936e4cafaa82edf58486b769727ab0b3b97a5b0d"}
-          ;;
-        1.33)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.33.1@sha256:050072256b9a903bd914c0b2866828150cb229cea0efe5892e2b644d5dd3b34f"}
-          ;;
-        *)
-          echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
-          exit 1
-          ;;
-      esac
-      ;;
-
-    v0.28.0)
-      case $KIND_K8S_VERSION in
-        1.30)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="v1.30.13@sha256:8673291894dc400e0fb4f57243f5fdc6e355ceaa765505e0e73941aa1b6e0b80"}
-          ;;
-        1.31)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.31.9@sha256:156da58ab617d0cb4f56bbdb4b493f4dc89725505347a4babde9e9544888bb92"}
-          ;;
-        1.32)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.32.5@sha256:36187f6c542fa9b78d2d499de4c857249c5a0ac8cc2241bef2ccd92729a7a259"}
-          ;;
-        1.33)
-          KIND_NODE_TAG=${KIND_NODE_TAG:="node:v1.33.1@sha256:8d866994839cd096b3590681c55a6fa4a071fdaf33be7b9660e5697d2ed13002"}
           ;;
         *)
           echo "Unexpected kubernetes version: $KIND_K8S__VERSION"
