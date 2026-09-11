@@ -28,7 +28,7 @@ IMG=${quay_repository}/appwrapper:${TAG}
 endif
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.35.0
+ENVTEST_K8S_VERSION = 1.37.0
 
 # The target deployment environment, that corresponds to the Kustomize directory
 # used to build the manifests.
@@ -211,7 +211,7 @@ GENREF = $(LOCALBIN)/genref-$(GENREF_VERSION)
 KUSTOMIZE_VERSION ?= $(shell go list -m -f '{{.Version}}' sigs.k8s.io/kustomize/kustomize/v5)
 CONTROLLER_TOOLS_VERSION ?= $(shell go list -m -f '{{.Version}}' sigs.k8s.io/controller-tools)
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/golangci/golangci-lint)
+GOLANGCI_LINT_VERSION ?= $(shell go list -m -f '{{.Version}}' github.com/golangci/golangci-lint/v2)
 GENREF_VERSION ?= v0.28.0
 
 .PHONY: kustomize
@@ -232,7 +232,7 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 .PHONY: genref
 genref: $(GENREF)

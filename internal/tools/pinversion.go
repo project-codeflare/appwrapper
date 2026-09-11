@@ -20,7 +20,7 @@ package tools
 import (
 	// since verify will error when referencing a cmd package
 	// we need to reference individual dependencies used by it
-	_ "github.com/golangci/golangci-lint/pkg/exitcodes"
+	_ "github.com/golangci/golangci-lint/v2/pkg/exitcodes"
 	_ "sigs.k8s.io/controller-tools/pkg/crd"
 	_ "sigs.k8s.io/controller-tools/pkg/genall/help/pretty"
 	_ "sigs.k8s.io/kustomize/kustomize/v5/commands/edit/listbuiltin"
