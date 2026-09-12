@@ -95,6 +95,47 @@ var _ = Describe("AppWrapper Controller", func() {
 		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeTrue())
 	}
 
+	advanceJobSetToResuming := func() {
+		By("Create an AppWrapper wrapping a single JobSet")
+		aw := toAppWrapper(jobSet())
+		aw.Spec.Suspend = true
+		Expect(k8sClient.Create(ctx, aw)).To(Succeed())
+		awName = types.NamespacedName{Name: aw.Name, Namespace: aw.Namespace}
+
+		awConfig := config.NewAppWrapperConfig()
+		awConfig.FaultTolerance.FailureGracePeriod = 0 * time.Second
+		awConfig.FaultTolerance.RetryPausePeriod = 0 * time.Second
+		awConfig.FaultTolerance.RetryLimit = 0
+		awConfig.FaultTolerance.SuccessTTL = 0 * time.Second
+
+		awReconciler = &AppWrapperReconciler{
+			Client:   k8sClient,
+			Recorder: &events.FakeRecorder{},
+			Scheme:   k8sClient.Scheme(),
+			Config:   awConfig,
+		}
+
+		By("Reconciling: Empty -> Suspended")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSuspended))
+
+		By("Updating aw.Spec by invoking utils.SetPodSetInfos and setting suspend to false")
+		Expect(utils.SetPodSetInfos(aw, []awv1beta2.AppWrapperPodSetInfo{markerPodSet})).To(Succeed())
+		aw.Spec.Suspend = false
+		Expect(k8sClient.Update(ctx, aw)).To(Succeed())
+
+		By("Reconciling: Suspended -> Resuming")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Spec.Suspend).Should(BeFalse())
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperResuming))
+	}
+
 	beginRunning := func() {
 		By("Reconciling: Resuming -> Running")
 		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
@@ -298,6 +339,52 @@ var _ = Describe("AppWrapper Controller", func() {
 		podStatus, err := awReconciler.getPodStatus(ctx, aw)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(podStatus.failed + podStatus.succeeded + podStatus.running + podStatus.pending).Should(Equal(int32(0)))
+	})
+
+	It("A JobSet satisfying its SuccessPolicy leads to a succeeded AppWrapper", func() {
+		advanceJobSetToResuming()
+
+		By("Reconciling: Resuming -> Running")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+		aw := getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(aw.Status.ComponentStatus).Should(HaveLen(1))
+
+		By("Simulating the JobSet controller declaring SuccessPolicy satisfied")
+		jobSetName := types.NamespacedName{Name: aw.Status.ComponentStatus[0].Name, Namespace: aw.Namespace}
+		Expect(setJobSetCondition(jobSetName, "Completed")).To(Succeed())
+
+		By("Reconciling: Running -> Succeeded, even though no pods were ever created for the JobSet")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperSucceeded))
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.ResourcesDeployed))).Should(BeTrue())
+		Expect(meta.IsStatusConditionTrue(aw.Status.Conditions, string(awv1beta2.QuotaReserved))).Should(BeFalse())
+	})
+
+	It("A JobSet reporting Failed leads to a failed AppWrapper", func() {
+		advanceJobSetToResuming()
+
+		By("Reconciling: Resuming -> Running")
+		_, err := awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName})
+		Expect(err).NotTo(HaveOccurred())
+		aw := getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperRunning))
+		Expect(aw.Status.ComponentStatus).Should(HaveLen(1))
+
+		By("Simulating the JobSet controller declaring FailurePolicy triggered")
+		jobSetName := types.NamespacedName{Name: aw.Status.ComponentStatus[0].Name, Namespace: aw.Namespace}
+		Expect(setJobSetCondition(jobSetName, "Failed")).To(Succeed())
+
+		By("Reconciling: Running -> Failed")
+		_, err = awReconciler.Reconcile(ctx, reconcile.Request{NamespacedName: awName}) // detect failure
+		Expect(err).NotTo(HaveOccurred())
+
+		aw = getAppWrapper(awName)
+		Expect(aw.Status.Phase).Should(Equal(awv1beta2.AppWrapperFailed))
 	})
 
 	It("A Pod Failure leads to a failed AppWrapper", func() {

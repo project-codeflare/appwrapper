@@ -19,8 +19,10 @@ package appwrapper
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	admissionv1 "k8s.io/api/admission/v1"
@@ -38,6 +40,16 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// jobsetModuleDir returns the on-disk directory of the vendored sigs.k8s.io/jobset
+// module, so its CRD can be loaded into envtest without checking in a local copy.
+func jobsetModuleDir() (string, error) {
+	out, err := exec.Command("go", "list", "-m", "-f", "{{.Dir}}", "sigs.k8s.io/jobset").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
@@ -60,9 +72,13 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.Background())
 
 	By("bootstrapping test environment")
+	jobsetDir, err := jobsetModuleDir()
+	Expect(err).NotTo(HaveOccurred())
+
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "config", "crd", "bases"),
+			filepath.Join(jobsetDir, "config", "components", "crd", "bases"),
 		},
 		ErrorIfCRDPathMissing: true,
 
@@ -75,7 +91,6 @@ var _ = BeforeSuite(func() {
 			fmt.Sprintf("1.29.0-%s-%s", runtime.GOOS, runtime.GOARCH)),
 	}
 
-	var err error
 	// cfg is defined in this file globally.
 	cfg, err = testEnv.Start()
 	Expect(err).NotTo(HaveOccurred())

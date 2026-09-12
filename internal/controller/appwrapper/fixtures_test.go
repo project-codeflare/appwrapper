@@ -24,6 +24,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
@@ -215,4 +216,64 @@ func malformedPod(milliCPU int64) awv1beta2.AppWrapperComponent {
 		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
+}
+
+const jobSetYAML = `
+apiVersion: jobset.x-k8s.io/v1alpha2
+kind: JobSet
+metadata:
+  name: %v
+spec:
+  successPolicy:
+    operator: Any
+  replicatedJobs:
+  - name: workers
+    replicas: 1
+    template:
+      spec:
+        parallelism: 1
+        completions: 1
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: busybox
+              image: quay.io/project-codeflare/busybox:1.36
+              command: ["sh", "-c", "sleep 10"]`
+
+func jobSet() awv1beta2.AppWrapperComponent {
+	yamlString := fmt.Sprintf(jobSetYAML, randName("jobset"))
+	jsonBytes, err := yaml.YAMLToJSON([]byte(yamlString))
+	Expect(err).NotTo(HaveOccurred())
+	awc := &awv1beta2.AppWrapperComponent{
+		Template: runtime.RawExtension{Raw: jsonBytes},
+		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{
+			{Replicas: ptr.To(int32(1)), Path: "template.spec.replicatedJobs[0].template.spec.template"},
+		},
+	}
+	return *awc
+}
+
+// setJobSetCondition patches the named JobSet's status to add a condition, simulating
+// what the real JobSet controller would do when it evaluates SuccessPolicy/FailurePolicy.
+func setJobSetCondition(name types.NamespacedName, conditionType string) error {
+	obj := &unstructured.Unstructured{}
+	obj.SetAPIVersion("jobset.x-k8s.io/v1alpha2")
+	obj.SetKind("JobSet")
+	if err := k8sClient.Get(ctx, name, obj); err != nil {
+		return err
+	}
+	condition := map[string]interface{}{
+		"type":               conditionType,
+		"status":             string(metav1.ConditionTrue),
+		"reason":             "Test",
+		"message":            "Test",
+		"lastTransitionTime": metav1.Now().Format(time.RFC3339),
+	}
+	conditions, _, _ := unstructured.NestedSlice(obj.UnstructuredContent(), "status", "conditions")
+	conditions = append(conditions, condition)
+	if err := unstructured.SetNestedSlice(obj.UnstructuredContent(), conditions, "status", "conditions"); err != nil {
+		return err
+	}
+	return k8sClient.Status().Update(ctx, obj)
 }
