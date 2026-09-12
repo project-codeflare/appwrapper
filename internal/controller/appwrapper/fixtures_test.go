@@ -17,14 +17,17 @@ limitations under the License.
 package appwrapper
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -215,4 +218,19 @@ func malformedPod(milliCPU int64) awv1beta2.AppWrapperComponent {
 		DeclaredPodSets: []awv1beta2.AppWrapperPodSet{{Replicas: ptr.To(int32(1)), Path: "template"}},
 		Template:        runtime.RawExtension{Raw: jsonBytes},
 	}
+}
+
+// cacheBlindToPods simulates a controller-runtime cache that has not yet observed the
+// AppWrapper's deployed components: Get reports NotFound for the PartialObjectMetadata
+// reads that getComponentStatus performs, while every other operation is delegated to the
+// real client.  This reproduces the informer lag that used to fail AppWrappers outright.
+type cacheBlindToPods struct {
+	client.Client
+}
+
+func (c *cacheBlindToPods) Get(ctx context.Context, key client.ObjectKey, obj client.Object, opts ...client.GetOption) error {
+	if meta, ok := obj.(*metav1.PartialObjectMetadata); ok {
+		return apierrors.NewNotFound(schema.GroupResource{Resource: meta.Kind}, key.Name)
+	}
+	return c.Client.Get(ctx, key, obj, opts...)
 }
