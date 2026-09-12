@@ -71,9 +71,10 @@ type podStatusSummary struct {
 }
 
 type componentStatusSummary struct {
-	expected int32
-	deployed int32
-	failed   int32
+	expected  int32
+	deployed  int32
+	succeeded int32
+	failed    int32
 }
 
 // permission to fully control appwrappers
@@ -288,7 +289,10 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 
 		// Handle Success
-		if podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0) {
+		// A component may declare itself succeeded (e.g. a JobSet satisfying its SuccessPolicy)
+		// even though not every pod it created reached the Succeeded phase; such a component-level
+		// signal is authoritative and is not second-guessed by the pod-level counts below.
+		if (podStatus.succeeded >= podStatus.expected && (podStatus.pending+podStatus.running+podStatus.failed == 0)) || compStatus.succeeded > 0 {
 			msg := fmt.Sprintf("%v pods succeeded and no running, pending, or failed pods", podStatus.succeeded)
 			meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 				Type:    string(awv1beta2.QuotaReserved),
@@ -679,6 +683,42 @@ func (r *AppWrapperReconciler) getComponentStatus(ctx context.Context, aw *awv1b
 								if status, ok := condMap["status"]; ok && status.(string) == "True" {
 									summary.failed += 1
 								}
+							}
+						}
+					}
+				}
+			} else if !apierrors.IsNotFound(err) {
+				return nil, err
+			}
+
+		case "jobset.x-k8s.io/v1alpha2:JobSet":
+			obj := &unstructured.Unstructured{}
+			obj.SetAPIVersion(cs.APIVersion)
+			obj.SetKind(cs.Kind)
+			if err := r.Get(ctx, types.NamespacedName{Name: cs.Name, Namespace: aw.Namespace}, obj); err == nil {
+				if obj.GetDeletionTimestamp().IsZero() {
+					summary.deployed += 1
+
+					// JobSet is succeeded/failed based on its SuccessPolicy/FailurePolicy evaluation,
+					// which is reflected in the "Completed"/"Failed" status conditions and may not
+					// align with a simple count of succeeded/failed pods (e.g. SuccessPolicy Operator: Any).
+					conditions, ok, err := unstructured.NestedSlice(obj.UnstructuredContent(), "status", "conditions")
+					if err == nil && ok {
+						for _, c := range conditions {
+							condMap, ok := c.(map[string]interface{})
+							if !ok {
+								continue
+							}
+							condType, _ := condMap["type"].(string)
+							condStatus, _ := condMap["status"].(string)
+							if condStatus != string(metav1.ConditionTrue) {
+								continue
+							}
+							switch condType {
+							case "Completed":
+								summary.succeeded += 1
+							case "Failed":
+								summary.failed += 1
 							}
 						}
 					}
