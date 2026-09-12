@@ -48,6 +48,8 @@ import (
 
 const (
 	AppWrapperFinalizer = "workload.codeflare.dev/finalizer"
+
+	suspendIsFalseMessage = "Suspend is false"
 )
 
 // AppWrapperReconciler reconciles an appwrapper
@@ -191,25 +193,25 @@ func (r *AppWrapperReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			Type:    string(awv1beta2.QuotaReserved),
 			Status:  metav1.ConditionTrue,
 			Reason:  string(awv1beta2.AppWrapperResuming),
-			Message: "Suspend is false",
+			Message: suspendIsFalseMessage,
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(awv1beta2.ResourcesDeployed),
 			Status:  metav1.ConditionTrue,
 			Reason:  string(awv1beta2.AppWrapperResuming),
-			Message: "Suspend is false",
+			Message: suspendIsFalseMessage,
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(awv1beta2.PodsReady),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(awv1beta2.AppWrapperResuming),
-			Message: "Suspend is false",
+			Message: suspendIsFalseMessage,
 		})
 		meta.SetStatusCondition(&aw.Status.Conditions, metav1.Condition{
 			Type:    string(awv1beta2.Unhealthy),
 			Status:  metav1.ConditionFalse,
 			Reason:  string(awv1beta2.AppWrapperResuming),
-			Message: "Suspend is false",
+			Message: suspendIsFalseMessage,
 		})
 		return ctrl.Result{}, r.transitionToPhase(ctx, orig, aw, awv1beta2.AppWrapperResuming)
 

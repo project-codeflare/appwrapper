@@ -83,6 +83,8 @@ type HealthConfiguration struct {
 	BindAddress string `json:"bindAddress,omitempty"`
 }
 
+const gpuHealthTaintKey = "autopilot.ibm.com/gpuhealth"
+
 // NewAppWrapperConfig constructs an AppWrapperConfig and fills in default values
 func NewAppWrapperConfig() *AppWrapperConfig {
 	return &AppWrapperConfig{
@@ -91,9 +93,9 @@ func NewAppWrapperConfig() *AppWrapperConfig {
 			MonitorNodes:         true,
 			ResourceTaints: map[string][]v1.Taint{
 				"nvidia.com/gpu": {
-					{Key: "autopilot.ibm.com/gpuhealth", Value: "WARN", Effect: v1.TaintEffectPreferNoSchedule},
-					{Key: "autopilot.ibm.com/gpuhealth", Value: "TESTING", Effect: v1.TaintEffectNoSchedule},
-					{Key: "autopilot.ibm.com/gpuhealth", Value: "EVICT", Effect: v1.TaintEffectNoExecute}},
+					{Key: gpuHealthTaintKey, Value: "WARN", Effect: v1.TaintEffectPreferNoSchedule},
+					{Key: gpuHealthTaintKey, Value: "TESTING", Effect: v1.TaintEffectNoSchedule},
+					{Key: gpuHealthTaintKey, Value: "EVICT", Effect: v1.TaintEffectNoExecute}},
 			},
 			PreferNoScheduleWeight: ptr.To(int32(50)),
 		},

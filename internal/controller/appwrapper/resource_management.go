@@ -313,9 +313,10 @@ func (r *AppWrapperReconciler) createComponent(ctx context.Context, aw *awv1beta
 			for resource, taints := range r.Config.Autopilot.ResourceTaints {
 				if hasResourceRequest(spec, resource) {
 					for _, taint := range taints {
-						if taint.Effect == v1.TaintEffectNoExecute || taint.Effect == v1.TaintEffectNoSchedule {
+						switch taint.Effect {
+						case v1.TaintEffectNoExecute, v1.TaintEffectNoSchedule:
 							toAddRequired[taint.Key] = append(toAddRequired[taint.Key], taint.Value)
-						} else if taint.Effect == v1.TaintEffectPreferNoSchedule {
+						case v1.TaintEffectPreferNoSchedule:
 							toAddPreferred[taint.Key] = append(toAddPreferred[taint.Key], taint.Value)
 						}
 					}
@@ -457,7 +458,7 @@ func (r *AppWrapperReconciler) deleteComponents(ctx context.Context, aw *awv1bet
 
 	deletionGracePeriod := r.forcefulDeletionGraceDuration(ctx, aw)
 	whenInitiated := meta.FindStatusCondition(aw.Status.Conditions, string(awv1beta2.DeletingResources)).LastTransitionTime
-	gracePeriodExpired := time.Now().After(whenInitiated.Time.Add(deletionGracePeriod))
+	gracePeriodExpired := time.Now().After(whenInitiated.Add(deletionGracePeriod))
 
 	if componentsRemaining && !gracePeriodExpired {
 		// Resources left and deadline hasn't expired, just requeue the deletion

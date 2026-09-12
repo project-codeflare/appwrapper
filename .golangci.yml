@@ -1,32 +1,16 @@
+version: "2"
 run:
-  deadline: 5m
   allow-parallel-runners: true
-
-# Settings of specific linters
-linters-settings:
-  gci:
-    sections:
-    - standard
-    - default
-    - prefix(github.com/project-codeflare/appwrapper)
-    - blank
-    - dot
-    skip-generated: true # Skip generated files.
-
 linters:
-  disable-all: true
+  default: none
   enable:
   - copyloopvar
   - dupl
   - dupword
   - errcheck
-  - gci
   - ginkgolinter
   - goconst
   - gocyclo
-  - gofmt
-  - goimports
-  - gosimple
   - govet
   - ineffassign
   - lll
@@ -34,34 +18,51 @@ linters:
   - nakedret
   - prealloc
   - staticcheck
-  - typecheck
   - unconvert
   - unparam
   - unused
-
-issues:
-  # don't skip warning about doc comments
-  # don't exclude the default set of lint
-  exclude-use-default: false
-  # restore some of the defaults
-  # (fill in the rest as needed)
-  exclude-rules:
-  - path: "test/*"
-    linters:
-    - goconst
-    - lll
-    - prealloc
-    - staticcheck
-    - unparam
-    - unused
-    - ineffassign
-  - path: "api/*"
-    linters:
-    - lll
-  - path: "internal/*"
-    linters:
-    - dupl
-    - lll
-  - path: "pkg/*"
-    linters:
-    - lll
+  exclusions:
+    generated: lax
+    rules:
+    - linters:
+      - goconst
+      - ineffassign
+      - lll
+      - prealloc
+      - staticcheck
+      - unparam
+      - unused
+      path: test/*
+    - linters:
+      - lll
+      path: api/*
+    - linters:
+      - dupl
+      - lll
+      path: internal/*
+    - linters:
+      - lll
+      path: pkg/*
+    paths:
+    - third_party$
+    - builtin$
+    - examples$
+formatters:
+  enable:
+  - gci
+  - gofmt
+  - goimports
+  settings:
+    gci:
+      sections:
+      - standard
+      - default
+      - prefix(github.com/project-codeflare/appwrapper)
+      - blank
+      - dot
+  exclusions:
+    generated: lax
+    paths:
+    - third_party$
+    - builtin$
+    - examples$
