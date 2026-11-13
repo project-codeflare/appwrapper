@@ -34,7 +34,6 @@ export IMAGE_JOBSET_OPERATOR="registry.k8s.io/jobset/jobset:v0.12.0"
 
 # These are small images used by the e2e tests.
 # Pull and kind load to avoid long delays during testing
-export IMAGE_ECHOSERVER="quay.io/project-codeflare/echo-server:1.0"
 export IMAGE_BUSY_BOX_LATEST="quay.io/project-codeflare/busybox:latest"
 export IMAGE_CURL="quay.io/curl/curl:8.11.1"
 
@@ -145,7 +144,7 @@ function check_prerequisites {
 }
 
 function pull_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
+  for image in ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
   do
       docker pull $image
       if [ $? -ne 0 ]
@@ -246,7 +245,7 @@ function kind_up_cluster {
 }
 
 function kind_load_images {
-  for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
+  for image in ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
   do
     kind load docker-image ${image} ${CLUSTER_CONTEXT}
     if [ $? -ne 0 ]
