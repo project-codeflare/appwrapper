@@ -147,7 +147,11 @@ docker-push: ## Push docker image with the manager.
 
 .PHONY: kind-push
 kind-push: ## Push docker image with the manager into a kind cluster
-	kind load docker-image ${IMG} --name $(shell kind get clusters)
+	# Workaround for https://github.com/kubernetes-sigs/kind/issues/3795: load a single-platform archive
+	archive=$$(mktemp) && \
+	docker image save --platform linux/$$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/') --output $$archive ${IMG} && \
+	kind load image-archive $$archive --name $(shell kind get clusters); \
+	rc=$$?; rm -f $$archive; exit $$rc
 
 # PLATFORMS defines the target platforms for the manager image be built to provide support to multiple
 # architectures. (i.e. make docker-buildx IMG=myregistry/mypoperator:0.0.1). To use this option you need to:

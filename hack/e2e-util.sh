@@ -245,10 +245,30 @@ function kind_up_cluster {
   CLUSTER_STARTED="true"
 }
 
+# Workaround for https://github.com/kubernetes-sigs/kind/issues/3795:
+# with the containerd image store, `kind load docker-image` imports all platforms
+# and fails with "content digest ... not found" for multi-platform images.
+# Save only the platform of the kind nodes and load the resulting archive instead.
+function kind_load_image {
+  local image=$1
+  local arch archive rc
+  case "$(uname -m)" in
+    x86_64|amd64) arch=amd64 ;;
+    aarch64|arm64) arch=arm64 ;;
+    *) arch=$(uname -m) ;;
+  esac
+  archive=$(mktemp) || return 1
+  docker image save --platform "linux/${arch}" --output "${archive}" "${image}" &&
+    kind load image-archive "${archive}" ${CLUSTER_CONTEXT}
+  rc=$?
+  rm -f "${archive}"
+  return $rc
+}
+
 function kind_load_images {
   for image in ${IMAGE_ECHOSERVER} ${IMAGE_BUSY_BOX_LATEST} ${IMAGE_CURL} ${IMAGE_KUBEFLOW_OPERATOR} ${IMAGE_KUBERAY_OPERATOR} ${IMAGE_JOBSET_OPERATOR}
   do
-    kind load docker-image ${image} ${CLUSTER_CONTEXT}
+    kind_load_image ${image}
     if [ $? -ne 0 ]
     then
       echo "Failed to load image ${image} in cluster"
