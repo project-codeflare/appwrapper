@@ -3,6 +3,11 @@ source "https://rubygems.org"
 gem "github-pages", group: :jekyll_plugins
 
 gem "tzinfo-data"
+
+# Ruby 3.1 (used by CI) resolves multi_json 1.19.1, which is incompatible
+# with json >= 3.1 (JSON.parse became keyword-only). Pin json until CI moves
+# to a Ruby that can use a fixed multi_json.
+gem "json", "< 3.1"
 gem "wdm", "~> 0.1.0" if Gem.win_platform?
 
 # If you have any plugins, put them here!
